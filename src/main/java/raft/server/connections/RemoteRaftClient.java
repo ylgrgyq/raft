@@ -5,7 +5,6 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.util.concurrent.Future;
 import raft.server.rpc.AppendEntries;
 import raft.server.rpc.Request;
 
@@ -34,9 +33,10 @@ public class RemoteRaftClient {
 
             @Override
             protected void initChannel(final SocketChannel channel) throws Exception {
-                final ChannelPipeline pipeline = channel.pipeline();
-
-                pipeline.addLast(new RaftRequestHandler(null));
+                final ChannelPipeline p = channel.pipeline();
+                p.addLast(new NettyEncoder());
+                p.addLast(new NettyDecoder());
+                p.addLast("raftHandler", new RaftRequestHandler(null));
             }
         });
     }
@@ -54,10 +54,15 @@ public class RemoteRaftClient {
 
     public ChannelFuture ping() {
         AppendEntries ping = new AppendEntries();
-        return channelFuture.channel().writeAndFlush(ping);
+        return channelFuture.channel().writeAndFlush("Ping");
     }
 
     public ChannelFuture close() {
         return channelFuture.channel().close();
+    }
+
+    @Override
+    public String toString() {
+        return "" + channelFuture.channel().remoteAddress();
     }
 }

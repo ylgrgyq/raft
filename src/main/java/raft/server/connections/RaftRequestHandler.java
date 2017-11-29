@@ -8,7 +8,7 @@ import raft.server.RaftServer;
  * Author: ylgrgyq
  * Date: 17/11/23
  */
-public class RaftRequestHandler extends SimpleChannelInboundHandler<Object> {
+public class RaftRequestHandler extends SimpleChannelInboundHandler<String> {
     private RaftServer server;
 
     public RaftRequestHandler(RaftServer server) {
@@ -16,7 +16,13 @@ public class RaftRequestHandler extends SimpleChannelInboundHandler<Object> {
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext channelHandlerContext, Object o) throws Exception {
+    protected void channelRead0(ChannelHandlerContext ctx, String o) throws Exception {
+        System.out.println("Receive msg: " + o);
+    }
 
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        System.out.println("Got exception" + cause.getMessage());
+        cause.printStackTrace();
     }
 }
