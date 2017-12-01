@@ -2,26 +2,24 @@ package raft.server.rpc;
 
 import io.netty.buffer.ByteBuf;
 
-import java.nio.ByteBuffer;
-
 /**
  * Author: ylgrgyq
  * Date: 17/11/22
  */
-public class AppendEntries extends Request{
-    private String leaderId;
-    private long prevLogIndex;
-    private long prevLogTerm;
+public class RequestVote extends Request {
+    private long candidateId;
+    private long lastLogIndex;
+    private long lastLogTerm;
 
-    private long leaderCommit;
-
-    public AppendEntries(RequestHeader header) {
+    public RequestVote(RequestHeader header) {
         super(header);
     }
 
     @Override
     public void decode(ByteBuf buf) {
-
+        this.candidateId = buf.readLong();
+        this.lastLogIndex = buf.readLong();
+        this.lastLogTerm = buf.readLong();
     }
 
     @Override

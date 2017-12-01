@@ -5,11 +5,14 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import raft.server.RaftServer;
+import raft.server.Util;
 import raft.server.rpc.AppendEntries;
 import raft.server.rpc.Request;
+import raft.server.rpc.RequestCode;
+import raft.server.rpc.RequestHeader;
 
 import java.net.InetSocketAddress;
-
 
 /**
  * Author: ylgrgyq
@@ -18,8 +21,11 @@ import java.net.InetSocketAddress;
 public class RemoteRaftClient {
     private final Bootstrap bootstrap;
     private ChannelFuture channelFuture;
+    private String id;
+    private RaftServer server;
 
-    public RemoteRaftClient(EventLoopGroup eventLoopGroup) {
+    public RemoteRaftClient(final EventLoopGroup eventLoopGroup, final RaftServer server) {
+        this.server = server;
         this.bootstrap = new Bootstrap();
 
         if (eventLoopGroup != null){
@@ -36,7 +42,7 @@ public class RemoteRaftClient {
                 final ChannelPipeline p = channel.pipeline();
                 p.addLast(new NettyEncoder());
                 p.addLast(new NettyDecoder());
-                p.addLast("raftHandler", new RaftRequestHandler(null));
+                p.addLast(server.getHandler());
             }
         });
     }
@@ -48,13 +54,24 @@ public class RemoteRaftClient {
         return channelFuture;
     }
 
+    public String getId() {
+        if (this.id == null) {
+            this.id = Util.parseChannelRemoteAddr(channelFuture.channel());
+        }
+        return this.id;
+    }
+
     public void send(Request req) {
 
     }
 
     public ChannelFuture ping() {
-        AppendEntries ping = new AppendEntries();
-        return channelFuture.channel().writeAndFlush("Ping");
+
+        RequestHeader header = new RequestHeader();
+        header.setTerm(server.getTerm());
+        header.setRequestCode(RequestCode.APPEND_ENTRIES);
+        AppendEntries ping = new AppendEntries(header);
+        return channelFuture.channel().writeAndFlush(ping);
     }
 
     public ChannelFuture close() {

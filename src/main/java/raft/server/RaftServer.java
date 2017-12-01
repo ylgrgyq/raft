@@ -10,8 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.connections.NettyDecoder;
 import raft.server.connections.NettyEncoder;
-import raft.server.connections.RaftRequestHandler;
 import raft.server.connections.RemoteRaftClient;
+import raft.server.rpc.Request;
 
 import java.net.InetSocketAddress;
 import java.util.List;
@@ -26,19 +26,20 @@ import java.util.concurrent.TimeUnit;
  * Date: 17/11/21
  */
 public class RaftServer {
-    Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
+    private Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
 
     private final int port;
     private final EventLoopGroup bossGroup;
     private final EventLoopGroup workerGroup;
-    private final ConcurrentHashMap<ChannelId, RemoteRaftClient> clients = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, RemoteRaftClient> clients = new ConcurrentHashMap<>();
 
     private long clientReconnectDelayMillis;
     private long pingIntervalMillis;
     private ChannelFuture serverChannelFuture;
     private State state;
-    private long currentTerm;
+    private int currentTerm;
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+    private ChannelHandler handler = new RaftRequestHandler();
 
     protected RaftServer(EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
                          long clientReconnectDelayMillis, long pingIntervalMillis, State state) {
@@ -76,7 +77,7 @@ public class RaftServer {
                         p.addLast(new LineBasedFrameDecoder(123123123));
                         p.addLast(new NettyEncoder());
                         p.addLast(new NettyDecoder());
-                        p.addLast("raftHandler", new RaftRequestHandler(RaftServer.this));
+                        p.addLast(handler);
                     }
                 });
 
@@ -93,21 +94,22 @@ public class RaftServer {
                 });
             }
             logger.info("Ping to all clients done");
-        }, 0, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
+        }, this.pingIntervalMillis, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
         return this.serverChannelFuture;
     }
 
     private void connectToClient(InetSocketAddress addr) {
-        RemoteRaftClient client = new RemoteRaftClient(this.workerGroup);
-        ChannelFuture future = client.connect(addr);
+        final RemoteRaftClient client = new RemoteRaftClient(this.workerGroup, this);
+        final ChannelFuture future = client.connect(addr);
         future.addListener((ChannelFuture f) -> {
             if (f.isSuccess()) {
                 logger.info("Connect to " + addr + " success");
-                Channel ch = f.channel();
-                clients.put(ch.id(), client);
+                final Channel ch = f.channel();
+                final String id = client.getId();
+                clients.put(id, client);
                 ch.closeFuture().addListener(cf -> {
                     logger.warn("Connection with " + addr + " lost");
-                    clients.remove(ch.id());
+                    clients.remove(id);
                     this.workerGroup.schedule(() -> connectToClient(addr),
                             clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
                 });
@@ -125,6 +127,14 @@ public class RaftServer {
 
     void sync() throws InterruptedException {
         this.serverChannelFuture.channel().closeFuture().sync();
+    }
+
+    public ChannelHandler getHandler() {
+        return handler;
+    }
+
+    public int getTerm() {
+        return currentTerm;
     }
 
     static class RaftServerBuilder {
@@ -169,6 +179,19 @@ public class RaftServer {
         RaftServer build() {
             return new RaftServer(this.bossGroup, this.workerGroup, this.port,
                     this.clientReconnectDelayMillis, this.pingIntervalMillis, this.state);
+        }
+    }
+
+    class RaftRequestHandler extends SimpleChannelInboundHandler<Request> {
+        @Override
+        protected void channelRead0(ChannelHandlerContext ctx, Request o) throws Exception {
+            System.out.println("Receive msg: " + o);
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            System.out.println("Got exception" + cause.getMessage());
+            cause.printStackTrace();
         }
     }
 }

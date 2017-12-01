@@ -1,4 +1,4 @@
-package raft;
+package raft.server;
 
 /**
  * Author: ylgrgyq
