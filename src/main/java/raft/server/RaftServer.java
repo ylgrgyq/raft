@@ -11,7 +11,9 @@ import org.slf4j.LoggerFactory;
 import raft.server.connections.NettyDecoder;
 import raft.server.connections.NettyEncoder;
 import raft.server.connections.RemoteRaftClient;
-import raft.server.rpc.Request;
+import raft.server.rpc.AppendEntries;
+import raft.server.rpc.RemotingCommand;
+import raft.server.rpc.RemotingCommandVote;
 
 import java.net.InetSocketAddress;
 import java.util.List;
@@ -74,7 +76,6 @@ public class RaftServer {
                     @Override
                     public void initChannel(SocketChannel ch) {
                         ChannelPipeline p = ch.pipeline();
-                        p.addLast(new LineBasedFrameDecoder(123123123));
                         p.addLast(new NettyEncoder());
                         p.addLast(new NettyDecoder());
                         p.addLast(handler);
@@ -88,7 +89,7 @@ public class RaftServer {
             for (final RemoteRaftClient client : this.clients.values()) {
                 client.ping().addListener((ChannelFuture f) -> {
                     if (!f.isSuccess()) {
-                        logger.warn("Ping to " + client + " failed");
+                        logger.warn("Ping to " + client + " failed", f.cause());
                         client.close();
                     }
                 });
@@ -182,10 +183,20 @@ public class RaftServer {
         }
     }
 
-    class RaftRequestHandler extends SimpleChannelInboundHandler<Request> {
+    @ChannelHandler.Sharable
+    class RaftRequestHandler extends SimpleChannelInboundHandler<RemotingCommand> {
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, Request o) throws Exception {
-            System.out.println("Receive msg: " + o);
+        protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand o) throws Exception {
+            switch (o.getCommandCode()) {
+                case REQUEST_VOTE:
+                    RemotingCommandVote vote = new RemotingCommandVote();
+                    vote.decode(o.getBody());
+                    System.out.println("Receive msg: " + vote);
+                case APPEND_ENTRIES:
+                    AppendEntries entry = new AppendEntries();
+                    entry.decode(o.getBody());
+                    System.out.println("Receive msg: " + entry);
+            }
         }
 
         @Override

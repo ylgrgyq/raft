@@ -5,18 +5,16 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.RaftServer;
 import raft.server.Util;
-import raft.server.rpc.AppendEntries;
-import raft.server.rpc.RequestHeader;
-import raft.server.rpc.RequestVote;
+import raft.server.rpc.RemotingCommand;
 
 /**
  * Author: ylgrgyq
  * Date: 17/11/29
  */
 public class NettyDecoder extends LengthFieldBasedFrameDecoder {
-    private static Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
+    private static Logger logger = LoggerFactory.getLogger(NettyDecoder.class.getName());
+
     private static final int FRAME_MAX_LENGTH =
             Integer.parseInt(System.getProperty("raft.server.frameMaxLength", "16777216"));
 
@@ -29,18 +27,11 @@ public class NettyDecoder extends LengthFieldBasedFrameDecoder {
         ByteBuf frame = null;
         try {
             frame = (ByteBuf) super.decode(ctx, in);
-
-            RequestHeader header = RequestHeader.decode(frame);
-            switch (header.getRequestCode()) {
-                case REQUEST_VOTE:
-                    RequestVote vote = new RequestVote(header);
-                    vote.decode(frame);
-                    return vote;
-                case APPEND_ENTRIES:
-                    AppendEntries entry = new AppendEntries(header);
-                    entry.decode(frame);
-                    return entry;
+            if (frame == null) {
+                return null;
             }
+
+            return RemotingCommand.decode(frame);
         } catch (Exception e) {
             logger.error("decode exception from {}", Util.parseChannelRemoteAddr(ctx.channel()), e);
         } finally {

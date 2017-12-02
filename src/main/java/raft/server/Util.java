@@ -1,6 +1,8 @@
 package raft.server;
 
 import io.netty.channel.Channel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.SocketAddress;
 
@@ -9,6 +11,7 @@ import java.net.SocketAddress;
  * Date: 17/11/30
  */
 public class Util {
+    private static Logger logger = LoggerFactory.getLogger(Util.class.getName());
 
     public static String parseChannelRemoteAddr(final Channel channel) {
         if (channel == null) {
@@ -26,5 +29,13 @@ public class Util {
         }
 
         return remoteAddr;
+    }
+
+    public static void closeChannel(Channel channel) {
+        final String addrRemote = Util.parseChannelRemoteAddr(channel);
+        channel.close().addListener(future ->
+                logger.info("closeChannel: close the connection to remote address[{}] result: {}", addrRemote,
+                        future.isSuccess())
+        );
     }
 }

@@ -4,19 +4,34 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
-import raft.server.rpc.Request;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import raft.server.Util;
+import raft.server.rpc.RemotingCommand;
 
 /**
  * Author: ylgrgyq
  * Date: 17/11/29
  */
-public class NettyEncoder extends MessageToByteEncoder<Request> {
+public class NettyEncoder extends MessageToByteEncoder<RemotingCommand> {
+    private static Logger logger = LoggerFactory.getLogger(NettyEncoder.class.getName());
+
     @Override
-    protected void encode(ChannelHandlerContext ctx, Request msg, ByteBuf out) throws Exception {
-        ByteBufAllocator alloc = ctx.alloc();
-        ByteBuf buf = alloc.buffer(msg.getLength());
-        msg.encode(buf);
-        out.writeBytes(buf);
+    protected void encode(ChannelHandlerContext ctx, RemotingCommand msg, ByteBuf out) throws Exception {
+        try {
+            ByteBufAllocator alloc = ctx.alloc();
+            ByteBuf buf = alloc.buffer(msg.getLength());
+            buf = msg.encode(buf);
+            out.writeBytes(buf);
+            byte[] body = msg.getBody();
+            if (body != null) {
+                out.writeBytes(body);
+            }
+        } catch (Exception e) {
+            logger.error("encode exception from {}", Util.parseChannelRemoteAddr(ctx.channel()), e);
+
+            Util.closeChannel(ctx.channel());
+        }
     }
 }
 

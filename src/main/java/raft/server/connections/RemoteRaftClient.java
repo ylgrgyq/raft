@@ -8,9 +8,8 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import raft.server.RaftServer;
 import raft.server.Util;
 import raft.server.rpc.AppendEntries;
-import raft.server.rpc.Request;
-import raft.server.rpc.RequestCode;
-import raft.server.rpc.RequestHeader;
+import raft.server.rpc.CommandCode;
+import raft.server.rpc.RemotingCommand;
 
 import java.net.InetSocketAddress;
 
@@ -61,17 +60,18 @@ public class RemoteRaftClient {
         return this.id;
     }
 
-    public void send(Request req) {
+    public void send(RemotingCommand req) {
 
     }
 
     public ChannelFuture ping() {
+        AppendEntries ping = new AppendEntries();
+        RemotingCommand cmd = RemotingCommand.createRequestCommand();
+        cmd.setTerm(server.getTerm());
+        cmd.setCommandCode(CommandCode.APPEND_ENTRIES);
+        cmd.setBody(ping.encode());
 
-        RequestHeader header = new RequestHeader();
-        header.setTerm(server.getTerm());
-        header.setRequestCode(RequestCode.APPEND_ENTRIES);
-        AppendEntries ping = new AppendEntries(header);
-        return channelFuture.channel().writeAndFlush(ping);
+        return channelFuture.channel().writeAndFlush(cmd);
     }
 
     public ChannelFuture close() {
