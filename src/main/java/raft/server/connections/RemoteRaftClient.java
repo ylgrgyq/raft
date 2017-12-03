@@ -6,10 +6,11 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import raft.server.RaftServer;
-import raft.server.Util;
+import raft.Util;
 import raft.server.rpc.AppendEntries;
 import raft.server.rpc.CommandCode;
 import raft.server.rpc.RemotingCommand;
+import raft.server.rpc.RequestVote;
 
 import java.net.InetSocketAddress;
 
@@ -62,6 +63,18 @@ public class RemoteRaftClient {
 
     public void send(RemotingCommand req) {
 
+    }
+
+    public ChannelFuture requestVote() {
+        RequestVote vote = new RequestVote();
+        vote.setCandidateId(server.getId());
+
+        RemotingCommand cmd = RemotingCommand.createRequestCommand();
+        cmd.setTerm(server.getTerm());
+        cmd.setCommandCode(CommandCode.APPEND_ENTRIES);
+        cmd.setBody(vote.encode());
+
+        return channelFuture.channel().writeAndFlush(cmd);
     }
 
     public ChannelFuture ping() {

@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
  * Date: 17/11/22
  */
 public class AppendEntries implements SerializableCommand {
-    private String leaderId = null;
+    private String leaderId = "";
     private long prevLogIndex = -1;
     private long prevLogTerm = -1;
 
@@ -26,7 +26,7 @@ public class AppendEntries implements SerializableCommand {
     }
 
     public byte[] encode() {
-        byte[] leaderIdBytes = new byte[0];
+        byte[] leaderIdBytes = SerializableCommand.EMPTY_BYTES;
         if (leaderId != null) {
             leaderIdBytes = leaderId.getBytes(StandardCharsets.UTF_8);
         }

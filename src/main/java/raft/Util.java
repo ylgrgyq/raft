@@ -1,4 +1,4 @@
-package raft.server;
+package raft;
 
 import io.netty.channel.Channel;
 import org.slf4j.Logger;

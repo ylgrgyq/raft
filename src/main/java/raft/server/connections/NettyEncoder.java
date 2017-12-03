@@ -6,7 +6,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.Util;
+import raft.Util;
 import raft.server.rpc.RemotingCommand;
 
 /**
