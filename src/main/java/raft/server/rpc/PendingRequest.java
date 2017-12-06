@@ -11,24 +11,32 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PendingRequest {
     private org.slf4j.Logger logger = LoggerFactory.getLogger(PendingRequest.class.getName());
 
-    private PendingRequestCallback callback;
-    private RemotingCommand req;
-    private RemotingCommand res;
-    private AtomicBoolean responseAlreadySet = new AtomicBoolean(false);
+    private final long requestBeginTimestamp = System.currentTimeMillis();
+    private final long timeoutMillis;
+    private final PendingRequestCallback callback;
+    private final RemotingCommand req;
+    private final AtomicBoolean responseAlreadySet = new AtomicBoolean(false);
 
-    public PendingRequest(RemotingCommand request) {
-        this(request, null);
+    private RemotingCommand res;
+
+    public PendingRequest(RemotingCommand request, long timeoutMillis) {
+        this(request, timeoutMillis, null);
     }
 
-    public PendingRequest(RemotingCommand request, PendingRequestCallback callback) {
+    public PendingRequest(RemotingCommand request, long timeoutMillis, PendingRequestCallback callback) {
         this.req = request;
         this.callback = callback;
+        this.timeoutMillis = timeoutMillis;
     }
 
     public void executeCallback() throws Exception {
         if (callback != null) {
             callback.operationComplete(this);
         }
+    }
+
+    public boolean isTimeout() {
+        return (requestBeginTimestamp + timeoutMillis) < System.currentTimeMillis();
     }
 
     public PendingRequestCallback getCallback() {

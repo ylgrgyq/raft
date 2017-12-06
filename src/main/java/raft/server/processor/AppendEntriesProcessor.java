@@ -20,7 +20,7 @@ public class AppendEntriesProcessor extends AbstractProcessor{
         int term = request.getTerm();
         final RaftServer server = this.getServer();
         if (term >= server.getTerm()) {
-            server.setStateToFollower(entry.getLeaderId());
+            server.transferStateToFollower(entry.getLeaderId());
         }
         System.out.println("Receive msg: " + entry);
         return null;

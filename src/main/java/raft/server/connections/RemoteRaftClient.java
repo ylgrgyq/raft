@@ -74,7 +74,7 @@ public class RemoteRaftClient {
         cmd.setCommandCode(CommandCode.APPEND_ENTRIES);
         cmd.setBody(vote.encode());
 
-        this.server.addPendingRequest(cmd, callable);
+        this.server.addPendingRequest(cmd, 3000, callable);
         ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
         future.addListener(f -> {
             if (!f.isSuccess()) {

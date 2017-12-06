@@ -20,9 +20,7 @@ import raft.server.rpc.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,10 +45,12 @@ public class RaftServer {
     private int term;
     private String selfId;
     private String leaderId;
+    private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService processorExecutorService = Executors.newFixedThreadPool(Integer.parseInt(System.getProperty("raft.server.processor.thread.pool.size", "8")));
     private ChannelHandler handler = new RaftRequestHandler();
     private ScheduledFuture electionTimeoutFuture;
     private ConcurrentHashMap<Integer, PendingRequest> pendingRequestTable = new ConcurrentHashMap<>();
+
 
 
     private RaftServer(String selfId, EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
@@ -65,7 +65,7 @@ public class RaftServer {
         this.selfId = selfId;
     }
 
-    public void setStateToFollower(String leaderId) {
+    public synchronized void transferStateToFollower(String leaderId) {
         this.state = State.FOLLOWER;
         this.leaderId = leaderId;
     }
@@ -78,22 +78,22 @@ public class RaftServer {
                 , electionTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
-    void startElection() {
+    synchronized void startElection() {
         if (this.state != State.LEADER) {
-            ThreadLocalRandom random = ThreadLocalRandom.current();
-            int electionTimeoutMillis = random.nextInt(this.maxElectionTimeoutMillis);
-
             this.state = State.CANDIDATE;
             this.term += 1;
-            List<ChannelFuture> requestVoteFutures = new ArrayList<>(this.clients.size());
 
-            AtomicInteger votesGot = new AtomicInteger();
+            final int clientsSize = this.clients.size();
+            final List<ChannelFuture> requestVoteFutures = new ArrayList<>(clientsSize);
+            final int votesNeedToWinLeader = clientsSize / 2;
+
+            final AtomicInteger votesGot = new AtomicInteger();
             for (final RemoteRaftClient client : this.clients.values()) {
                 ChannelFuture voteFuture = client.requestVote(req -> {
                     RequestVoteCommand v = new RequestVoteCommand();
                     v.decode(req.getResponse().getBody());
                     if (v.isVoteGranted()) {
-                        if (votesGot.incrementAndGet() > this.clients.size() / 2) {
+                        if (votesGot.incrementAndGet() > votesNeedToWinLeader) {
                             this.state = State.LEADER;
                             this.electionTimeoutFuture.cancel(true);
                             this.schedulePingJob();
@@ -102,6 +102,10 @@ public class RaftServer {
                 });
                 requestVoteFutures.add(voteFuture);
             }
+
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            int electionTimeoutMillis = random.nextInt(this.maxElectionTimeoutMillis);
+
             this.electionTimeoutFuture = this.workerGroup.schedule(() -> {
                 requestVoteFutures.forEach(f -> f.cancel(true));
                 startElection();
@@ -162,11 +166,6 @@ public class RaftServer {
             logger.info("Ping to all clients done");
         }, this.pingIntervalMillis, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
         return this.serverChannelFuture;
-    }
-
-    void initialize() throws Exception {
-        this.registerProcessors();
-        this.startLocalServer();
     }
 
     private void scheduleReconnectToClientJob(final InetSocketAddress addr) {
@@ -251,40 +250,68 @@ public class RaftServer {
         }
     }
 
+    private ExecutorService getCallbackExecutor() {
+        return this.processorExecutorService;
+    }
+
+    private void executeRequestCallback(PendingRequest pendingRequest) {
+        final ExecutorService executor = this.getCallbackExecutor();
+        if (executor != null) {
+            try {
+                executor.submit(() -> {
+                    try {
+                        pendingRequest.executeCallback();
+                    } catch (Exception ex) {
+                        logger.error("execute pending request callback failed", ex);
+                        logger.error(pendingRequest.toString());
+                    }
+                });
+            } catch (Exception ex) {
+                logger.error("callback thread pool is busy, executing request callback failed", ex);
+                logger.error(pendingRequest.toString());
+            }
+        } else {
+            logger.error("no callback executor service");
+        }
+    }
+
+    private void scanPendingRequestTable() {
+        final List<PendingRequest> timeoutRequest = new LinkedList<>();
+        Iterator<PendingRequest> it = this.pendingRequestTable.values().iterator();
+        while (it.hasNext()) {
+            PendingRequest req = it.next();
+            if (req.isTimeout()) {
+                it.remove();
+                timeoutRequest.add(req);
+            }
+        }
+
+        for (final PendingRequest pr : timeoutRequest) {
+            this.executeRequestCallback(pr);
+        }
+    }
+
     private void processResponseCommand(final ChannelHandlerContext ctx, final RemotingCommand res) {
         final int requestId = res.getRequestId();
         final PendingRequest pendingRequest = this.pendingRequestTable.get(requestId);
         if (pendingRequest != null) {
             this.pendingRequestTable.remove(requestId);
             pendingRequest.setResponse(res);
-
-            final Pair<Processor, ExecutorService> processorPair = this.processorTable.get(res.getCommandCode());
-            if (processorPair != null) {
-                try {
-                    processorPair.getRight().submit(() -> {
-                        try {
-                            pendingRequest.executeCallback();
-                        } catch (Exception ex) {
-                            logger.error("execute pending request callback failed", ex);
-                            logger.error(pendingRequest.toString());
-                        }
-                    });
-                } catch (Exception ex) {
-                    logger.error("command code {} thread pool is busy, executing request callback failed",
-                            res.getCommandCode(), ex);
-                }
-            } else {
-                logger.error("no processor for command code {}, current supported command codes is {}",
-                        res.getCommandCode(), processorTable.keySet());
-            }
+            this.executeRequestCallback(pendingRequest);
         } else {
             logger.warn("got response without matched pending request, {}", Util.parseChannelRemoteAddr(ctx.channel()));
             logger.warn(res.toString());
         }
     }
 
-    public void addPendingRequest(RemotingCommand req, PendingRequestCallback callback) {
-        PendingRequest pending = new PendingRequest(req, callback);
+    void initialize() throws Exception {
+        this.registerProcessors();
+        this.startLocalServer();
+        timer.scheduleWithFixedDelay(this::scanPendingRequestTable, 2, 2, TimeUnit.SECONDS);
+    }
+
+    public void addPendingRequest(RemotingCommand req, long timeoutMillis, PendingRequestCallback callback) {
+        PendingRequest pending = new PendingRequest(req, timeoutMillis, callback);
         this.pendingRequestTable.put(req.getRequestId(), pending);
     }
 
