@@ -5,12 +5,10 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import raft.server.RaftServer;
+import org.slf4j.LoggerFactory;
 import raft.Util;
-import raft.server.rpc.AppendEntries;
-import raft.server.rpc.CommandCode;
-import raft.server.rpc.RemotingCommand;
-import raft.server.rpc.RequestVote;
+import raft.server.RaftServer;
+import raft.server.rpc.*;
 
 import java.net.InetSocketAddress;
 
@@ -19,6 +17,8 @@ import java.net.InetSocketAddress;
  * Date: 17/11/22
  */
 public class RemoteRaftClient {
+    private org.slf4j.Logger logger = LoggerFactory.getLogger(RemoteRaftClient.class.getName());
+
     private final Bootstrap bootstrap;
     private ChannelFuture channelFuture;
     private String id;
@@ -65,8 +65,8 @@ public class RemoteRaftClient {
 
     }
 
-    public ChannelFuture requestVote() {
-        RequestVote vote = new RequestVote();
+    public ChannelFuture requestVote(PendingRequestCallback callable) {
+        RequestVoteCommand vote = new RequestVoteCommand();
         vote.setCandidateId(server.getId());
 
         RemotingCommand cmd = RemotingCommand.createRequestCommand();
@@ -74,11 +74,20 @@ public class RemoteRaftClient {
         cmd.setCommandCode(CommandCode.APPEND_ENTRIES);
         cmd.setBody(vote.encode());
 
-        return channelFuture.channel().writeAndFlush(cmd);
+        this.server.addPendingRequest(cmd, callable);
+        ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
+        future.addListener(f -> {
+            if (!f.isSuccess()) {
+                logger.warn("request vote to {} failed", this, f.cause());
+                this.server.removePendingRequest(cmd.getRequestId());
+                this.close();
+            }
+        });
+        return future;
     }
 
     public ChannelFuture ping() {
-        AppendEntries ping = new AppendEntries();
+        AppendEntriesCommand ping = new AppendEntriesCommand();
         RemotingCommand cmd = RemotingCommand.createRequestCommand();
         cmd.setTerm(server.getTerm());
         cmd.setCommandCode(CommandCode.APPEND_ENTRIES);

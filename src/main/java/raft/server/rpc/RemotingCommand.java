@@ -3,12 +3,17 @@ package raft.server.rpc;
 import io.netty.buffer.ByteBuf;
 
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Author: ylgrgyq
  * Date: 17/11/22
  */
 public class RemotingCommand {
+    private static final AtomicInteger requestIdGenerator = new AtomicInteger();
+
+    private int requestId = requestIdGenerator.incrementAndGet();
+
     private int term;
     private CommandCode commandCode;
     private RemotingCommandType type;
@@ -86,6 +91,14 @@ public class RemotingCommand {
 
     public void setBody(byte[] body) {
         this.body = body;
+    }
+
+    public int getRequestId() {
+        return requestId;
+    }
+
+    public void setRequestId(int requestId) {
+        this.requestId = requestId;
     }
 
     @Override

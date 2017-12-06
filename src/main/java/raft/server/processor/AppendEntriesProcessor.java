@@ -1,6 +1,7 @@
 package raft.server.processor;
 
 import raft.server.RaftServer;
+import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.RemotingCommand;
 
 /**
@@ -14,6 +15,14 @@ public class AppendEntriesProcessor extends AbstractProcessor{
 
     @Override
     public RemotingCommand processRequest(RemotingCommand request) {
+        AppendEntriesCommand entry = new AppendEntriesCommand();
+        entry.decode(request.getBody());
+        int term = request.getTerm();
+        final RaftServer server = this.getServer();
+        if (term >= server.getTerm()) {
+            server.setStateToFollower(entry.getLeaderId());
+        }
+        System.out.println("Receive msg: " + entry);
         return null;
     }
 }

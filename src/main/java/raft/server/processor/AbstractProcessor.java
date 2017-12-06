@@ -7,9 +7,13 @@ import raft.server.RaftServer;
  * Date: 17/12/2
  */
 abstract class AbstractProcessor implements Processor{
-    private RaftServer server;
+    protected RaftServer server;
 
     AbstractProcessor(RaftServer server){
         this.server = server;
+    }
+
+    protected RaftServer getServer() {
+        return server;
     }
 }

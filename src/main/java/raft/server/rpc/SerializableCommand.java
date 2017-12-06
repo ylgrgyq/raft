@@ -5,7 +5,7 @@ package raft.server.rpc;
  * Date: 17/12/2
  */
 public interface SerializableCommand {
-    static byte[] EMPTY_BYTES = new byte[0];
+    byte[] EMPTY_BYTES = new byte[0];
 
     byte[] encode();
 

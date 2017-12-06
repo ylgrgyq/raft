@@ -15,10 +15,7 @@ import raft.server.connections.RemoteRaftClient;
 import raft.server.processor.AppendEntriesProcessor;
 import raft.server.processor.Processor;
 import raft.server.processor.RequestVoteProcessor;
-import raft.server.rpc.AppendEntries;
-import raft.server.rpc.CommandCode;
-import raft.server.rpc.RemotingCommand;
-import raft.server.rpc.RequestVote;
+import raft.server.rpc.*;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -27,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Author: ylgrgyq
@@ -48,12 +46,14 @@ public class RaftServer {
     private State state;
     private int term;
     private String selfId;
+    private String leaderId;
     private final ExecutorService processorExecutorService = Executors.newFixedThreadPool(Integer.parseInt(System.getProperty("raft.server.processor.thread.pool.size", "8")));
     private ChannelHandler handler = new RaftRequestHandler();
     private ScheduledFuture electionTimeoutFuture;
+    private ConcurrentHashMap<Integer, PendingRequest> pendingRequestTable = new ConcurrentHashMap<>();
 
 
-    protected RaftServer(String selfId, EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
+    private RaftServer(String selfId, EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
                          long clientReconnectDelayMillis, long pingIntervalMillis, State state) {
         this.term = 0;
         this.bossGroup = bossGroup;
@@ -65,40 +65,75 @@ public class RaftServer {
         this.selfId = selfId;
     }
 
-//    public void transferState(RaftState newState) {
-//        this.state = newState;
-//    }
-
-    public enum State {
-        FOLLOWER,
-        CANDIDATE,
-        LEADER;
+    public void setStateToFollower(String leaderId) {
+        this.state = State.FOLLOWER;
+        this.leaderId = leaderId;
     }
 
-    void startElection() {
+    private void scheduleElectionJob() {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         int electionTimeoutMillis = random.nextInt(this.maxElectionTimeoutMillis);
 
-        this.state = State.CANDIDATE;
-        this.term += 1;
-        List<ChannelFuture> requestVoteFutures = new ArrayList<>(this.clients.size());
-
-        for (final RemoteRaftClient client : this.clients.values()) {
-            ChannelFuture voteFuture = client.requestVote().addListener((ChannelFuture f) -> {
-                if (!f.isSuccess()) {
-                    logger.warn("request vote to " + client + " failed", f.cause());
-                    client.close();
-                }
-            });
-            requestVoteFutures.add(voteFuture);
-        }
-        this.electionTimeoutFuture = this.workerGroup.schedule(() -> {
-            requestVoteFutures.forEach(f -> f.cancel(true));
-            startElection();
-        }, electionTimeoutMillis, TimeUnit.MILLISECONDS);
+        this.electionTimeoutFuture = this.workerGroup.schedule(this::startElection
+                , electionTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
-    Future<Void> startLocalServer() throws InterruptedException {
+    void startElection() {
+        if (this.state != State.LEADER) {
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            int electionTimeoutMillis = random.nextInt(this.maxElectionTimeoutMillis);
+
+            this.state = State.CANDIDATE;
+            this.term += 1;
+            List<ChannelFuture> requestVoteFutures = new ArrayList<>(this.clients.size());
+
+            AtomicInteger votesGot = new AtomicInteger();
+            for (final RemoteRaftClient client : this.clients.values()) {
+                ChannelFuture voteFuture = client.requestVote(req -> {
+                    RequestVoteCommand v = new RequestVoteCommand();
+                    v.decode(req.getResponse().getBody());
+                    if (v.isVoteGranted()) {
+                        if (votesGot.incrementAndGet() > this.clients.size() / 2) {
+                            this.state = State.LEADER;
+                            this.electionTimeoutFuture.cancel(true);
+                            this.schedulePingJob();
+                        }
+                    }
+                });
+                requestVoteFutures.add(voteFuture);
+            }
+            this.electionTimeoutFuture = this.workerGroup.schedule(() -> {
+                requestVoteFutures.forEach(f -> f.cancel(true));
+                startElection();
+            }, electionTimeoutMillis, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private void schedulePingJob() {
+        this.workerGroup.scheduleWithFixedDelay(() -> {
+            logger.info("Ping to all clients...");
+            for (final RemoteRaftClient client : this.clients.values()) {
+                client.ping().addListener((ChannelFuture f) -> {
+                    if (!f.isSuccess()) {
+                        logger.warn("Ping to " + client + " failed", f.cause());
+                        client.close();
+                    }
+                });
+            }
+            logger.info("Ping to all clients done");
+        }, this.pingIntervalMillis, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
+    }
+
+    private void registerProcessor(CommandCode code, Processor processor, ExecutorService service) {
+        this.processorTable.put(code, new Pair<>(processor, service));
+    }
+
+    private void registerProcessors() {
+        this.registerProcessor(CommandCode.APPEND_ENTRIES, new AppendEntriesProcessor(this), this.processorExecutorService);
+        this.registerProcessor(CommandCode.REQUEST_VOTE, new RequestVoteProcessor(this), this.processorExecutorService);
+    }
+
+    private Future<Void> startLocalServer() throws InterruptedException {
         ServerBootstrap b = new ServerBootstrap();
         b.group(this.bossGroup, this.workerGroup)
                 .channel(NioServerSocketChannel.class)
@@ -129,34 +164,33 @@ public class RaftServer {
         return this.serverChannelFuture;
     }
 
-    private void registerProcessor(CommandCode code, Processor processor, ExecutorService service) {
-        this.processorTable.put(code, new Pair<>(processor, service));
+    void initialize() throws Exception {
+        this.registerProcessors();
+        this.startLocalServer();
     }
 
-    void registerProcessors() {
-        this.registerProcessor(CommandCode.APPEND_ENTRIES, new AppendEntriesProcessor(this), this.processorExecutorService);
-        this.registerProcessor(CommandCode.REQUEST_VOTE, new RequestVoteProcessor(this), this.processorExecutorService);
+    private void scheduleReconnectToClientJob(final InetSocketAddress addr) {
+        this.workerGroup.schedule(() -> this.connectToClient(addr),
+                this.clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
     }
 
-    private void connectToClient(InetSocketAddress addr) {
+    private void connectToClient(final InetSocketAddress addr) {
         final RemoteRaftClient client = new RemoteRaftClient(this.workerGroup, this);
         final ChannelFuture future = client.connect(addr);
         future.addListener((ChannelFuture f) -> {
             if (f.isSuccess()) {
-                logger.info("Connect to " + addr + " success");
+                logger.info("Connect to {} success", addr);
                 final Channel ch = f.channel();
                 final String id = client.getId();
-                clients.put(id, client);
+                this.clients.put(id, client);
                 ch.closeFuture().addListener(cf -> {
-                    logger.warn("Connection with " + addr + " lost");
-                    clients.remove(id);
-                    this.workerGroup.schedule(() -> connectToClient(addr),
-                            clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
+                    logger.warn("Connection with {} lost, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
+                    this.clients.remove(id);
+                    scheduleReconnectToClientJob(addr);
                 });
             } else {
-                logger.warn("Connect to " + addr + " failed");
-                this.workerGroup.schedule(() -> connectToClient(addr),
-                        clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
+                logger.warn("Connect to {} failed, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
+                scheduleReconnectToClientJob(addr);
             }
         });
     }
@@ -170,15 +204,125 @@ public class RaftServer {
     }
 
     public ChannelHandler getHandler() {
-        return handler;
+        return this.handler;
     }
 
     public int getTerm() {
-        return term;
+        return this.term;
     }
 
     public String getId() {
-        return selfId;
+        return this.selfId;
+    }
+
+    public ScheduledFuture getElectionTimeoutFuture() {
+        return this.electionTimeoutFuture;
+    }
+
+    private void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand req) {
+        final Pair<Processor, ExecutorService> processorPair = processorTable.get(req.getCommandCode());
+        if (processorPair != null) {
+            try {
+                processorPair.getRight().submit(() -> {
+                    try {
+                        final RemotingCommand res = processorPair.getLeft().processRequest(req);
+                        res.setRequestId(req.getRequestId());
+                        res.setType(RemotingCommandType.RESPONSE);
+                        try {
+                            ctx.writeAndFlush(res);
+                        } catch (Throwable e) {
+                            logger.error("process done but write response failed", e);
+                            logger.error(req.toString());
+                            logger.error(res.toString());
+                        }
+                    } catch (Throwable e) {
+                        logger.error("process request exception", e);
+                        logger.error(req.toString());
+                        // FIXME write exception and error info back
+                    }
+                });
+            } catch (RejectedExecutionException e) {
+                logger.error("too many request with command code {} and thread pool is busy, reject command from {}",
+                        req.getCommandCode(), Util.parseChannelRemoteAddr(ctx.channel()));
+            }
+        } else {
+            logger.error("no processor for command code {}, current supported command codes is {}",
+                    req.getCommandCode(), processorTable.keySet());
+        }
+    }
+
+    private void processResponseCommand(final ChannelHandlerContext ctx, final RemotingCommand res) {
+        final int requestId = res.getRequestId();
+        final PendingRequest pendingRequest = this.pendingRequestTable.get(requestId);
+        if (pendingRequest != null) {
+            this.pendingRequestTable.remove(requestId);
+            pendingRequest.setResponse(res);
+
+            final Pair<Processor, ExecutorService> processorPair = this.processorTable.get(res.getCommandCode());
+            if (processorPair != null) {
+                try {
+                    processorPair.getRight().submit(() -> {
+                        try {
+                            pendingRequest.executeCallback();
+                        } catch (Exception ex) {
+                            logger.error("execute pending request callback failed", ex);
+                            logger.error(pendingRequest.toString());
+                        }
+                    });
+                } catch (Exception ex) {
+                    logger.error("command code {} thread pool is busy, executing request callback failed",
+                            res.getCommandCode(), ex);
+                }
+            } else {
+                logger.error("no processor for command code {}, current supported command codes is {}",
+                        res.getCommandCode(), processorTable.keySet());
+            }
+        } else {
+            logger.warn("got response without matched pending request, {}", Util.parseChannelRemoteAddr(ctx.channel()));
+            logger.warn(res.toString());
+        }
+    }
+
+    public void addPendingRequest(RemotingCommand req, PendingRequestCallback callback) {
+        PendingRequest pending = new PendingRequest(req, callback);
+        this.pendingRequestTable.put(req.getRequestId(), pending);
+    }
+
+    public void removePendingRequest(int requestId) {
+        this.pendingRequestTable.remove(requestId);
+    }
+
+    @ChannelHandler.Sharable
+    class RaftRequestHandler extends SimpleChannelInboundHandler<RemotingCommand> {
+        @Override
+        protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand req) throws Exception {
+            switch (req.getType()) {
+                case REQUEST:
+                    processRequestCommand(ctx, req);
+                    break;
+                case RESPONSE:
+                    processResponseCommand(ctx, req);
+                    break;
+                default:
+                    logger.warn("unknown remote command type {}", req.toString());
+                    break;
+            }
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            logger.error("got unexpected exception on address {}", Util.parseChannelRemoteAddr(ctx.channel()), cause);
+        }
+    }
+
+    public String getLeaderId() {
+        return leaderId;
+    }
+
+    public enum State {
+        FOLLOWER,
+        CANDIDATE,
+        LEADER
     }
 
     static class RaftServerBuilder {
@@ -224,28 +368,6 @@ public class RaftServer {
             String selfId = InetAddress.getLocalHost().getHostAddress() + ":" + this.port;
             return new RaftServer(selfId, this.bossGroup, this.workerGroup, this.port,
                     this.clientReconnectDelayMillis, this.pingIntervalMillis, this.state);
-        }
-    }
-
-    @ChannelHandler.Sharable
-    class RaftRequestHandler extends SimpleChannelInboundHandler<RemotingCommand> {
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand o) throws Exception {
-            switch (o.getCommandCode()) {
-                case REQUEST_VOTE:
-                    RequestVote vote = new RequestVote();
-                    vote.decode(o.getBody());
-                    System.out.println("Receive msg: " + vote);
-                case APPEND_ENTRIES:
-                    AppendEntries entry = new AppendEntries();
-                    entry.decode(o.getBody());
-                    System.out.println("Receive msg: " + entry);
-            }
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            logger.error("got unexpected exception on address {}", Util.parseChannelRemoteAddr(ctx.channel()), cause);
         }
     }
 }

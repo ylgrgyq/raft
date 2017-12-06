@@ -7,12 +7,12 @@ import java.nio.charset.StandardCharsets;
  * Author: ylgrgyq
  * Date: 17/11/22
  */
-public class AppendEntries implements SerializableCommand {
+public class AppendEntriesCommand implements SerializableCommand {
     private String leaderId = "";
     private long prevLogIndex = -1;
     private long prevLogTerm = -1;
-
     private long leaderCommit = -1;
+    private boolean success = false;
 
     public void decode(byte[] bytes) {
         ByteBuffer buf = ByteBuffer.wrap(bytes);
@@ -23,6 +23,7 @@ public class AppendEntries implements SerializableCommand {
         this.prevLogIndex = buf.getLong();
         this.prevLogTerm = buf.getLong();
         this.leaderCommit = buf.getLong();
+        this.success = buf.get() == 1;
     }
 
     public byte[] encode() {
@@ -37,6 +38,7 @@ public class AppendEntries implements SerializableCommand {
         buffer.putLong(this.prevLogIndex);
         buffer.putLong(this.prevLogTerm);
         buffer.putLong(this.leaderCommit);
+        buffer.put((byte)(success ? 1 : 0));
 
         return buffer.array();
     }
@@ -73,9 +75,13 @@ public class AppendEntries implements SerializableCommand {
         this.leaderCommit = leaderCommit;
     }
 
+    public boolean isSuccess() {
+        return success;
+    }
+
     @Override
     public String toString() {
-        return "AppendEntries{" +
+        return "AppendEntriesCommand{" +
                 "leaderId='" + leaderId + '\'' +
                 ", prevLogIndex=" + prevLogIndex +
                 ", prevLogTerm=" + prevLogTerm +

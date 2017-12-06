@@ -70,8 +70,7 @@ public class RaftServerStartup {
 
         RaftServer server = serverBuilder.build();
         try {
-            server.registerProcessors();
-            server.startLocalServer();
+            server.initialize();
             server.connectToClients(clientAddrs);
             server.startElection();
             server.sync();

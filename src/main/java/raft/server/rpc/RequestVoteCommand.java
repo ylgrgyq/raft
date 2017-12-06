@@ -7,10 +7,11 @@ import java.nio.charset.StandardCharsets;
  * Author: ylgrgyq
  * Date: 17/11/22
  */
-public class RequestVote implements SerializableCommand {
+public class RequestVoteCommand implements SerializableCommand {
     private String candidateId = "";
     private long lastLogIndex = -1;
     private long lastLogTerm = -1;
+    private boolean voteGranted = false;
 
     public void decode(byte[] bytes) {
         ByteBuffer buf = ByteBuffer.wrap(bytes);
@@ -20,6 +21,7 @@ public class RequestVote implements SerializableCommand {
         this.candidateId = new String(idBytes);
         this.lastLogIndex = buf.getLong();
         this.lastLogTerm = buf.getLong();
+        this.voteGranted = buf.get() == 1;
     }
 
 
@@ -33,6 +35,7 @@ public class RequestVote implements SerializableCommand {
         buf.put(idBytes);
         buf.putLong(lastLogIndex);
         buf.putLong(lastLogTerm);
+        buf.put((byte)(voteGranted ? 1 : 0));
 
         return buf.array();
     }
@@ -61,9 +64,13 @@ public class RequestVote implements SerializableCommand {
         this.lastLogTerm = lastLogTerm;
     }
 
+    public boolean isVoteGranted() {
+        return voteGranted;
+    }
+
     @Override
     public String toString() {
-        return "RequestVote{" +
+        return "RequestVoteCommand{" +
                 "candidateId=" + candidateId +
                 ", lastLogIndex=" + lastLogIndex +
                 ", lastLogTerm=" + lastLogTerm +
