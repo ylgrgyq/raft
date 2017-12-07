@@ -7,15 +7,24 @@ import java.nio.charset.StandardCharsets;
  * Author: ylgrgyq
  * Date: 17/11/22
  */
-public class AppendEntriesCommand implements SerializableCommand {
+public class AppendEntriesCommand extends RaftServerCommand {
     private String leaderId = "";
     private long prevLogIndex = -1;
     private long prevLogTerm = -1;
     private long leaderCommit = -1;
     private boolean success = false;
 
-    public void decode(byte[] bytes) {
-        ByteBuffer buf = ByteBuffer.wrap(bytes);
+    public AppendEntriesCommand(byte[] body) {
+        this.decode(body);
+    }
+
+    public AppendEntriesCommand(int term) {
+        super(term, CommandCode.APPEND_ENTRIES);
+    }
+
+    public ByteBuffer decode(byte[] bytes) {
+        final ByteBuffer buf = super.decode(bytes);
+
         int leaderIdLength = buf.getInt();
         byte[] leaderIdBytes = new byte[leaderIdLength];
         buf.get(leaderIdBytes);
@@ -24,15 +33,20 @@ public class AppendEntriesCommand implements SerializableCommand {
         this.prevLogTerm = buf.getLong();
         this.leaderCommit = buf.getLong();
         this.success = buf.get() == 1;
+
+        return buf;
     }
 
     public byte[] encode() {
+        byte[] base = super.encode();
+
         byte[] leaderIdBytes = SerializableCommand.EMPTY_BYTES;
         if (leaderId != null) {
             leaderIdBytes = leaderId.getBytes(StandardCharsets.UTF_8);
         }
 
-        ByteBuffer buffer = ByteBuffer.allocate(4 + leaderIdBytes.length + 24);
+        ByteBuffer buffer = ByteBuffer.allocate(base.length + 4 + leaderIdBytes.length + 8 + 8 + 8 + 1);
+        buffer.put(base);
         buffer.putInt(leaderIdBytes.length);
         buffer.put(leaderIdBytes);
         buffer.putLong(this.prevLogIndex);
@@ -79,6 +93,9 @@ public class AppendEntriesCommand implements SerializableCommand {
         return success;
     }
 
+    public void markSuccess() {
+        this.success = true;
+    }
     @Override
     public String toString() {
         return "AppendEntriesCommand{" +

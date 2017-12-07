@@ -7,7 +7,7 @@ import raft.server.RaftServer;
  * Date: 17/12/2
  */
 abstract class AbstractProcessor implements Processor{
-    protected RaftServer server;
+    protected final RaftServer server;
 
     AbstractProcessor(RaftServer server){
         this.server = server;

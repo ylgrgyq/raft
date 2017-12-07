@@ -7,14 +7,22 @@ import java.nio.charset.StandardCharsets;
  * Author: ylgrgyq
  * Date: 17/11/22
  */
-public class RequestVoteCommand implements SerializableCommand {
+public class RequestVoteCommand extends RaftServerCommand {
     private String candidateId = "";
     private long lastLogIndex = -1;
     private long lastLogTerm = -1;
     private boolean voteGranted = false;
 
-    public void decode(byte[] bytes) {
-        ByteBuffer buf = ByteBuffer.wrap(bytes);
+    public RequestVoteCommand(byte[] body){
+        this.decode(body);
+    }
+
+    public RequestVoteCommand(int term) {
+        super(term, CommandCode.REQUEST_VOTE);
+    }
+
+    public ByteBuffer decode(byte[] bytes) {
+        ByteBuffer buf = super.decode(bytes);
         int idLength = buf.getInt();
         byte[] idBytes = new byte[idLength];
         buf.get(idBytes);
@@ -22,15 +30,18 @@ public class RequestVoteCommand implements SerializableCommand {
         this.lastLogIndex = buf.getLong();
         this.lastLogTerm = buf.getLong();
         this.voteGranted = buf.get() == 1;
+        return buf;
     }
 
-
     public byte[] encode() {
-        ByteBuffer buf = ByteBuffer.allocate(24);
+        byte[] base = super.encode();
+
         byte[] idBytes = SerializableCommand.EMPTY_BYTES;
         if (candidateId != null) {
             idBytes = candidateId.getBytes(StandardCharsets.UTF_8);
         }
+
+        ByteBuffer buf = ByteBuffer.allocate(base.length + 4 + idBytes.length + 8 + 8 + 1);
         buf.putInt(idBytes.length);
         buf.put(idBytes);
         buf.putLong(lastLogIndex);

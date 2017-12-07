@@ -14,7 +14,6 @@ public class RemotingCommand {
 
     private int requestId = requestIdGenerator.incrementAndGet();
 
-    private int term;
     private CommandCode commandCode;
     private RemotingCommandType type;
     private byte[] body;
@@ -22,22 +21,25 @@ public class RemotingCommand {
     private RemotingCommand() {
     }
 
-    public static RemotingCommand createRequestCommand() {
-        RemotingCommand cmd = new RemotingCommand();
-        cmd.setType(RemotingCommandType.REQUEST);
-        return cmd;
+    public static RemotingCommand createRequestCommand(RaftServerCommand req) {
+        RemotingCommand wrap = new RemotingCommand();
+        wrap.setType(RemotingCommandType.REQUEST);
+        wrap.setCommandCode(req.getCommandCode());
+        wrap.setBody(req.encode());
+        return wrap;
     }
 
-    public static RemotingCommand createResponseCommand() {
+    public static RemotingCommand createResponseCommand(RaftServerCommand res) {
         RemotingCommand cmd = new RemotingCommand();
         cmd.setType(RemotingCommandType.RESPONSE);
+        cmd.setCommandCode(res.getCommandCode());
+        cmd.setBody(res.encode());
         return cmd;
     }
 
     public ByteBuf encode(ByteBuf buf){
         int length = this.getLength();
         buf.writeInt(length);
-        buf.writeInt(this.term);
         buf.writeByte(commandCode.getCode());
         buf.writeByte(type.getTypeCode());
 
@@ -46,7 +48,6 @@ public class RemotingCommand {
 
     public static RemotingCommand decode(ByteBuf buf) {
         RemotingCommand cmd = new RemotingCommand();
-        cmd.term = buf.readInt();
         cmd.commandCode = CommandCode.valueOf(buf.readByte());
         cmd.type = RemotingCommandType.valueOf(buf.readByte());
 
@@ -61,10 +62,6 @@ public class RemotingCommand {
         return body.length + 4 + 2;
     }
 
-    public int getTerm() {
-        return term;
-    }
-
     public CommandCode getCommandCode() {
         return commandCode;
     }
@@ -75,10 +72,6 @@ public class RemotingCommand {
 
     public byte[] getBody() {
         return body;
-    }
-
-    public void setTerm(int term) {
-        this.term = term;
     }
 
     public void setCommandCode(CommandCode commandCode) {
@@ -104,8 +97,7 @@ public class RemotingCommand {
     @Override
     public String toString() {
         return "RemotingCommand{" +
-                "term=" + term +
-                ", commandCode=" + commandCode +
+                "commandCode=" + commandCode +
                 ", type=" + type +
                 ", body=" + Arrays.toString(body) +
                 '}';
@@ -118,7 +110,6 @@ public class RemotingCommand {
 
         RemotingCommand that = (RemotingCommand) o;
 
-        if (getTerm() != that.getTerm()) return false;
         if (getCommandCode() != that.getCommandCode()) return false;
         if (getType() != that.getType()) return false;
         return Arrays.equals(getBody(), that.getBody());
@@ -126,9 +117,9 @@ public class RemotingCommand {
 
     @Override
     public int hashCode() {
-        int result = getTerm();
-        result = 31 * result + (getCommandCode() != null ? getCommandCode().hashCode() : 0);
-        result = 31 * result + (getType() != null ? getType().hashCode() : 0);
+        int result = getRequestId();
+        result = 31 * result + getCommandCode().hashCode();
+        result = 31 * result + getType().hashCode();
         result = 31 * result + Arrays.hashCode(getBody());
         return result;
     }

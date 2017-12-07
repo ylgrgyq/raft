@@ -66,15 +66,12 @@ public class RemoteRaftClient {
     }
 
     public ChannelFuture requestVote(PendingRequestCallback callable) {
-        RequestVoteCommand vote = new RequestVoteCommand();
+        RequestVoteCommand vote = new RequestVoteCommand(server.getTerm());
         vote.setCandidateId(server.getId());
 
-        RemotingCommand cmd = RemotingCommand.createRequestCommand();
-        cmd.setTerm(server.getTerm());
-        cmd.setCommandCode(CommandCode.APPEND_ENTRIES);
-        cmd.setBody(vote.encode());
+        RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
 
-        this.server.addPendingRequest(cmd, 3000, callable);
+        this.server.addPendingRequest(cmd.getRequestId(), 3000, callable);
         ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
         future.addListener(f -> {
             if (!f.isSuccess()) {
@@ -87,12 +84,10 @@ public class RemoteRaftClient {
     }
 
     public ChannelFuture ping() {
-        AppendEntriesCommand ping = new AppendEntriesCommand();
-        RemotingCommand cmd = RemotingCommand.createRequestCommand();
-        cmd.setTerm(server.getTerm());
-        cmd.setCommandCode(CommandCode.APPEND_ENTRIES);
-        cmd.setBody(ping.encode());
+        AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm());
+        ping.setLeaderId(server.getLeaderId());
 
+        RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
         return channelFuture.channel().writeAndFlush(cmd);
     }
 

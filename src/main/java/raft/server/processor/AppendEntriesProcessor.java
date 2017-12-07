@@ -15,14 +15,18 @@ public class AppendEntriesProcessor extends AbstractProcessor{
 
     @Override
     public RemotingCommand processRequest(RemotingCommand request) {
-        AppendEntriesCommand entry = new AppendEntriesCommand();
-        entry.decode(request.getBody());
-        int term = request.getTerm();
-        final RaftServer server = this.getServer();
-        if (term >= server.getTerm()) {
-            server.transferStateToFollower(entry.getLeaderId());
-        }
+        AppendEntriesCommand entry = new AppendEntriesCommand(request.getBody());
+
         System.out.println("Receive msg: " + entry);
-        return null;
+
+        int term = entry.getTerm();
+        final RaftServer server = this.getServer();
+        server.checkTermThenTransferStateToFollower(term, entry.getLeaderId());
+
+        AppendEntriesCommand response = new AppendEntriesCommand(this.getServer().getTerm());
+        response.markSuccess();
+        response.setLeaderId(this.getServer().getLeaderId());
+
+        return RemotingCommand.createResponseCommand(response);
     }
 }

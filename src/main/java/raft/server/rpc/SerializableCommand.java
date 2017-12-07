@@ -1,5 +1,7 @@
 package raft.server.rpc;
 
+import java.nio.ByteBuffer;
+
 /**
  * Author: ylgrgyq
  * Date: 17/12/2
@@ -9,5 +11,5 @@ public interface SerializableCommand {
 
     byte[] encode();
 
-    void decode(byte[] bytes);
+    ByteBuffer decode(byte[] bytes);
 }

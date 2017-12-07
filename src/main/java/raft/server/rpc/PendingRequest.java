@@ -14,17 +14,15 @@ public class PendingRequest {
     private final long requestBeginTimestamp = System.currentTimeMillis();
     private final long timeoutMillis;
     private final PendingRequestCallback callback;
-    private final RemotingCommand req;
     private final AtomicBoolean responseAlreadySet = new AtomicBoolean(false);
 
     private RemotingCommand res;
 
-    public PendingRequest(RemotingCommand request, long timeoutMillis) {
-        this(request, timeoutMillis, null);
+    public PendingRequest(long timeoutMillis) {
+        this(timeoutMillis, null);
     }
 
-    public PendingRequest(RemotingCommand request, long timeoutMillis, PendingRequestCallback callback) {
-        this.req = request;
+    public PendingRequest(long timeoutMillis, PendingRequestCallback callback) {
         this.callback = callback;
         this.timeoutMillis = timeoutMillis;
     }
@@ -41,10 +39,6 @@ public class PendingRequest {
 
     public PendingRequestCallback getCallback() {
         return callback;
-    }
-
-    public RemotingCommand getRequest() {
-        return req;
     }
 
     public RemotingCommand getResponse() {
@@ -65,7 +59,6 @@ public class PendingRequest {
     @Override
     public String toString() {
         return "PendingRequest{" +
-                ", req=" + req.toString() +
                 ", res=" + res.toString() +
                 '}';
     }
