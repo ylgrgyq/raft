@@ -1,6 +1,9 @@
 package raft.server.processor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import raft.server.RaftServer;
+import raft.server.connections.RemoteRaftClient;
 import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.RemotingCommand;
 
@@ -9,19 +12,21 @@ import raft.server.rpc.RemotingCommand;
  * Date: 17/12/2
  */
 public class AppendEntriesProcessor extends AbstractProcessor{
+    private Logger logger = LoggerFactory.getLogger(AppendEntriesProcessor.class.getName());
+
     public AppendEntriesProcessor(RaftServer server) {
         super(server);
     }
 
     @Override
     public RemotingCommand processRequest(RemotingCommand request) {
-        AppendEntriesCommand entry = new AppendEntriesCommand(request.getBody());
+        final AppendEntriesCommand entry = new AppendEntriesCommand(request.getBody());
 
-        System.out.println("Receive msg: " + entry);
+        logger.info("Receive msg: " + entry);
 
-        int term = entry.getTerm();
+        final int termInEntry = entry.getTerm();
         final RaftServer server = this.getServer();
-        server.checkTermThenTransferStateToFollower(term, entry.getLeaderId());
+        server.checkTermThenTransferStateToFollower(termInEntry, entry.getLeaderId());
 
         AppendEntriesCommand response = new AppendEntriesCommand(this.getServer().getTerm());
         response.markSuccess();

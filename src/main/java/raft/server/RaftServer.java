@@ -75,8 +75,14 @@ public class RaftServer {
         }
     }
 
-    public void onPingReceived() {
+    public synchronized void transferState(RaftState from, RaftState to) {
+        from.finish();
+        to.start();
+    }
 
+    public int increaseTerm(){
+        this.term += 1;
+        return this.term;
     }
 
     private void scheduleElectionJob() {
@@ -217,6 +223,10 @@ public class RaftServer {
 
     public ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
         return clients;
+    }
+
+    public State getState() {
+        return state;
     }
 
     public ScheduledFuture getElectionTimeoutFuture() {

@@ -5,6 +5,7 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.Util;
 import raft.server.RaftServer;
@@ -17,7 +18,7 @@ import java.net.InetSocketAddress;
  * Date: 17/11/22
  */
 public class RemoteRaftClient {
-    private org.slf4j.Logger logger = LoggerFactory.getLogger(RemoteRaftClient.class.getName());
+    private Logger logger = LoggerFactory.getLogger(RemoteRaftClient.class.getName());
 
     private final Bootstrap bootstrap;
     private ChannelFuture channelFuture;

@@ -79,6 +79,10 @@ public class RequestVoteCommand extends RaftServerCommand {
         return voteGranted;
     }
 
+    public void setVoteGranted(boolean voteGranted) {
+        this.voteGranted = voteGranted;
+    }
+
     @Override
     public String toString() {
         return "RequestVoteCommand{" +
