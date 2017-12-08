@@ -23,6 +23,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Author: ylgrgyq
@@ -50,7 +51,9 @@ public class RaftServer {
     private String leaderId;
     private ChannelHandler handler = new RaftRequestHandler();
     private ScheduledFuture electionTimeoutFuture;
+    private ScheduledFuture pingFuture;
     private ConcurrentHashMap<Integer, PendingRequest> pendingRequestTable = new ConcurrentHashMap<>();
+    private ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
 
 
     private RaftServer(String selfId, EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
@@ -72,7 +75,7 @@ public class RaftServer {
         }
     }
 
-    public void onPingReceived(){
+    public void onPingReceived() {
 
     }
 
@@ -123,12 +126,12 @@ public class RaftServer {
     }
 
     private void schedulePingJob() {
-        this.workerGroup.scheduleWithFixedDelay(() -> {
+        this.pingFuture = this.workerGroup.scheduleWithFixedDelay(() -> {
             logger.info("Ping to all clients...");
             for (final RemoteRaftClient client : this.clients.values()) {
                 client.ping().addListener((ChannelFuture f) -> {
                     if (!f.isSuccess()) {
-                        logger.warn("Ping to " + client + " failed", f.cause());
+                        logger.warn("Ping to {} failed", client, f.cause());
                         client.close();
                     }
                 });
@@ -162,18 +165,7 @@ public class RaftServer {
 
         // Bind and start to accept incoming connections.
         this.serverChannelFuture = b.bind(this.port).sync();
-        this.workerGroup.scheduleWithFixedDelay(() -> {
-            logger.info("Ping to all clients...");
-            for (final RemoteRaftClient client : this.clients.values()) {
-                client.ping().addListener((ChannelFuture f) -> {
-                    if (!f.isSuccess()) {
-                        logger.warn("Ping to " + client + " failed", f.cause());
-                        client.close();
-                    }
-                });
-            }
-            logger.info("Ping to all clients done");
-        }, this.pingIntervalMillis, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
+        this.schedulePingJob();
         return this.serverChannelFuture;
     }
 
@@ -221,6 +213,10 @@ public class RaftServer {
 
     public String getId() {
         return this.selfId;
+    }
+
+    public ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
+        return clients;
     }
 
     public ScheduledFuture getElectionTimeoutFuture() {

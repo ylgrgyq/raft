@@ -1,5 +1,6 @@
 package raft.server.rpc;
 
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -9,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Date: 17/12/4
  */
 public class PendingRequest {
-    private org.slf4j.Logger logger = LoggerFactory.getLogger(PendingRequest.class.getName());
+    private Logger logger = LoggerFactory.getLogger(PendingRequest.class.getName());
 
     private final long requestBeginTimestamp = System.currentTimeMillis();
     private final long timeoutMillis;
