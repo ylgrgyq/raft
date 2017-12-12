@@ -11,7 +11,7 @@ import raft.server.rpc.RequestVoteCommand;
  * Date: 17/12/2
  */
 public class RequestVoteProcessor extends AbstractProcessor {
-    private Logger logger = LoggerFactory.getLogger(RequestVoteProcessor.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(RequestVoteProcessor.class.getName());
 
     public RequestVoteProcessor(RaftServer server) {
         super(server);

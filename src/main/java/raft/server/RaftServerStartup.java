@@ -72,7 +72,6 @@ public class RaftServerStartup {
         try {
             server.initialize();
             server.connectToClients(clientAddrs);
-            server.startElection();
             server.sync();
         } finally {
             bossGroup.shutdownGracefully();

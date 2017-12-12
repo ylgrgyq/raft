@@ -14,7 +14,7 @@ import raft.server.rpc.RemotingCommand;
  * Date: 17/11/29
  */
 public class NettyEncoder extends MessageToByteEncoder<RemotingCommand> {
-    private static Logger logger = LoggerFactory.getLogger(NettyEncoder.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(NettyEncoder.class.getName());
 
     @Override
     protected void encode(ChannelHandlerContext ctx, RemotingCommand msg, ByteBuf out) throws Exception {

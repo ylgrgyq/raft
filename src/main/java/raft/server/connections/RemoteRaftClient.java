@@ -18,7 +18,7 @@ import java.net.InetSocketAddress;
  * Date: 17/11/22
  */
 public class RemoteRaftClient {
-    private Logger logger = LoggerFactory.getLogger(RemoteRaftClient.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(RemoteRaftClient.class.getName());
 
     private final Bootstrap bootstrap;
     private ChannelFuture channelFuture;

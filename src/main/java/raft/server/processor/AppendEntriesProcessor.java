@@ -12,7 +12,7 @@ import raft.server.rpc.RemotingCommand;
  * Date: 17/12/2
  */
 public class AppendEntriesProcessor extends AbstractProcessor{
-    private Logger logger = LoggerFactory.getLogger(AppendEntriesProcessor.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(AppendEntriesProcessor.class.getName());
 
     public AppendEntriesProcessor(RaftServer server) {
         super(server);

@@ -13,7 +13,7 @@ import raft.server.rpc.RemotingCommand;
  * Date: 17/11/29
  */
 public class NettyDecoder extends LengthFieldBasedFrameDecoder {
-    private static Logger logger = LoggerFactory.getLogger(NettyDecoder.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(NettyDecoder.class.getName());
 
     private static final int FRAME_MAX_LENGTH =
             Integer.parseInt(System.getProperty("raft.server.frameMaxLength", "16777216"));

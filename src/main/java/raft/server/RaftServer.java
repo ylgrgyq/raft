@@ -36,36 +36,41 @@ public class RaftServer {
     private final EventLoopGroup bossGroup;
     private final EventLoopGroup workerGroup;
     private final ConcurrentHashMap<String, RemoteRaftClient> clients = new ConcurrentHashMap<>();
-    private final int maxElectionTimeoutMillis = Integer.parseInt(System.getProperty("raft.server.max.election.timeout.millis", "300"));
     private final HashMap<CommandCode, Pair<Processor, ExecutorService>> processorTable = new HashMap<>();
     // FIXME initialize these executors in initialize() with dedicated ThreadFactory
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService processorExecutorService = Executors.newFixedThreadPool(Integer.parseInt(System.getProperty("raft.server.processor.thread.pool.size", "8")));
+    private final RaftState follower = new Follower(this);
+    private final RaftState leader = new Leader(this);
+    private final RaftState candidate = new Candidate(this);
+    private final Map<State, RaftState> stateHandlerMap;
 
-    private long clientReconnectDelayMillis;
-    private long pingIntervalMillis;
-    private ChannelFuture serverChannelFuture;
-    private State state;
-    private int term;
-    private String selfId;
-    private String leaderId;
     private ChannelHandler handler = new RaftRequestHandler();
-    private ScheduledFuture electionTimeoutFuture;
-    private ScheduledFuture pingFuture;
     private ConcurrentHashMap<Integer, PendingRequest> pendingRequestTable = new ConcurrentHashMap<>();
     private ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
 
 
+    private long clientReconnectDelayMillis;
+    private ChannelFuture serverChannelFuture;
+    private int term;
+    private String selfId;
+    private String leaderId;
+    private State state;
+
     private RaftServer(String selfId, EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
-                       long clientReconnectDelayMillis, long pingIntervalMillis, State state) {
+                       long clientReconnectDelayMillis, State state) {
         this.term = 0;
         this.bossGroup = bossGroup;
         this.workerGroup = workerGroup;
         this.port = port;
         this.clientReconnectDelayMillis = clientReconnectDelayMillis;
-        this.pingIntervalMillis = pingIntervalMillis;
         this.state = state;
         this.selfId = selfId;
+
+        this.stateHandlerMap = new HashMap<>();
+        this.stateHandlerMap.put(State.LEADER, this.leader);
+        this.stateHandlerMap.put(State.CANDIDATE, this.candidate);
+        this.stateHandlerMap.put(State.FOLLOWER, this.follower);
     }
 
     public synchronized void checkTermThenTransferStateToFollower(int term, String leaderId) {
@@ -75,75 +80,19 @@ public class RaftServer {
         }
     }
 
-    public synchronized void transferState(RaftState from, RaftState to) {
-        from.finish();
-        to.start();
+    public synchronized void transferState(State nextState) {
+        State currentState = this.getState();
+        RaftState prevHandler = this.stateHandlerMap.get(currentState);
+        prevHandler.finish();
+
+        this.state = nextState;
+        RaftState nextHandler = this.stateHandlerMap.get(nextState);
+        nextHandler.start();
     }
 
     public int increaseTerm(){
         this.term += 1;
         return this.term;
-    }
-
-    private void scheduleElectionJob() {
-        if (this.electionTimeoutFuture != null) {
-            this.electionTimeoutFuture.cancel(true);
-        }
-
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        int electionTimeoutMillis = random.nextInt(this.maxElectionTimeoutMillis);
-
-        this.electionTimeoutFuture = this.workerGroup.schedule(this::startElection
-                , electionTimeoutMillis, TimeUnit.MILLISECONDS);
-    }
-
-    synchronized void startElection() {
-        if (this.state != State.LEADER) {
-            this.state = State.CANDIDATE;
-            this.term += 1;
-
-            final int clientsSize = this.clients.size();
-            final int votesNeedToWinLeader = clientsSize / 2;
-
-            final AtomicInteger votesGot = new AtomicInteger();
-            for (final RemoteRaftClient client : this.clients.values()) {
-                client.requestVote(req -> {
-                    final RemotingCommand res = req.getResponse();
-                    if (res != null) {
-                        final RequestVoteCommand v = new RequestVoteCommand(res.getBody());
-                        if (v.getTerm() == this.term &&
-                                v.isVoteGranted() &&
-                                votesGot.incrementAndGet() > votesNeedToWinLeader &&
-                                this.state != State.LEADER) {
-                            synchronized (this) {
-                                if (this.state != State.LEADER) {
-                                    this.state = State.LEADER;
-                                    this.electionTimeoutFuture.cancel(true);
-                                    this.schedulePingJob();
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-
-            this.scheduleElectionJob();
-        }
-    }
-
-    private void schedulePingJob() {
-        this.pingFuture = this.workerGroup.scheduleWithFixedDelay(() -> {
-            logger.info("Ping to all clients...");
-            for (final RemoteRaftClient client : this.clients.values()) {
-                client.ping().addListener((ChannelFuture f) -> {
-                    if (!f.isSuccess()) {
-                        logger.warn("Ping to {} failed", client, f.cause());
-                        client.close();
-                    }
-                });
-            }
-            logger.info("Ping to all clients done");
-        }, this.pingIntervalMillis, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
     }
 
     private void registerProcessor(CommandCode code, Processor processor, ExecutorService service) {
@@ -171,7 +120,6 @@ public class RaftServer {
 
         // Bind and start to accept incoming connections.
         this.serverChannelFuture = b.bind(this.port).sync();
-        this.schedulePingJob();
         return this.serverChannelFuture;
     }
 
@@ -227,10 +175,6 @@ public class RaftServer {
 
     public State getState() {
         return state;
-    }
-
-    public ScheduledFuture getElectionTimeoutFuture() {
-        return this.electionTimeoutFuture;
     }
 
     private void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand req) {
@@ -373,8 +317,7 @@ public class RaftServer {
         private EventLoopGroup bossGroup;
         private EventLoopGroup workerGroup;
         private int port;
-        private long pingIntervalMillis = 10000;
-        private State state = State.FOLLOWER;
+        private State state;
 
         RaftServerBuilder withBossGroup(EventLoopGroup group) {
             this.bossGroup = group;
@@ -401,15 +344,10 @@ public class RaftServer {
             return this;
         }
 
-        RaftServerBuilder withPingInterval(long pingInterval, TimeUnit timeUnit) {
-            this.pingIntervalMillis = timeUnit.toMillis(pingInterval);
-            return this;
-        }
-
         RaftServer build() throws UnknownHostException {
             String selfId = InetAddress.getLocalHost().getHostAddress() + ":" + this.port;
             return new RaftServer(selfId, this.bossGroup, this.workerGroup, this.port,
-                    this.clientReconnectDelayMillis, this.pingIntervalMillis, this.state);
+                    this.clientReconnectDelayMillis, this.state);
         }
     }
 }

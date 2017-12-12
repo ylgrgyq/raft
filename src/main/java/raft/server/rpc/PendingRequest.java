@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Date: 17/12/4
  */
 public class PendingRequest {
-    private Logger logger = LoggerFactory.getLogger(PendingRequest.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(PendingRequest.class.getName());
 
     private final long requestBeginTimestamp = System.currentTimeMillis();
     private final long timeoutMillis;

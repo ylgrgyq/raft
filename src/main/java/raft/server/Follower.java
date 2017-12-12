@@ -3,7 +3,6 @@ package raft.server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.rpc.AppendEntriesCommand;
-import raft.server.rpc.RequestVoteCommand;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -15,53 +14,35 @@ import java.util.concurrent.TimeUnit;
  * Date: 17/12/7
  */
 public class Follower extends RaftState {
-    private Logger logger = LoggerFactory.getLogger(Follower.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(Follower.class.getName());
 
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
+    private final long pingTimeoutMillis = 2 * Integer.parseInt(System.getProperty("raft.server.leader.ping.interval.millis", "300"));
+
     private RaftServer server;
     private ScheduledFuture pingTimeoutFuture;
+
+    Follower(RaftServer server) {
+        this.server = server;
+    }
 
     public void start() {
         this.schedulePingTimeout();
     }
 
     private void schedulePingTimeout() {
-        this.pingTimeoutFuture = this.timer.schedule(this::transferToCandidate
-                , 100, TimeUnit.SECONDS);
+        logger.warn("not receiving ping for {} millis transit to candidate", this.pingTimeoutMillis);
+        this.pingTimeoutFuture = this.timer.schedule(() ->
+                        this.server.transferState(RaftServer.State.CANDIDATE)
+                , this.pingTimeoutMillis, TimeUnit.SECONDS);
     }
 
     public void finish() {
         this.pingTimeoutFuture.cancel(true);
     }
 
-    void transferToCandidate(){
-        this.finish();
-        // set server state to candidate
-    }
-
-    void transferToLeader() {
-        throw new UnsupportedOperationException();
-    }
-
-    void transferToFollower() {
-        this.finish();
-        this.schedulePingTimeout();
-    }
-
     public void onReceiveAppendEntries(AppendEntriesCommand cmd) {
-        if (cmd.getTerm() > server.getTerm()) {
-            // tranfer to follower
-        } else {
-            this.pingTimeoutFuture.cancel(true);
-            this.schedulePingTimeout();
-        }
-    }
-
-    public void onReceiveRequestVote(RequestVoteCommand cmd) {
-        if (cmd.getTerm() > server.getTerm()) {
-            // tranfer to follower
-        } else {
-            // reject vote
-        }
+        this.pingTimeoutFuture.cancel(true);
+        this.schedulePingTimeout();
     }
 }
