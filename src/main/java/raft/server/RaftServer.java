@@ -8,6 +8,7 @@ import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.Pair;
+import raft.ThreadFactoryImpl;
 import raft.Util;
 import raft.server.connections.NettyDecoder;
 import raft.server.connections.NettyEncoder;
@@ -22,7 +23,6 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -32,24 +32,19 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class RaftServer {
     private Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
 
+    private final ConcurrentHashMap<String, RemoteRaftClient> clients = new ConcurrentHashMap<>();
+    private final HashMap<CommandCode, Pair<Processor, ExecutorService>> processorTable = new HashMap<>();
     private final int port;
     private final EventLoopGroup bossGroup;
     private final EventLoopGroup workerGroup;
-    private final ConcurrentHashMap<String, RemoteRaftClient> clients = new ConcurrentHashMap<>();
-    private final HashMap<CommandCode, Pair<Processor, ExecutorService>> processorTable = new HashMap<>();
-    // FIXME initialize these executors in initialize() with dedicated ThreadFactory
-    private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
-    private final ExecutorService processorExecutorService = Executors.newFixedThreadPool(Integer.parseInt(System.getProperty("raft.server.processor.thread.pool.size", "8")));
-    private final RaftState follower = new Follower(this);
-    private final RaftState leader = new Leader(this);
-    private final RaftState candidate = new Candidate(this);
     private final Map<State, RaftState> stateHandlerMap;
 
     private ChannelHandler handler = new RaftRequestHandler();
     private ConcurrentHashMap<Integer, PendingRequest> pendingRequestTable = new ConcurrentHashMap<>();
     private ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
 
-
+    private ExecutorService processorExecutorService;
+    private ScheduledExecutorService timer;
     private long clientReconnectDelayMillis;
     private ChannelFuture serverChannelFuture;
     private int term;
@@ -68,9 +63,9 @@ public class RaftServer {
         this.selfId = selfId;
 
         this.stateHandlerMap = new HashMap<>();
-        this.stateHandlerMap.put(State.LEADER, this.leader);
-        this.stateHandlerMap.put(State.CANDIDATE, this.candidate);
-        this.stateHandlerMap.put(State.FOLLOWER, this.follower);
+        this.stateHandlerMap.put(State.LEADER, new Leader(this));
+        this.stateHandlerMap.put(State.CANDIDATE, new Candidate(this));
+        this.stateHandlerMap.put(State.FOLLOWER, new Follower(this));
     }
 
     public synchronized void checkTermThenTransferStateToFollower(int term, String leaderId) {
@@ -80,7 +75,7 @@ public class RaftServer {
         }
     }
 
-    public synchronized void transferState(State nextState) {
+    synchronized void transferState(State nextState) {
         State currentState = this.getState();
         RaftState prevHandler = this.stateHandlerMap.get(currentState);
         prevHandler.finish();
@@ -90,7 +85,7 @@ public class RaftServer {
         nextHandler.start();
     }
 
-    public int increaseTerm(){
+    int increaseTerm(){
         this.term += 1;
         return this.term;
     }
@@ -169,11 +164,11 @@ public class RaftServer {
         return this.selfId;
     }
 
-    public ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
+    ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
         return clients;
     }
 
-    public State getState() {
+    State getState() {
         return state;
     }
 
@@ -264,9 +259,15 @@ public class RaftServer {
     }
 
     void initialize() throws Exception {
+        this.timer = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("RaftServerTimer_"));
+
+        int processorThreadPoolSize = Integer.parseInt(System.getProperty("raft.server.processor.thread.pool.size", "8"));
+        this.processorExecutorService = Executors.newFixedThreadPool(processorThreadPoolSize,
+                new ThreadFactoryImpl("RaftServerProcessorThread_"));
+
         this.registerProcessors();
         this.startLocalServer();
-        timer.scheduleWithFixedDelay(this::scanPendingRequestTable, 2, 2, TimeUnit.SECONDS);
+        this.timer.scheduleWithFixedDelay(this::scanPendingRequestTable, 2, 2, TimeUnit.SECONDS);
     }
 
     public void addPendingRequest(int requestId, long timeoutMillis, PendingRequestCallback callback) {
