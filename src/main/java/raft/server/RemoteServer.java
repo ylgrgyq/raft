@@ -4,16 +4,17 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.util.concurrent.Future;
 import org.slf4j.LoggerFactory;
 import raft.Pair;
 import raft.ThreadFactoryImpl;
 import raft.Util;
 import raft.server.connections.NettyDecoder;
 import raft.server.connections.NettyEncoder;
+import raft.server.connections.RemoteRaftClient;
 import raft.server.processor.Processor;
 import raft.server.rpc.*;
 
+import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -27,6 +28,7 @@ import java.util.concurrent.*;
 public class RemoteServer {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(RemoteServer.class.getName());
 
+    private final ConcurrentHashMap<String, RemoteRaftClient> clients = new ConcurrentHashMap<>();
     private final HashMap<CommandCode, Pair<Processor, ExecutorService>> processorTable = new HashMap<>();
     private final int port;
     private final EventLoopGroup bossGroup;
@@ -35,24 +37,62 @@ public class RemoteServer {
     private ChannelHandler handler = new RemoteRequestHandler();
     private ConcurrentHashMap<Integer, PendingRequest> pendingRequestTable = new ConcurrentHashMap<>();
 
+    private ScheduledExecutorService timer;
     private ExecutorService callbackExecutor;
     private ChannelFuture serverChannelFuture;
+    private long clientReconnectDelayMillis;
 
     RemoteServer(EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port, long clientReconnectDelayMillis) {
         this.bossGroup = bossGroup;
         this.workerGroup = workerGroup;
         this.port = port;
+        this.clientReconnectDelayMillis = clientReconnectDelayMillis;
 
         this.callbackExecutor = Executors.newFixedThreadPool(4,
-                new ThreadFactoryImpl("RemoteServerCallbackPoll"));
+                new ThreadFactoryImpl("RemoteServerCallbackPoll_"));
 
+        this.timer = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("RaftServerTimer_"));
     }
 
-    private void registerProcessor(CommandCode code, Processor processor, ExecutorService service) {
+    void registerProcessor(CommandCode code, Processor processor, ExecutorService service) {
         this.processorTable.put(code, new Pair<>(processor, service));
     }
 
-    Future<Void> startLocalServer() throws InterruptedException {
+    private void scheduleReconnectToClientJob(final InetSocketAddress addr) {
+        this.workerGroup.schedule(() -> this.connectToClient(addr),
+                this.clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
+    }
+
+    private void connectToClient(final InetSocketAddress addr) {
+        final RemoteRaftClient client = new RemoteRaftClient(this.workerGroup, this);
+        final ChannelFuture future = client.connect(addr);
+        future.addListener((ChannelFuture f) -> {
+            if (f.isSuccess()) {
+                logger.info("Connect to {} success", addr);
+                final Channel ch = f.channel();
+                final String id = client.getId();
+                this.clients.put(id, client);
+                ch.closeFuture().addListener(cf -> {
+                    logger.warn("Connection with {} lost, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
+                    this.clients.remove(id);
+                    scheduleReconnectToClientJob(addr);
+                });
+            } else {
+                logger.warn("Connect to {} failed, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
+                scheduleReconnectToClientJob(addr);
+            }
+        });
+    }
+
+    void connectToClients(List<InetSocketAddress> addrs) {
+        addrs.forEach(this::connectToClient);
+    }
+
+    ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
+        return clients;
+    }
+
+    ChannelFuture startLocalServer() throws InterruptedException {
         ServerBootstrap b = new ServerBootstrap();
         b.group(this.bossGroup, this.workerGroup)
                 .channel(NioServerSocketChannel.class)
@@ -68,6 +108,9 @@ public class RemoteServer {
 
         // Bind and start to accept incoming connections.
         this.serverChannelFuture = b.bind(this.port).sync();
+
+        this.timer.scheduleWithFixedDelay(this::scanPendingRequestTable, 2, 2, TimeUnit.SECONDS);
+
         return this.serverChannelFuture;
     }
 
@@ -166,8 +209,15 @@ public class RemoteServer {
         }
     }
 
-    public void shutdown() {
+    public ChannelHandler getHandler() {
+        return handler;
+    }
+
+    void shutdown() {
+        this.timer.shutdown();
         this.callbackExecutor.shutdown();
+        this.bossGroup.shutdownGracefully();
+        this.workerGroup.shutdownGracefully();
     }
 
     @ChannelHandler.Sharable

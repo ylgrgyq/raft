@@ -53,8 +53,13 @@ public class Candidate extends RaftState {
         final int votesNeedToWinLeader = clientsSize / 2;
 
         final AtomicInteger votesGot = new AtomicInteger();
+        RequestVoteCommand vote = new RequestVoteCommand(server.getTerm());
+        vote.setCandidateId(server.getId());
+
+        RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
+
         for (final RemoteRaftClient client : clients.values()) {
-            client.requestVote(req -> {
+            client.send(cmd, req -> {
                 final RemotingCommand res = req.getResponse();
                 if (res != null) {
                     final RequestVoteCommand v = new RequestVoteCommand(res.getBody());

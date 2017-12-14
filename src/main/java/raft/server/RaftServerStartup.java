@@ -13,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 /**
@@ -69,15 +70,11 @@ public class RaftServerStartup {
         }
 
         RaftServer server = serverBuilder.build();
-        try {
-            server.initialize();
-            server.startLocalServer();
-            server.connectToClients(clientAddrs);
-            server.startStateHandler();
-            server.sync();
-        } finally {
-            bossGroup.shutdownGracefully();
-            workerGroup.shutdownGracefully();
-        }
+
+        server.initialize();
+        server.start(clientAddrs);
+        server.sync();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
     }
 }

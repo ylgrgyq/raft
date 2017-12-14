@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.RaftServer;
 import raft.server.connections.RemoteRaftClient;
+import raft.server.rpc.AppendEntriesCommand;
+import raft.server.rpc.RemotingCommand;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -35,8 +37,11 @@ public class Leader extends RaftState {
     private ScheduledFuture schedulePingJob() {
         return this.timer.scheduleWithFixedDelay(() -> {
             logger.info("Ping to all clients...");
+            final AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm());
+            RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
+            ping.setLeaderId(server.getLeaderId());
             for (final RemoteRaftClient client : this.server.getConnectedClients().values()) {
-                client.ping().addListener((ChannelFuture f) -> {
+                client.send(cmd, null).addListener((ChannelFuture f) -> {
                     if (!f.isSuccess()) {
                         logger.warn("Ping to {} failed", client, f.cause());
                         client.close();

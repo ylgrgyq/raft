@@ -5,11 +5,13 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.Util;
-import raft.server.RaftServer;
-import raft.server.rpc.*;
+import raft.server.RemoteServer;
+import raft.server.rpc.PendingRequestCallback;
+import raft.server.rpc.RemotingCommand;
 
 import java.net.InetSocketAddress;
 
@@ -23,9 +25,9 @@ public class RemoteRaftClient {
     private final Bootstrap bootstrap;
     private ChannelFuture channelFuture;
     private String id;
-    private RaftServer server;
+    private RemoteServer server;
 
-    public RemoteRaftClient(final EventLoopGroup eventLoopGroup, final RaftServer server) {
+    public RemoteRaftClient(final EventLoopGroup eventLoopGroup, final RemoteServer server) {
         this.server = server;
         this.bootstrap = new Bootstrap();
 
@@ -62,16 +64,7 @@ public class RemoteRaftClient {
         return this.id;
     }
 
-    public void send(RemotingCommand req) {
-
-    }
-
-    public ChannelFuture requestVote(PendingRequestCallback callable) {
-        RequestVoteCommand vote = new RequestVoteCommand(server.getTerm());
-        vote.setCandidateId(server.getId());
-
-        RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
-
+    public Future<Void> send(RemotingCommand cmd, PendingRequestCallback callable) {
         this.server.addPendingRequest(cmd.getRequestId(), 3000, callable);
         ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
         future.addListener(f -> {
@@ -81,15 +74,8 @@ public class RemoteRaftClient {
                 this.close();
             }
         });
+
         return future;
-    }
-
-    public ChannelFuture ping() {
-        AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm());
-        ping.setLeaderId(server.getLeaderId());
-
-        RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
-        return channelFuture.channel().writeAndFlush(cmd);
     }
 
     public ChannelFuture close() {
