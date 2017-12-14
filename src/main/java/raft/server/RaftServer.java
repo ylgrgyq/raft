@@ -17,6 +17,10 @@ import raft.server.processor.AppendEntriesProcessor;
 import raft.server.processor.Processor;
 import raft.server.processor.RequestVoteProcessor;
 import raft.server.rpc.*;
+import raft.server.state.Candidate;
+import raft.server.state.Follower;
+import raft.server.state.Leader;
+import raft.server.state.RaftState;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -73,7 +77,7 @@ public class RaftServer {
         this.stateLock.writeLock().lock();
         try {
             if (term > this.term.get()) {
-                this.state = State.FOLLOWER;
+                this.transitState(State.FOLLOWER);
                 this.leaderId = leaderId;
                 return true;
             } else {
@@ -84,7 +88,7 @@ public class RaftServer {
         }
     }
 
-    void transitState(State nextState) {
+    public void transitState(State nextState) {
         try {
             this.stateLock.writeLock().lockInterruptibly();
             try {
@@ -105,7 +109,7 @@ public class RaftServer {
         }
     }
 
-    int increaseTerm(){
+    public int increaseTerm(){
         return this.term.incrementAndGet();
     }
 
@@ -187,11 +191,11 @@ public class RaftServer {
         return this.selfId;
     }
 
-    ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
+    public ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
         return clients;
     }
 
-    State getState() {
+    public State getState() {
         this.stateLock.readLock().lock();
         try {
             return state;

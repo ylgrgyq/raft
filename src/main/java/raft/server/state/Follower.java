@@ -1,7 +1,8 @@
-package raft.server;
+package raft.server.state;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.server.RaftServer;
 import raft.server.rpc.AppendEntriesCommand;
 
 import java.util.concurrent.Executors;
@@ -22,7 +23,7 @@ public class Follower extends RaftState {
     private RaftServer server;
     private ScheduledFuture pingTimeoutFuture;
 
-    Follower(RaftServer server) {
+    public Follower(RaftServer server) {
         this.server = server;
     }
 

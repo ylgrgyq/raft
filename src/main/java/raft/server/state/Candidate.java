@@ -1,7 +1,8 @@
-package raft.server;
+package raft.server.state;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.server.RaftServer;
 import raft.server.connections.RemoteRaftClient;
 import raft.server.rpc.RemotingCommand;
 import raft.server.rpc.RequestVoteCommand;
@@ -21,7 +22,7 @@ public class Candidate extends RaftState {
     private RaftServer server;
     private ScheduledFuture electionTimeoutFuture;
 
-    Candidate(RaftServer server) {
+    public Candidate(RaftServer server) {
         this.server = server;
     }
 

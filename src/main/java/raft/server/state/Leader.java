@@ -1,8 +1,9 @@
-package raft.server;
+package raft.server.state;
 
 import io.netty.channel.ChannelFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.server.RaftServer;
 import raft.server.connections.RemoteRaftClient;
 
 import java.util.concurrent.Executors;
@@ -23,7 +24,7 @@ public class Leader extends RaftState {
     private RaftServer server;
     private ScheduledFuture pingTimeoutFuture;
 
-    Leader(RaftServer server) {
+    public Leader(RaftServer server) {
         this.server = server;
     }
 
