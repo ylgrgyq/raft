@@ -25,9 +25,8 @@ public class RequestVoteProcessor extends AbstractProcessor {
         RequestVoteCommand res;
         final int termInVote = vote.getTerm();
         final int termInServer = this.server.getTerm();
-        if (termInVote > termInServer) {
-            server.checkTermThenTransferStateToFollower(termInVote, vote.getCandidateId());
-
+        if (termInVote > termInServer &&
+                server.transitStateToFollower(termInVote, vote.getCandidateId())) {
             res = new RequestVoteCommand(termInVote);
             res.setVoteGranted(true);
         } else {

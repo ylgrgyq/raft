@@ -23,6 +23,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -30,7 +31,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * Date: 17/11/21
  */
 public class RaftServer {
-    private Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
 
     private final ConcurrentHashMap<String, RemoteRaftClient> clients = new ConcurrentHashMap<>();
     private final HashMap<CommandCode, Pair<Processor, ExecutorService>> processorTable = new HashMap<>();
@@ -47,14 +48,14 @@ public class RaftServer {
     private ScheduledExecutorService timer;
     private long clientReconnectDelayMillis;
     private ChannelFuture serverChannelFuture;
-    private int term;
+    private AtomicInteger term;
     private String selfId;
     private String leaderId;
     private State state;
 
     private RaftServer(String selfId, EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
                        long clientReconnectDelayMillis, State state) {
-        this.term = 0;
+        this.term = new AtomicInteger(0);
         this.bossGroup = bossGroup;
         this.workerGroup = workerGroup;
         this.port = port;
@@ -68,26 +69,44 @@ public class RaftServer {
         this.stateHandlerMap.put(State.FOLLOWER, new Follower(this));
     }
 
-    public synchronized void checkTermThenTransferStateToFollower(int term, String leaderId) {
-        if (term > this.term) {
-            this.state = State.FOLLOWER;
-            this.leaderId = leaderId;
+    public boolean transitStateToFollower(int term, String leaderId) {
+        this.stateLock.writeLock().lock();
+        try {
+            if (term > this.term.get()) {
+                this.state = State.FOLLOWER;
+                this.leaderId = leaderId;
+                return true;
+            } else {
+                return false;
+            }
+        } finally {
+            this.stateLock.writeLock().unlock();
         }
     }
 
-    synchronized void transferState(State nextState) {
-        State currentState = this.getState();
-        RaftState prevHandler = this.stateHandlerMap.get(currentState);
-        prevHandler.finish();
+    void transitState(State nextState) {
+        try {
+            this.stateLock.writeLock().lockInterruptibly();
+            try {
+                if (this.getState() != nextState) {
+                    State currentState = this.getState();
+                    RaftState prevHandler = this.stateHandlerMap.get(currentState);
+                    prevHandler.finish();
 
-        this.state = nextState;
-        RaftState nextHandler = this.stateHandlerMap.get(nextState);
-        nextHandler.start();
+                    this.state = nextState;
+                    RaftState nextHandler = this.stateHandlerMap.get(nextState);
+                    nextHandler.start();
+                }
+            } finally {
+                this.stateLock.writeLock().unlock();
+            }
+        } catch (InterruptedException ex) {
+            logger.warn("got interruption in transiting state to {}", nextState.name());
+        }
     }
 
     int increaseTerm(){
-        this.term += 1;
-        return this.term;
+        return this.term.incrementAndGet();
     }
 
     private void registerProcessor(CommandCode code, Processor processor, ExecutorService service) {
@@ -99,7 +118,7 @@ public class RaftServer {
         this.registerProcessor(CommandCode.REQUEST_VOTE, new RequestVoteProcessor(this), this.processorExecutorService);
     }
 
-    private Future<Void> startLocalServer() throws InterruptedException {
+    Future<Void> startLocalServer() throws InterruptedException {
         ServerBootstrap b = new ServerBootstrap();
         b.group(this.bossGroup, this.workerGroup)
                 .channel(NioServerSocketChannel.class)
@@ -116,6 +135,10 @@ public class RaftServer {
         // Bind and start to accept incoming connections.
         this.serverChannelFuture = b.bind(this.port).sync();
         return this.serverChannelFuture;
+    }
+
+    void startStateHandler() {
+        this.stateHandlerMap.get(this.state).start();
     }
 
     private void scheduleReconnectToClientJob(final InetSocketAddress addr) {
@@ -157,7 +180,7 @@ public class RaftServer {
     }
 
     public int getTerm() {
-        return this.term;
+        return this.term.get();
     }
 
     public String getId() {
@@ -169,7 +192,12 @@ public class RaftServer {
     }
 
     State getState() {
-        return state;
+        this.stateLock.readLock().lock();
+        try {
+            return state;
+        } finally {
+            this.stateLock.readLock().unlock();
+        }
     }
 
     private void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand req) {
@@ -266,7 +294,6 @@ public class RaftServer {
                 new ThreadFactoryImpl("RaftServerProcessorThread_"));
 
         this.registerProcessors();
-        this.startLocalServer();
         this.timer.scheduleWithFixedDelay(this::scanPendingRequestTable, 2, 2, TimeUnit.SECONDS);
     }
 
@@ -277,6 +304,11 @@ public class RaftServer {
 
     public void removePendingRequest(int requestId) {
         this.pendingRequestTable.remove(requestId);
+    }
+
+    public void shutdown() {
+        this.timer.shutdown();
+        this.processorExecutorService.shutdown();
     }
 
     @ChannelHandler.Sharable

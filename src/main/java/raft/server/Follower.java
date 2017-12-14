@@ -31,14 +31,19 @@ public class Follower extends RaftState {
     }
 
     private void schedulePingTimeout() {
-        logger.warn("not receiving ping for {} millis transit to candidate", this.pingTimeoutMillis);
-        this.pingTimeoutFuture = this.timer.schedule(() ->
-                        this.server.transferState(RaftServer.State.CANDIDATE)
-                , this.pingTimeoutMillis, TimeUnit.SECONDS);
+        if (this.pingTimeoutFuture == null) {
+            logger.warn("not receiving ping for {} millis transit to candidate", this.pingTimeoutMillis);
+            this.pingTimeoutFuture = this.timer.schedule(() ->
+                            this.server.transitState(RaftServer.State.CANDIDATE)
+                    , this.pingTimeoutMillis, TimeUnit.SECONDS);
+        } else {
+            logger.warn("ping timeout job already scheduled");
+        }
     }
 
     public void finish() {
         this.pingTimeoutFuture.cancel(true);
+        this.pingTimeoutFuture = null;
     }
 
     public void onReceiveAppendEntries(AppendEntriesCommand cmd) {

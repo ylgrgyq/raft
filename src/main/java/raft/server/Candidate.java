@@ -64,7 +64,7 @@ public class Candidate extends RaftState {
                         synchronized (this) {
                             final RaftServer.State state = this.server.getState();
                             if (state != RaftServer.State.LEADER) {
-                                this.server.transferState(RaftServer.State.LEADER);
+                                this.server.transitState(RaftServer.State.LEADER);
                             }
                         }
                     }
@@ -77,5 +77,6 @@ public class Candidate extends RaftState {
 
     public void finish() {
         this.electionTimeoutFuture.cancel(true);
+        this.electionTimeoutFuture = null;
     }
 }

@@ -3,7 +3,6 @@ package raft.server.processor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.RaftServer;
-import raft.server.connections.RemoteRaftClient;
 import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.RemotingCommand;
 
@@ -26,7 +25,7 @@ public class AppendEntriesProcessor extends AbstractProcessor{
 
         final int termInEntry = entry.getTerm();
         final RaftServer server = this.getServer();
-        server.checkTermThenTransferStateToFollower(termInEntry, entry.getLeaderId());
+        server.transitStateToFollower(termInEntry, entry.getLeaderId());
 
         AppendEntriesCommand response = new AppendEntriesCommand(this.getServer().getTerm());
         response.markSuccess();

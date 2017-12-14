@@ -1,3 +1,3 @@
 # raft
 
-a raft server
+Write a raft server to know more about it.
