@@ -39,7 +39,6 @@ public class RemoteServer {
 
     private ScheduledExecutorService timer;
     private ExecutorService callbackExecutor;
-    private ChannelFuture serverChannelFuture;
     private long clientReconnectDelayMillis;
 
     RemoteServer(EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port, long clientReconnectDelayMillis) {
@@ -107,11 +106,11 @@ public class RemoteServer {
                 });
 
         // Bind and start to accept incoming connections.
-        this.serverChannelFuture = b.bind(this.port).sync();
+        ChannelFuture future = b.bind(this.port).sync();
 
         this.timer.scheduleWithFixedDelay(this::scanPendingRequestTable, 2, 2, TimeUnit.SECONDS);
 
-        return this.serverChannelFuture;
+        return future;
     }
 
     public void addPendingRequest(int requestId, long timeoutMillis, PendingRequestCallback callback) {

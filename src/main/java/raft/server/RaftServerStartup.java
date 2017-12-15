@@ -73,7 +73,6 @@ public class RaftServerStartup {
 
         server.initialize();
         server.start(clientAddrs);
-        server.sync();
 
         Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
     }

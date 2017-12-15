@@ -1,6 +1,5 @@
 package raft.server;
 
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.EventLoopGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +38,6 @@ public class RaftServer {
     private ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
 
     private ExecutorService processorExecutorService;
-    private ChannelFuture serverChannelFuture;
     private AtomicInteger term;
     private String selfId;
     private String leaderId;
@@ -95,9 +93,7 @@ public class RaftServer {
         }
     }
 
-    public int increaseTerm(){
-        return this.term.incrementAndGet();
-    }
+
 
     private void registerProcessors() {
         this.remoteServer.registerProcessor(CommandCode.APPEND_ENTRIES, new AppendEntriesProcessor(this), this.processorExecutorService);
@@ -105,14 +101,14 @@ public class RaftServer {
     }
 
     void start(List<InetSocketAddress> clientAddrs) throws InterruptedException {
-        this.serverChannelFuture = this.remoteServer.startLocalServer();
+        this.remoteServer.startLocalServer();
 
         this.remoteServer.connectToClients(clientAddrs);
         this.stateHandlerMap.get(this.state).start();
     }
 
-    void sync() throws InterruptedException {
-        this.serverChannelFuture.channel().closeFuture().sync();
+    public int increaseTerm(){
+        return this.term.incrementAndGet();
     }
 
     public int getTerm() {
@@ -144,7 +140,7 @@ public class RaftServer {
         this.registerProcessors();
     }
 
-    public void shutdown() {
+    void shutdown() {
         this.remoteServer.shutdown();
         this.processorExecutorService.shutdown();
     }
