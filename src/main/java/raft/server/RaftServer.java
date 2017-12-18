@@ -61,8 +61,9 @@ public class RaftServer {
         this.stateLock.writeLock().lock();
         try {
             if (term > this.term.get()) {
-                this.transitState(State.FOLLOWER);
                 this.leaderId = leaderId;
+                this.term.set(term);
+                this.transitState(State.FOLLOWER);
                 return true;
             } else {
                 return false;
@@ -72,28 +73,44 @@ public class RaftServer {
         }
     }
 
-    public void transitState(State nextState) {
+    public boolean transitStateToLeader() {
+        this.stateLock.writeLock().lock();
         try {
-            this.stateLock.writeLock().lockInterruptibly();
-            try {
-                if (this.getState() != nextState) {
-                    State currentState = this.getState();
-                    RaftState prevHandler = this.stateHandlerMap.get(currentState);
-                    prevHandler.finish();
-
-                    this.state = nextState;
-                    RaftState nextHandler = this.stateHandlerMap.get(nextState);
-                    nextHandler.start();
-                }
-            } finally {
-                this.stateLock.writeLock().unlock();
-            }
-        } catch (InterruptedException ex) {
-            logger.warn("got interruption in transiting state to {}", nextState.name());
+            this.leaderId = this.selfId;
+            this.transitState(State.LEADER);
+            return true;
+        } finally {
+            this.stateLock.writeLock().unlock();
         }
     }
 
+    public boolean transitStateToCandidate() {
+        this.stateLock.writeLock().lock();
+        try {
+            this.leaderId = null;
+            this.transitState(State.CANDIDATE);
+            return true;
+        } finally {
+            this.stateLock.writeLock().unlock();
+        }
+    }
 
+    private void transitState(State nextState) {
+        this.stateLock.writeLock().lock();
+        try {
+            if (this.getState() != nextState) {
+                State currentState = this.getState();
+                RaftState prevHandler = this.stateHandlerMap.get(currentState);
+                prevHandler.finish();
+
+                this.state = nextState;
+                RaftState nextHandler = this.stateHandlerMap.get(nextState);
+                nextHandler.start();
+            }
+        } finally {
+            this.stateLock.writeLock().unlock();
+        }
+    }
 
     private void registerProcessors() {
         this.remoteServer.registerProcessor(CommandCode.APPEND_ENTRIES, new AppendEntriesProcessor(this), this.processorExecutorService);

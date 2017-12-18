@@ -70,7 +70,7 @@ public class Candidate extends RaftState {
                         synchronized (this) {
                             final RaftServer.State state = this.server.getState();
                             if (state != RaftServer.State.LEADER) {
-                                this.server.transitState(RaftServer.State.LEADER);
+                                this.server.transitStateToLeader();
                             }
                         }
                     }

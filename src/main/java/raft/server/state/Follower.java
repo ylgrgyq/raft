@@ -35,7 +35,7 @@ public class Follower extends RaftState {
         if (this.pingTimeoutFuture == null) {
             logger.warn("not receiving ping for {} millis transit to candidate", this.pingTimeoutMillis);
             this.pingTimeoutFuture = this.timer.schedule(() ->
-                            this.server.transitState(RaftServer.State.CANDIDATE)
+                            this.server.transitStateToCandidate()
                     , this.pingTimeoutMillis, TimeUnit.SECONDS);
         } else {
             logger.warn("ping timeout job already scheduled");
