@@ -33,7 +33,7 @@ public class AppendEntriesProcessor extends AbstractProcessor<AppendEntriesComma
     protected RemotingCommand doProcess(AppendEntriesCommand entry) {
         final int termInEntry = entry.getTerm();
         final RaftServer server = this.getServer();
-        server.transitStateToFollower(termInEntry, entry.getLeaderId());
+        server.tryTransitStateToFollower(termInEntry, entry.getLeaderId());
 
         AppendEntriesCommand response = new AppendEntriesCommand(this.getServer().getTerm());
         response.markSuccess();

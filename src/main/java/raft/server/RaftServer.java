@@ -8,21 +8,12 @@ import raft.server.connections.RemoteRaftClient;
 import raft.server.processor.AppendEntriesProcessor;
 import raft.server.processor.RequestVoteProcessor;
 import raft.server.rpc.CommandCode;
-import raft.server.state.Candidate;
-import raft.server.state.Follower;
-import raft.server.state.Leader;
-import raft.server.state.RaftState;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -33,37 +24,45 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class RaftServer {
     private static final Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
 
-    private final Map<State, RaftState> stateHandlerMap;
-
-    private ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
+    private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
+    private final RaftState leader = new Leader(this, timer);
+    private final RaftState candidate = new Candidate(this, timer);
+    private final RaftState follower = new Follower(this, timer);
+    private final ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
 
     private ExecutorService processorExecutorService;
     private AtomicInteger term;
     private String selfId;
     private String leaderId;
-    private State state;
+    private RaftState state;
     private RemoteServer remoteServer;
 
     private RaftServer(String selfId, EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
                        long clientReconnectDelayMillis, State state) {
         this.term = new AtomicInteger(0);
-        this.state = state;
         this.selfId = selfId;
         this.remoteServer = new RemoteServer(bossGroup, workerGroup, port, clientReconnectDelayMillis);
 
-        this.stateHandlerMap = new HashMap<>();
-        this.stateHandlerMap.put(State.LEADER, new Leader(this));
-        this.stateHandlerMap.put(State.CANDIDATE, new Candidate(this));
-        this.stateHandlerMap.put(State.FOLLOWER, new Follower(this));
+        switch (state) {
+            case CANDIDATE:
+                this.state = candidate;
+                break;
+            case FOLLOWER:
+                this.state = follower;
+                break;
+            case LEADER:
+                this.state = leader;
+                break;
+        }
     }
 
-    public boolean transitStateToFollower(int term, String leaderId) {
+    public boolean tryTransitStateToFollower(int term, String leaderId) {
         this.stateLock.writeLock().lock();
         try {
             if (term > this.term.get()) {
                 this.leaderId = leaderId;
                 this.term.set(term);
-                this.transitState(State.FOLLOWER);
+                this.transitState(follower);
                 return true;
             } else {
                 return false;
@@ -73,42 +72,39 @@ public class RaftServer {
         }
     }
 
-    public boolean transitStateToLeader() {
+    boolean tryTransitStateToLeader(int term) {
         this.stateLock.writeLock().lock();
         try {
-            this.leaderId = this.selfId;
-            this.transitState(State.LEADER);
-            return true;
-        } finally {
-            this.stateLock.writeLock().unlock();
-        }
-    }
-
-    public boolean transitStateToCandidate() {
-        this.stateLock.writeLock().lock();
-        try {
-            this.leaderId = null;
-            this.transitState(State.CANDIDATE);
-            return true;
-        } finally {
-            this.stateLock.writeLock().unlock();
-        }
-    }
-
-    private void transitState(State nextState) {
-        this.stateLock.writeLock().lock();
-        try {
-            if (this.getState() != nextState) {
-                State currentState = this.getState();
-                RaftState prevHandler = this.stateHandlerMap.get(currentState);
-                prevHandler.finish();
-
-                this.state = nextState;
-                RaftState nextHandler = this.stateHandlerMap.get(nextState);
-                nextHandler.start();
+            if (term > this.term.get()) {
+                this.leaderId = this.selfId;
+                this.term.set(term);
+                this.transitState(leader);
+                return true;
+            } else {
+                return false;
             }
         } finally {
             this.stateLock.writeLock().unlock();
+        }
+    }
+
+    boolean tryTransitStateToCandidate() {
+        this.stateLock.writeLock().lock();
+        try {
+            this.leaderId = null;
+            this.transitState(candidate);
+            return true;
+        } finally {
+            this.stateLock.writeLock().unlock();
+        }
+    }
+
+    private void transitState(RaftState nextState) {
+        if (this.state != nextState) {
+            this.state.finish();
+
+            this.state = nextState;
+            nextState.start();
         }
     }
 
@@ -119,13 +115,14 @@ public class RaftServer {
 
     void start(List<InetSocketAddress> clientAddrs) throws InterruptedException {
         this.remoteServer.startLocalServer();
-
         this.remoteServer.connectToClients(clientAddrs);
-        this.stateHandlerMap.get(this.state).start();
-    }
 
-    public int increaseTerm(){
-        return this.term.incrementAndGet();
+        this.stateLock.writeLock().lock();
+        try {
+            this.state.start();
+        } finally {
+            this.stateLock.writeLock().unlock();
+        }
     }
 
     public int getTerm() {
@@ -143,7 +140,7 @@ public class RaftServer {
     public State getState() {
         this.stateLock.readLock().lock();
         try {
-            return state;
+            return state.getState();
         } finally {
             this.stateLock.readLock().unlock();
         }
@@ -160,16 +157,11 @@ public class RaftServer {
     void shutdown() {
         this.remoteServer.shutdown();
         this.processorExecutorService.shutdown();
+        this.timer.shutdown();
     }
 
     public String getLeaderId() {
         return leaderId;
-    }
-
-    public enum State {
-        FOLLOWER,
-        CANDIDATE,
-        LEADER
     }
 
     static class RaftServerBuilder {
