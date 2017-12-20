@@ -203,7 +203,8 @@ public class RemoteServer {
             pendingRequest.setResponse(res);
             this.executeRequestCallback(pendingRequest);
         } else {
-            logger.warn("got response without matched pending request, {}", Util.parseChannelRemoteAddr(ctx.channel()));
+            logger.warn("got response without matched pending request, maybe request have been canceled, {}",
+                    Util.parseChannelRemoteAddr(ctx.channel()));
             logger.warn(res.toString());
         }
     }

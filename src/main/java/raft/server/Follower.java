@@ -52,12 +52,15 @@ class Follower extends RaftState<AppendEntriesCommand> {
 
     @Override
     public void onReceiveRaftServerCommand(AppendEntriesCommand cmd) {
-        synchronized (this) {
+        if (this.server.getState() == State.FOLLOWER) {
             if (this.pingTimeoutFuture != null) {
-                this.pingTimeoutFuture.cancel(true);
+                synchronized (this) {
+                    if (this.pingTimeoutFuture != null) {
+                        this.pingTimeoutFuture.cancel(true);
+                        this.schedulePingTimeout();
+                    }
+                }
             }
         }
-
-        this.schedulePingTimeout();
     }
 }
