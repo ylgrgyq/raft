@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 class Candidate extends RaftState {
     private static final Logger logger = LoggerFactory.getLogger(Candidate.class.getName());
 
-    private final int maxElectionTimeoutMillis = Integer.parseInt(System.getProperty("raft.server.max.election.timeout.millis", "300"));
+    private final int maxElectionTimeoutMillis = Integer.parseInt(System.getProperty("raft.server.max.election.timeout.millis", "10000"));
     private ScheduledFuture electionTimeoutFuture;
     private Map<Integer, Future<Void>> pendingRequestVote = new ConcurrentHashMap<>();
 
@@ -26,6 +26,7 @@ class Candidate extends RaftState {
     }
 
     public void start() {
+        logger.debug("start candidate, server={}", this.server);
         startElection();
     }
 
@@ -59,12 +60,14 @@ class Candidate extends RaftState {
                 final int candidateTerm = this.server.increaseTerm();
                 final ConcurrentHashMap<String, RemoteRaftClient> clients = this.server.getConnectedClients();
                 final int clientsSize = clients.size();
-                final int votesNeedToWinLeader = Math.max(2, clientsSize / 2);
+                final int votesToWin = Math.max(1, clientsSize / 2);
 
                 final AtomicInteger votesGot = new AtomicInteger();
                 RequestVoteCommand vote = new RequestVoteCommand(candidateTerm);
                 vote.setCandidateId(server.getId());
 
+                logger.debug("start election candidateTerm={}, votesToWin={}, clientsSize={}, server={}",
+                        candidateTerm, votesToWin, clientsSize, this.server);
                 RemotingCommand cmd;
                 for (final RemoteRaftClient client : clients.values()) {
                     cmd = RemotingCommand.createRequestCommand(vote);
@@ -72,8 +75,9 @@ class Candidate extends RaftState {
                         final RemotingCommand res = req.getResponse();
                         if (res != null) {
                             final RequestVoteCommand voteRes = new RequestVoteCommand(res.getBody());
+                            logger.warn("receive request vote result " + voteRes + " " + client);
                             assert voteRes.getTerm() == candidateTerm;
-                            if (voteRes.isVoteGranted() && votesGot.incrementAndGet() > votesNeedToWinLeader) {
+                            if (voteRes.isVoteGranted() && votesGot.incrementAndGet() > votesToWin) {
                                 this.server.tryTransitStateToLeader(candidateTerm);
                             }
                         } else {
@@ -91,6 +95,7 @@ class Candidate extends RaftState {
     }
 
     public void finish() {
+        logger.debug("finish candidate, server={}", this.server);
         if (this.electionTimeoutFuture != null) {
             this.electionTimeoutFuture.cancel(true);
             this.electionTimeoutFuture = null;

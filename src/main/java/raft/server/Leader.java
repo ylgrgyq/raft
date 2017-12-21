@@ -25,20 +25,21 @@ class Leader extends RaftState {
     }
 
     public void start() {
+        logger.debug("start leader, server={}", this.server);
         this.pingTimeoutFuture = this.schedulePingJob();
     }
 
     private ScheduledFuture schedulePingJob() {
         try {
             return this.timer.scheduleWithFixedDelay(() -> {
-                logger.info("Ping to all clients...");
                 final AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm());
-                RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
                 ping.setLeaderId(server.getLeaderId());
+                RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
+                logger.info("ping to all clients, term={}, reqId={} ...", ping.getTerm(), cmd.getRequestId());
                 for (final RemoteRaftClient client : this.server.getConnectedClients().values()) {
-                    client.send(cmd, null).addListener((ChannelFuture f) -> {
+                    client.sendOneway(cmd).addListener((ChannelFuture f) -> {
                         if (!f.isSuccess()) {
-                            logger.warn("Ping to {} failed", client, f.cause());
+                            logger.warn("ping to {} failed", client, f.cause());
                             client.close();
                         }
                     });
@@ -52,6 +53,7 @@ class Leader extends RaftState {
     }
 
     public void finish() {
+        logger.debug("finish leader, server={}", this.server);
         if (this.pingTimeoutFuture != null) {
             this.pingTimeoutFuture.cancel(true);
         }

@@ -46,16 +46,19 @@ public class RaftServer {
         this.selfId = selfId;
         this.remoteServer = new RemoteServer(bossGroup, workerGroup, port, clientReconnectDelayMillis);
 
-        switch (state) {
-            case CANDIDATE:
-                this.state = candidate;
-                break;
-            case FOLLOWER:
-                this.state = follower;
-                break;
-            case LEADER:
-                this.state = leader;
-                break;
+        this.state = follower;
+        if (state != null) {
+            switch (state) {
+                case CANDIDATE:
+                    this.state = candidate;
+                    break;
+                case FOLLOWER:
+                    this.state = follower;
+                    break;
+                case LEADER:
+                    this.state = leader;
+                    break;
+            }
         }
     }
 
@@ -79,7 +82,7 @@ public class RaftServer {
         this.stateLock.lock();
         try {
             if (this.getState() == State.CANDIDATE &&
-                    term > this.term.get()) {
+                    term == this.term.get()) {
                 this.leaderId = this.selfId;
                 this.term.set(term);
                 this.transitState(leader);
@@ -186,6 +189,17 @@ public class RaftServer {
         this.remoteServer.shutdown();
         this.processorExecutorService.shutdown();
         this.timer.shutdown();
+    }
+
+    @Override
+    public String toString() {
+        return "RaftServer{" +
+                ", term=" + term +
+                ", selfId='" + selfId + '\'' +
+                ", leaderId='" + leaderId + '\'' +
+                ", state=" + this.getState() +
+                ", remoteServer=" + remoteServer +
+                '}';
     }
 
     public String getLeaderId() {

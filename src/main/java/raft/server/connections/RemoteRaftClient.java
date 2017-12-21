@@ -69,7 +69,7 @@ public class RemoteRaftClient {
         ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
         future.addListener(f -> {
             if (!f.isSuccess()) {
-                logger.warn("request vote to {} failed", this, f.cause());
+                logger.warn("send request to {} failed", this, f.cause());
                 this.server.removePendingRequest(cmd.getRequestId());
                 this.close();
             }
@@ -77,6 +77,20 @@ public class RemoteRaftClient {
 
         return future;
     }
+
+    public Future<Void> sendOneway(RemotingCommand cmd) {
+        cmd.markOneWay(true);
+        ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
+        future.addListener(f -> {
+            if (!f.isSuccess()) {
+                logger.warn("request vote to {} failed", this, f.cause());
+                this.close();
+            }
+        });
+
+        return future;
+    }
+
 
     public ChannelFuture close() {
         return channelFuture.channel().close();

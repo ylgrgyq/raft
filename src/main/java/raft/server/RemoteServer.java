@@ -94,6 +94,9 @@ public class RemoteServer {
     ChannelFuture startLocalServer() throws InterruptedException {
         ServerBootstrap b = new ServerBootstrap();
         b.group(this.bossGroup, this.workerGroup)
+                .option(ChannelOption.SO_BACKLOG, 1024)
+                .option(ChannelOption.SO_REUSEADDR, true)
+                .childOption(ChannelOption.TCP_NODELAY, true)
                 .channel(NioServerSocketChannel.class)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
@@ -129,14 +132,17 @@ public class RemoteServer {
                 processorPair.getRight().submit(() -> {
                     try {
                         final RemotingCommand res = processorPair.getLeft().processRequest(req);
-                        res.setRequestId(req.getRequestId());
-                        res.setType(RemotingCommandType.RESPONSE);
-                        try {
-                            ctx.writeAndFlush(res);
-                        } catch (Throwable e) {
-                            logger.error("process done but write response failed", e);
-                            logger.error(req.toString());
-                            logger.error(res.toString());
+                        if (! req.isOneWay()) {
+                            res.setRequestId(req.getRequestId());
+                            res.setType(RemotingCommandType.RESPONSE);
+                            try {
+                                logger.debug("send response " + res);
+                                ctx.writeAndFlush(res);
+                            } catch (Throwable e) {
+                                logger.error("process done but write response failed", e);
+                                logger.error(req.toString());
+                                logger.error(res.toString());
+                            }
                         }
                     } catch (Throwable e) {
                         logger.error("process request exception", e);
@@ -226,9 +232,11 @@ public class RemoteServer {
         protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand req) throws Exception {
             switch (req.getType()) {
                 case REQUEST:
+                    logger.debug("process request " + req);
                     processRequestCommand(ctx, req);
                     break;
                 case RESPONSE:
+                    logger.debug("process response " + req);
                     processResponseCommand(ctx, req);
                     break;
                 default:

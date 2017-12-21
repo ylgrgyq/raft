@@ -25,6 +25,7 @@ class Follower extends RaftState<AppendEntriesCommand> {
     }
 
     public void start() {
+        logger.debug("start follower, server={}", this.server);
         this.schedulePingTimeout();
     }
 
@@ -34,7 +35,7 @@ class Follower extends RaftState<AppendEntriesCommand> {
                 this.pingTimeoutFuture = this.timer.schedule(() -> {
                     logger.info("not receiving ping for {} millis, start transit to candidate", this.pingTimeoutMillis);
                     this.server.tryTransitStateToCandidate();
-                }, this.pingTimeoutMillis, TimeUnit.SECONDS);
+                }, this.pingTimeoutMillis, TimeUnit.MILLISECONDS);
             } catch (RejectedExecutionException ex) {
                 logger.error("schedule ping timeout failed", ex);
             }
@@ -44,6 +45,7 @@ class Follower extends RaftState<AppendEntriesCommand> {
     }
 
     public synchronized void finish() {
+        logger.debug("finish follower, server={}", this.server);
         if (this.pingTimeoutFuture != null) {
             this.pingTimeoutFuture.cancel(true);
             this.pingTimeoutFuture = null;
@@ -57,6 +59,7 @@ class Follower extends RaftState<AppendEntriesCommand> {
                 synchronized (this) {
                     if (this.pingTimeoutFuture != null) {
                         this.pingTimeoutFuture.cancel(true);
+                        this.pingTimeoutFuture = null;
                         this.schedulePingTimeout();
                     }
                 }

@@ -30,18 +30,21 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
 
     @Override
     protected RemotingCommand doProcess(RequestVoteCommand vote) {
+        logger.warn("receive req vote " + vote);
         RequestVoteCommand res;
         final int termInVote = vote.getTerm();
         final int termInServer = this.server.getTerm();
-        if (termInVote > termInServer &&
-                server.tryTransitStateToFollower(termInVote, vote.getCandidateId())) {
+        if (termInVote > termInServer) {
             res = new RequestVoteCommand(termInVote);
             res.setVoteGranted(true);
+            res.setCandidateId(vote.getCandidateId());
         } else {
             res = new RequestVoteCommand(termInServer);
             res.setVoteGranted(false);
+            res.setCandidateId(vote.getCandidateId());
         }
 
+        logger.warn("send req vote result " + res);
         return RemotingCommand.createResponseCommand(res);
     }
 }
