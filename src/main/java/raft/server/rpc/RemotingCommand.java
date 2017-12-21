@@ -16,6 +16,7 @@ public class RemotingCommand {
 
     private CommandCode commandCode;
     private RemotingCommandType type;
+    private boolean oneWay = false;
     private byte[] body;
 
     private RemotingCommand() {
@@ -38,18 +39,24 @@ public class RemotingCommand {
     }
 
     public ByteBuf encode(ByteBuf buf){
-        int length = this.getLength();
-        buf.writeInt(length);
-        buf.writeByte(commandCode.getCode());
-        buf.writeByte(type.getTypeCode());
+        buf.writeInt(requestId);
+        buf.writeByte(this.type.getTypeCode());
+        buf.writeByte(this.commandCode.getCode());
+        buf.writeBoolean(oneWay);
+
+        if (this.body != null) {
+            buf.writeBytes(this.body);
+        }
 
         return buf;
     }
 
     public static RemotingCommand decode(ByteBuf buf) {
         RemotingCommand cmd = new RemotingCommand();
-        cmd.commandCode = CommandCode.valueOf(buf.readByte());
+        cmd.requestId = buf.readInt();
         cmd.type = RemotingCommandType.valueOf(buf.readByte());
+        cmd.commandCode = CommandCode.valueOf(buf.readByte());
+        cmd.oneWay = buf.readBoolean();
 
         int length = buf.readableBytes();
         cmd.body = new byte[length];
@@ -59,19 +66,23 @@ public class RemotingCommand {
     }
 
     public int getLength(){
-        return body.length + 4 + 2;
+        int len = 4 + 1 + 1 + 1;
+        if (this.body != null) {
+            len += this.body.length;
+        }
+        return len;
     }
 
     public CommandCode getCommandCode() {
-        return commandCode;
+        return this.commandCode;
     }
 
     public RemotingCommandType getType() {
-        return type;
+        return this.type;
     }
 
     public byte[] getBody() {
-        return body;
+        return this.body;
     }
 
     public void setCommandCode(CommandCode commandCode) {
@@ -87,19 +98,28 @@ public class RemotingCommand {
     }
 
     public int getRequestId() {
-        return requestId;
+        return this.requestId;
     }
 
     public void setRequestId(int requestId) {
         this.requestId = requestId;
     }
 
+    public boolean isOneWay() {
+        return oneWay;
+    }
+
+    public void markOneWay(boolean oneWay) {
+        this.oneWay = oneWay;
+    }
+
     @Override
     public String toString() {
         return "RemotingCommand{" +
-                "commandCode=" + commandCode +
+                "requestId=" + requestId +
+                ", commandCode=" + commandCode +
                 ", type=" + type +
-                ", body=" + Arrays.toString(body) +
+                ", oneWay=" + oneWay +
                 '}';
     }
 

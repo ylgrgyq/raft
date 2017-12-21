@@ -42,6 +42,7 @@ public class RequestVoteCommand extends RaftServerCommand {
         }
 
         ByteBuffer buf = ByteBuffer.allocate(base.length + 4 + idBytes.length + 8 + 8 + 1);
+        buf.put(base);
         buf.putInt(idBytes.length);
         buf.put(idBytes);
         buf.putLong(lastLogIndex);
@@ -86,9 +87,10 @@ public class RequestVoteCommand extends RaftServerCommand {
     @Override
     public String toString() {
         return "RequestVoteCommand{" +
-                "candidateId=" + candidateId +
+                "candidateId='" + candidateId + '\'' +
                 ", lastLogIndex=" + lastLogIndex +
                 ", lastLogTerm=" + lastLogTerm +
+                ", voteGranted=" + voteGranted +
                 '}';
     }
 }
