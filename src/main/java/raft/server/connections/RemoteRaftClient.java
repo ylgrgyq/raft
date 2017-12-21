@@ -64,33 +64,30 @@ public class RemoteRaftClient {
         return this.id;
     }
 
-    public Future<Void> send(RemotingCommand cmd, PendingRequestCallback callable) {
-        this.server.addPendingRequest(cmd.getRequestId(), 3000, callable);
+    private Future<Void> doSend(RemotingCommand cmd) {
         ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
         future.addListener(f -> {
             if (!f.isSuccess()) {
                 logger.warn("send request to {} failed", this, f.cause());
-                this.server.removePendingRequest(cmd.getRequestId());
+                if (!cmd.isOneWay()) {
+                    this.server.removePendingRequest(cmd.getRequestId());
+                }
                 this.close();
             }
         });
 
         return future;
+    }
+
+    public Future<Void> send(RemotingCommand cmd, PendingRequestCallback callable) {
+        this.server.addPendingRequest(cmd.getRequestId(), 3000, callable);
+        return doSend(cmd);
     }
 
     public Future<Void> sendOneway(RemotingCommand cmd) {
         cmd.markOneWay(true);
-        ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
-        future.addListener(f -> {
-            if (!f.isSuccess()) {
-                logger.warn("request vote to {} failed", this, f.cause());
-                this.close();
-            }
-        });
-
-        return future;
+        return doSend(cmd);
     }
-
 
     public ChannelFuture close() {
         return channelFuture.channel().close();

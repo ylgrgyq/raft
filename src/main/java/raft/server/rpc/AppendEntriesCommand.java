@@ -15,6 +15,7 @@ public class AppendEntriesCommand extends RaftServerCommand {
     private boolean success = false;
 
     public AppendEntriesCommand(byte[] body) {
+        this.setCode(CommandCode.APPEND_ENTRIES);
         this.decode(body);
     }
 
@@ -96,6 +97,7 @@ public class AppendEntriesCommand extends RaftServerCommand {
     public void markSuccess() {
         this.success = true;
     }
+
     @Override
     public String toString() {
         return "AppendEntriesCommand{" +
@@ -103,6 +105,7 @@ public class AppendEntriesCommand extends RaftServerCommand {
                 ", prevLogIndex=" + prevLogIndex +
                 ", prevLogTerm=" + prevLogTerm +
                 ", leaderCommit=" + leaderCommit +
+                ", success=" + success +
                 '}';
     }
 }

@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.connections.RemoteRaftClient;
 import raft.server.rpc.AppendEntriesCommand;
+import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
 
 import java.util.concurrent.*;
@@ -13,10 +14,10 @@ import java.util.concurrent.*;
  * Author: ylgrgyq
  * Date: 17/12/8
  */
-class Leader extends RaftState {
+class Leader extends RaftState<RaftServerCommand> {
     private static final Logger logger = LoggerFactory.getLogger(Leader.class.getName());
 
-    private final long pingIntervalMillis = Integer.parseInt(System.getProperty("raft.server.leader.ping.interval.millis", "300"));
+    private final long pingIntervalMillis = Integer.parseInt(System.getProperty("raft.server.leader.ping.interval.millis", "2000"));
 
     private ScheduledFuture pingTimeoutFuture;
 
@@ -35,7 +36,7 @@ class Leader extends RaftState {
                 final AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm());
                 ping.setLeaderId(server.getLeaderId());
                 RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
-                logger.info("ping to all clients, term={}, reqId={} ...", ping.getTerm(), cmd.getRequestId());
+                logger.debug("ping to all clients, term={}, reqId={} ...", ping.getTerm(), cmd.getRequestId());
                 for (final RemoteRaftClient client : this.server.getConnectedClients().values()) {
                     client.sendOneway(cmd).addListener((ChannelFuture f) -> {
                         if (!f.isSuccess()) {
@@ -44,7 +45,6 @@ class Leader extends RaftState {
                         }
                     });
                 }
-                logger.info("Ping to all clients done");
             }, this.pingIntervalMillis, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException ex) {
             logger.error("schedule sending ping failed, will lose leadership later", ex);

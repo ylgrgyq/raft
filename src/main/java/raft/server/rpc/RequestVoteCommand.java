@@ -14,6 +14,7 @@ public class RequestVoteCommand extends RaftServerCommand {
     private boolean voteGranted = false;
 
     public RequestVoteCommand(byte[] body){
+        this.setCode(CommandCode.APPEND_ENTRIES);
         this.decode(body);
     }
 

@@ -36,7 +36,6 @@ abstract class AbstractProcessor<T extends RaftServerCommand> implements Process
 
     public RemotingCommand processRequest(RemotingCommand request) {
         T cmd = this.decodeRemotingCommand(request);
-        logger.info("Receive msg: " + cmd);
 
         this.raftServerCommandListeners.forEach(listener -> listener.onReceiveRaftServerCommand(cmd));
         return this.doProcess(cmd);

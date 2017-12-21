@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 class Follower extends RaftState<AppendEntriesCommand> {
     private static final Logger logger = LoggerFactory.getLogger(Follower.class.getName());
 
-    private final long pingTimeoutMillis = 2 * Integer.parseInt(System.getProperty("raft.server.leader.ping.interval.millis", "300"));
+    private final long pingTimeoutMillis = 2 * Integer.parseInt(System.getProperty("raft.server.leader.ping.interval.millis", "2000"));
 
     private ScheduledFuture pingTimeoutFuture;
 

@@ -10,6 +10,7 @@ import raft.server.processor.RaftServerCommandListener;
 import raft.server.processor.RequestVoteProcessor;
 import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.CommandCode;
+import raft.server.rpc.RaftServerCommand;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -28,8 +29,8 @@ public class RaftServer {
     private static final Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
 
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
-    private final RaftState leader = new Leader(this, timer);
-    private final RaftState candidate = new Candidate(this, timer);
+    private final RaftState<RaftServerCommand> leader = new Leader(this, timer);
+    private final RaftState<RaftServerCommand> candidate = new Candidate(this, timer);
     private final RaftState<AppendEntriesCommand> follower = new Follower(this, timer);
     private final ReentrantLock stateLock = new ReentrantLock();
 
@@ -71,6 +72,7 @@ public class RaftServer {
                 this.transitState(follower);
                 return true;
             } else {
+                logger.warn("transient state to {} failed, term={} leaderId={} server={}", State.FOLLOWER, term, leaderId, this.toString());
                 return false;
             }
         } finally {
@@ -88,6 +90,7 @@ public class RaftServer {
                 this.transitState(leader);
                 return true;
             } else {
+                logger.warn("transient state to {} failed, term={} server={}", State.LEADER, term, this.toString());
                 return false;
             }
         } finally {
@@ -103,7 +106,7 @@ public class RaftServer {
                 this.transitState(candidate);
                 return true;
             } else {
-                logger.error("transient state to candidate failed, {} {} {}", this.term, this.getState(), this.leaderId);
+                logger.warn("transient state to {} failed, server={}", State.CANDIDATE, this.toString());
                 return false;
             }
         } finally {
@@ -194,11 +197,10 @@ public class RaftServer {
     @Override
     public String toString() {
         return "RaftServer{" +
-                ", term=" + term +
+                "term=" + term +
                 ", selfId='" + selfId + '\'' +
                 ", leaderId='" + leaderId + '\'' +
                 ", state=" + this.getState() +
-                ", remoteServer=" + remoteServer +
                 '}';
     }
 

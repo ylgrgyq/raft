@@ -232,11 +232,11 @@ public class RemoteServer {
         protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand req) throws Exception {
             switch (req.getType()) {
                 case REQUEST:
-                    logger.debug("process request " + req);
+                    logger.debug("receive request {}", req);
                     processRequestCommand(ctx, req);
                     break;
                 case RESPONSE:
-                    logger.debug("process response " + req);
+                    logger.debug("receive response {}", req);
                     processResponseCommand(ctx, req);
                     break;
                 default:

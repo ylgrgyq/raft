@@ -18,8 +18,12 @@ public abstract class RaftServerCommand implements SerializableCommand {
         this.term = term;
     }
 
-    public CommandCode getCommandCode() {
+    CommandCode getCommandCode() {
         return this.code;
+    }
+
+    void setCode(CommandCode code) {
+        this.code = code;
     }
 
     public int getTerm() {
@@ -28,9 +32,8 @@ public abstract class RaftServerCommand implements SerializableCommand {
 
     @Override
     public byte[] encode() {
-        final ByteBuffer buf = ByteBuffer.allocate(5);
+        final ByteBuffer buf = ByteBuffer.allocate(4);
         buf.putInt(this.term);
-        buf.put(code.getCode());
         return buf.array();
     }
 
@@ -38,7 +41,6 @@ public abstract class RaftServerCommand implements SerializableCommand {
     public ByteBuffer decode(byte[] bytes) {
         final ByteBuffer buf = ByteBuffer.wrap(bytes);
         this.term = buf.getInt();
-        this.code = CommandCode.valueOf(buf.get());
         return buf;
     }
 }
