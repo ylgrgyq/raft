@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -34,12 +35,26 @@ public class RaftServer {
     private final RaftState<AppendEntriesCommand> follower = new Follower(this, timer);
     private final ReentrantLock stateLock = new ReentrantLock();
 
+    // for each server, index of the next log entry to send to that server (initialized to leader last log index + 1)
+    private final ConcurrentHashMap<String, Integer> nextIndex = new ConcurrentHashMap<>();
+    // for each server, index of highest log entry known to be replicated on server (initialized to 0, increases monotonically)
+    private final ConcurrentHashMap<String, Integer> matchIndex = new ConcurrentHashMap<>();
+
     private ExecutorService processorExecutorService;
+    // latest term server has seen (initialized to 0 on first boot, increases monotonically)
     private AtomicInteger term;
     private String selfId;
     private String leaderId;
     private RaftState state;
     private RemoteServer remoteServer;
+    private String voteFor = null;
+
+    // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
+    private byte[] logs;
+    // index of highest log entry known to be committed (initialized to 0, increases monotonically)
+    private int commitIndex;
+    // index of highest log entry applied to state machine (initialized to 0, increases monotonically)
+    private int lastApplied;
 
     private RaftServer(String selfId, EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
                        long clientReconnectDelayMillis, State state) {
@@ -69,6 +84,9 @@ public class RaftServer {
             if (term > this.term.get()) {
                 this.leaderId = leaderId;
                 this.term.set(term);
+                if (this.voteFor == null) {
+                    this.voteFor = leaderId;
+                }
                 this.transitState(follower);
                 return true;
             } else {
@@ -157,6 +175,15 @@ public class RaftServer {
 
     String getId() {
         return this.selfId;
+    }
+
+    public String getVoteFor() {
+        this.stateLock.lock();
+        try {
+            return voteFor;
+        } finally {
+            this.stateLock.unlock();
+        }
     }
 
     ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {

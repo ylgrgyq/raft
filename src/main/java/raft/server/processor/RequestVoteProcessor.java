@@ -34,14 +34,19 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
         RequestVoteCommand res;
         final int termInVote = vote.getTerm();
         final int termInServer = this.server.getTerm();
-        if (termInVote > termInServer) {
+        final String candidateId = vote.getCandidateId();
+        if (termInVote >= termInServer) {
             res = new RequestVoteCommand(termInVote);
-            res.setVoteGranted(true);
-            res.setCandidateId(vote.getCandidateId());
+            res.setVoteGranted(termInVote > termInServer ||
+                    this.server.getVoteFor() == null ||
+                    this.server.getVoteFor().equals(candidateId));
+
+            if (termInVote > termInServer) {
+                server.tryTransitStateToFollower(termInVote, candidateId);
+            }
         } else {
             res = new RequestVoteCommand(termInServer);
             res.setVoteGranted(false);
-            res.setCandidateId(vote.getCandidateId());
         }
 
         logger.warn("respond request vote command, response={}, server={}", res, this.server);
