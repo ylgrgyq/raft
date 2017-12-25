@@ -30,7 +30,7 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
 
     @Override
     protected RemotingCommand doProcess(RequestVoteCommand vote) {
-        logger.warn("receive req vote " + vote);
+        logger.debug("receive request vote command, cmd={}, server={}", vote, this.server);
         RequestVoteCommand res;
         final int termInVote = vote.getTerm();
         final int termInServer = this.server.getTerm();
@@ -44,7 +44,7 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
             res.setCandidateId(vote.getCandidateId());
         }
 
-        logger.warn("send req vote result " + res);
+        logger.warn("respond request vote command, response={}, server={}", res, this.server);
         return RemotingCommand.createResponseCommand(res);
     }
 }

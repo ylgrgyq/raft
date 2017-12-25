@@ -35,9 +35,9 @@ class Leader extends RaftState<RaftServerCommand> {
             return this.timer.scheduleWithFixedDelay(() -> {
                 final AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm());
                 ping.setLeaderId(server.getLeaderId());
-                RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
-                logger.debug("ping to all clients, term={}, reqId={} ...", ping.getTerm(), cmd.getRequestId());
+                logger.debug("ping to all clients, ping={} ...", ping);
                 for (final RemoteRaftClient client : this.server.getConnectedClients().values()) {
+                    RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
                     client.sendOneway(cmd).addListener((ChannelFuture f) -> {
                         if (!f.isSuccess()) {
                             logger.warn("ping to {} failed", client, f.cause());

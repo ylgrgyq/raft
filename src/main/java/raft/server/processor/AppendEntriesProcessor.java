@@ -31,6 +31,7 @@ public class AppendEntriesProcessor extends AbstractProcessor<AppendEntriesComma
 
     @Override
     protected RemotingCommand doProcess(AppendEntriesCommand entry) {
+        logger.debug("receive append entries command, cmd={}, server={}", entry, this.server);
         final int termInEntry = entry.getTerm();
         final RaftServer server = this.getServer();
         if (! entry.getLeaderId().equals(this.server.getLeaderId())) {
@@ -41,6 +42,7 @@ public class AppendEntriesProcessor extends AbstractProcessor<AppendEntriesComma
         response.markSuccess();
         response.setLeaderId(this.getServer().getLeaderId());
 
+        logger.debug("respond append entries command, response={}, server={}", response, this.server);
         return RemotingCommand.createResponseCommand(response);
     }
 }
