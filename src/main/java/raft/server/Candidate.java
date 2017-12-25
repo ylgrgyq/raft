@@ -18,7 +18,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 class Candidate extends RaftState<RaftServerCommand> {
     private static final Logger logger = LoggerFactory.getLogger(Candidate.class.getName());
 
-    private final int maxElectionTimeoutMillis = Integer.parseInt(System.getProperty("raft.server.max.election.timeout.millis", "10000"));
+    private final int maxElectionTimeoutMillis = Integer.parseInt(System.getProperty("raft.server.max.election.timeout.millis", "5000"));
+    private final int minElectionTimeoutMillis = Integer.parseInt(System.getProperty("raft.server.min.election.timeout.millis", "1000"));
     private ScheduledFuture electionTimeoutFuture;
     private Map<Integer, Future<Void>> pendingRequestVote = new ConcurrentHashMap<>();
 
@@ -37,7 +38,7 @@ class Candidate extends RaftState<RaftServerCommand> {
         }
 
         final ThreadLocalRandom random = ThreadLocalRandom.current();
-        final int electionTimeoutMillis = random.nextInt(this.maxElectionTimeoutMillis);
+        final int electionTimeoutMillis = random.nextInt(this.minElectionTimeoutMillis, this.maxElectionTimeoutMillis);
 
         this.electionTimeoutFuture = this.timer.schedule(() -> {
                     logger.warn("election timeout, start reelection, server={}", this.server);
