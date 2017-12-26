@@ -6,24 +6,15 @@ import java.nio.ByteBuffer;
  * Author: ylgrgyq
  * Date: 17/12/7
  */
-public abstract class RaftServerCommand implements SerializableCommand {
+public abstract class RaftServerCommand extends RaftCommand {
     private int term;
-    private CommandCode code;
 
     RaftServerCommand(){
     }
 
     RaftServerCommand(int term, CommandCode code) {
-        this.code = code;
+        super(code);
         this.term = term;
-    }
-
-    CommandCode getCommandCode() {
-        return this.code;
-    }
-
-    void setCode(CommandCode code) {
-        this.code = code;
     }
 
     public int getTerm() {

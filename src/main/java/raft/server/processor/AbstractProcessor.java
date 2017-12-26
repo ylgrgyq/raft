@@ -1,9 +1,7 @@
 package raft.server.processor;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import raft.server.RaftServer;
-import raft.server.rpc.RaftServerCommand;
+import raft.server.rpc.RaftCommand;
 import raft.server.rpc.RemotingCommand;
 
 import java.util.ArrayList;
@@ -14,19 +12,17 @@ import java.util.List;
  * Author: ylgrgyq
  * Date: 17/12/2
  */
-abstract class AbstractProcessor<T extends RaftServerCommand> implements Processor{
-    private static final Logger logger = LoggerFactory.getLogger(AppendEntriesProcessor.class.getName());
-
+abstract class AbstractProcessor<T extends RaftCommand> implements Processor{
     protected final RaftServer server;
 
-    private List<RaftServerCommandListener<T>> raftServerCommandListeners = Collections.emptyList();
+    private List<RaftCommandListener<T>> raftCommandListeners = Collections.emptyList();
 
-    AbstractProcessor(RaftServer server, List<RaftServerCommandListener<T>> listeners){
+    AbstractProcessor(RaftServer server, List<RaftCommandListener<T>> listeners){
         this.server = server;
         if (listeners != null) {
-            this.raftServerCommandListeners = listeners;
+            this.raftCommandListeners = listeners;
         } else {
-            this.raftServerCommandListeners = new ArrayList<>();
+            this.raftCommandListeners = new ArrayList<>();
         }
     }
 
@@ -37,7 +33,7 @@ abstract class AbstractProcessor<T extends RaftServerCommand> implements Process
     public RemotingCommand processRequest(RemotingCommand request) {
         T cmd = this.decodeRemotingCommand(request);
 
-        this.raftServerCommandListeners.forEach(listener -> listener.onReceiveRaftServerCommand(cmd));
+        this.raftCommandListeners.forEach(listener -> listener.onReceiveRaftCommand(cmd));
         return this.doProcess(cmd);
     }
 

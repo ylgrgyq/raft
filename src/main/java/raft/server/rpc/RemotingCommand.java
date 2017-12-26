@@ -22,7 +22,7 @@ public class RemotingCommand {
     private RemotingCommand() {
     }
 
-    public static RemotingCommand createRequestCommand(RaftServerCommand req) {
+    public static RemotingCommand createRequestCommand(RaftCommand req) {
         RemotingCommand wrap = new RemotingCommand();
         wrap.setType(RemotingCommandType.REQUEST);
         wrap.setCommandCode(req.getCommandCode());
@@ -30,7 +30,7 @@ public class RemotingCommand {
         return wrap;
     }
 
-    public static RemotingCommand createResponseCommand(RaftServerCommand res) {
+    public static RemotingCommand createResponseCommand(RaftCommand res) {
         RemotingCommand cmd = new RemotingCommand();
         cmd.setType(RemotingCommandType.RESPONSE);
         cmd.setCommandCode(res.getCommandCode());

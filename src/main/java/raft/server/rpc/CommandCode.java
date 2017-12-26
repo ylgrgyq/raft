@@ -6,7 +6,8 @@ package raft.server.rpc;
  */
 public enum CommandCode {
     REQUEST_VOTE((byte) 1),
-    APPEND_ENTRIES((byte) 2);
+    APPEND_ENTRIES((byte) 2),
+    CLIENT_REQUEST((byte) 3);
 
     private byte code;
     CommandCode(byte code){

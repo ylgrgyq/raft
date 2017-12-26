@@ -19,7 +19,7 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
         this(server, null);
     }
 
-    public RequestVoteProcessor(RaftServer server, List<RaftServerCommandListener<RequestVoteCommand>> listeners) {
+    public RequestVoteProcessor(RaftServer server, List<RaftCommandListener<RequestVoteCommand>> listeners) {
         super(server, listeners);
     }
 
@@ -30,21 +30,26 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
 
     @Override
     protected RemotingCommand doProcess(RequestVoteCommand vote) {
-        logger.warn("receive req vote " + vote);
+        logger.debug("receive request vote command, cmd={}, server={}", vote, this.server);
         RequestVoteCommand res;
         final int termInVote = vote.getTerm();
         final int termInServer = this.server.getTerm();
-        if (termInVote > termInServer) {
+        final String candidateId = vote.getCandidateId();
+        if (termInVote >= termInServer) {
             res = new RequestVoteCommand(termInVote);
-            res.setVoteGranted(true);
-            res.setCandidateId(vote.getCandidateId());
+            res.setVoteGranted(termInVote > termInServer ||
+                    this.server.getVoteFor() == null ||
+                    this.server.getVoteFor().equals(candidateId));
+
+            if (termInVote > termInServer) {
+                server.tryTransitStateToFollower(termInVote, candidateId);
+            }
         } else {
             res = new RequestVoteCommand(termInServer);
             res.setVoteGranted(false);
-            res.setCandidateId(vote.getCandidateId());
         }
 
-        logger.warn("send req vote result " + res);
+        logger.warn("respond request vote command, response={}, server={}", res, this.server);
         return RemotingCommand.createResponseCommand(res);
     }
 }
