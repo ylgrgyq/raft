@@ -8,11 +8,17 @@ import java.nio.charset.StandardCharsets;
  * Date: 17/11/22
  */
 public class AppendEntriesCommand extends RaftServerCommand {
+    // so follower can redirect clients
     private String leaderId = "";
+    // index of log entry immediately preceding new ones
     private long prevLogIndex = -1;
+    // term of prevLogIndex entry
     private long prevLogTerm = -1;
+    // leader’s commitIndex
     private long leaderCommit = -1;
     private boolean success = false;
+    // currentTerm, for leader to update itself
+    private int term;
 
     public AppendEntriesCommand(byte[] body) {
         this.setCode(CommandCode.APPEND_ENTRIES);

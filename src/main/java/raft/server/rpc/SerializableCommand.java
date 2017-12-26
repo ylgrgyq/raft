@@ -9,7 +9,11 @@ import java.nio.ByteBuffer;
 public interface SerializableCommand {
     byte[] EMPTY_BYTES = new byte[0];
 
-    byte[] encode();
+    default byte[] encode() {
+        return SerializableCommand.EMPTY_BYTES;
+    }
 
-    ByteBuffer decode(byte[] bytes);
+    default ByteBuffer decode(byte[] bytes) {
+        return ByteBuffer.wrap(bytes);
+    }
 }
