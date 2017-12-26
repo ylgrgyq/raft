@@ -6,7 +6,8 @@ import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.server.connections.RemoteRaftClient;
 import raft.server.processor.AppendEntriesProcessor;
-import raft.server.processor.RaftServerCommandListener;
+import raft.server.processor.ClientRequestProcessor;
+import raft.server.processor.RaftCommandListener;
 import raft.server.processor.RequestVoteProcessor;
 import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.CommandCode;
@@ -19,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -142,10 +142,11 @@ public class RaftServer {
     }
 
     private void registerProcessors() {
-        List<RaftServerCommandListener<AppendEntriesCommand>> listeners = new ArrayList<>();
+        List<RaftCommandListener<AppendEntriesCommand>> listeners = new ArrayList<>();
         listeners.add(this.follower);
         this.remoteServer.registerProcessor(CommandCode.APPEND_ENTRIES, new AppendEntriesProcessor(this, listeners), this.processorExecutorService);
         this.remoteServer.registerProcessor(CommandCode.REQUEST_VOTE, new RequestVoteProcessor(this), this.processorExecutorService);
+        this.remoteServer.registerProcessor(CommandCode.CLIENT_REQUEST, new ClientRequestProcessor(this), this.processorExecutorService);
     }
 
     void start(List<InetSocketAddress> clientAddrs) throws InterruptedException {

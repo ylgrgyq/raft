@@ -20,7 +20,7 @@ public class AppendEntriesProcessor extends AbstractProcessor<AppendEntriesComma
         this(server, Collections.emptyList());
     }
 
-    public AppendEntriesProcessor(RaftServer server, List<RaftServerCommandListener<AppendEntriesCommand>> listeners) {
+    public AppendEntriesProcessor(RaftServer server, List<RaftCommandListener<AppendEntriesCommand>> listeners) {
         super(server, listeners);
     }
 

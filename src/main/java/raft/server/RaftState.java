@@ -1,6 +1,6 @@
 package raft.server;
 
-import raft.server.processor.RaftServerCommandListener;
+import raft.server.processor.RaftCommandListener;
 import raft.server.rpc.RaftServerCommand;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -9,7 +9,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-abstract class RaftState<T extends RaftServerCommand> implements LifeCycle, RaftServerCommandListener<T> {
+abstract class RaftState<T extends RaftServerCommand> implements LifeCycle, RaftCommandListener<T> {
     protected final ScheduledExecutorService timer;
 
     private final State state;
@@ -26,5 +26,5 @@ abstract class RaftState<T extends RaftServerCommand> implements LifeCycle, Raft
     }
 
     @Override
-    public void onReceiveRaftServerCommand(T cmd) {}
+    public void onReceiveRaftCommand(T cmd) {}
 }

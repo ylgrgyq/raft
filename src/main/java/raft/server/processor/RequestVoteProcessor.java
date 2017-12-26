@@ -19,7 +19,7 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
         this(server, null);
     }
 
-    public RequestVoteProcessor(RaftServer server, List<RaftServerCommandListener<RequestVoteCommand>> listeners) {
+    public RequestVoteProcessor(RaftServer server, List<RaftCommandListener<RequestVoteCommand>> listeners) {
         super(server, listeners);
     }
 
