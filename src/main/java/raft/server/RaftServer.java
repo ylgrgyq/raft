@@ -191,7 +191,7 @@ public class RaftServer {
         return this.remoteServer.getConnectedClients();
     }
 
-    State getState() {
+    public State getState() {
         this.stateLock.lock();
         try {
             return state.getState();
