@@ -2,7 +2,6 @@ package raft.server.rpc;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 /**
  * Author: ylgrgyq

@@ -4,6 +4,7 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.concurrent.DefaultPromise;
 import org.slf4j.LoggerFactory;
 import raft.Pair;
 import raft.ThreadFactoryImpl;
@@ -15,11 +16,9 @@ import raft.server.processor.Processor;
 import raft.server.rpc.*;
 
 import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -38,7 +37,7 @@ public class RemoteServer {
     private ConcurrentHashMap<Integer, PendingRequest> pendingRequestTable = new ConcurrentHashMap<>();
 
     private ScheduledExecutorService timer;
-    private ExecutorService callbackExecutor;
+    private ExecutorService generalExecutor;
     private long clientReconnectDelayMillis;
 
     RemoteServer(EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port, long clientReconnectDelayMillis) {
@@ -47,7 +46,7 @@ public class RemoteServer {
         this.port = port;
         this.clientReconnectDelayMillis = clientReconnectDelayMillis;
 
-        this.callbackExecutor = Executors.newFixedThreadPool(4,
+        this.generalExecutor = Executors.newFixedThreadPool(4,
                 new ThreadFactoryImpl("RemoteServerCallbackPoll_"));
 
         this.timer = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("RaftServerTimer_"));
@@ -62,10 +61,11 @@ public class RemoteServer {
                 this.clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
     }
 
-    private void connectToClient(final InetSocketAddress addr) {
+    private CompletableFuture<String> connectToClient(final InetSocketAddress addr) {
+        final CompletableFuture<String> connectedFuture = new CompletableFuture<>();
         final RemoteRaftClient client = new RemoteRaftClient(this.workerGroup, this);
-        final ChannelFuture future = client.connect(addr);
-        future.addListener((ChannelFuture f) -> {
+        final ChannelFuture chfuture = client.connect(addr);
+        chfuture.addListener((ChannelFuture f) -> {
             if (f.isSuccess()) {
                 logger.info("Connect to {} success", addr);
                 final Channel ch = f.channel();
@@ -76,15 +76,22 @@ public class RemoteServer {
                     this.clients.remove(id);
                     scheduleReconnectToClientJob(addr);
                 });
+                connectedFuture.complete(id);
             } else {
                 logger.warn("Connect to {} failed, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
                 scheduleReconnectToClientJob(addr);
             }
         });
+        return connectedFuture;
     }
 
-    void connectToClients(List<InetSocketAddress> addrs) {
-        addrs.forEach(this::connectToClient);
+    CompletableFuture<List<String>> connectToClients(List<InetSocketAddress> addrs) {
+        return CompletableFuture.supplyAsync(() ->
+            addrs.stream()
+                    .map(this::connectToClient)
+                    .map(CompletableFuture::join)
+                    .collect(Collectors.toList())
+        );
     }
 
     ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
@@ -160,12 +167,12 @@ public class RemoteServer {
         }
     }
 
-    private ExecutorService getCallbackExecutor() {
-        return this.callbackExecutor;
+    private ExecutorService getGeneralExecutor() {
+        return this.generalExecutor;
     }
 
     private void executeRequestCallback(PendingRequest pendingRequest) {
-        final ExecutorService executor = this.getCallbackExecutor();
+        final ExecutorService executor = this.getGeneralExecutor();
         if (executor != null) {
             try {
                 executor.submit(() -> {
@@ -221,7 +228,7 @@ public class RemoteServer {
 
     void shutdown() {
         this.timer.shutdown();
-        this.callbackExecutor.shutdown();
+        this.generalExecutor.shutdown();
         this.bossGroup.shutdownGracefully();
         this.workerGroup.shutdownGracefully();
     }
