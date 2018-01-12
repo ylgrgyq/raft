@@ -3,7 +3,7 @@ package raft.server;
 import io.netty.channel.ChannelFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.connections.RemoteRaftClient;
+import raft.server.connections.RemoteClient;
 import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
@@ -36,7 +36,7 @@ class Leader extends RaftState<RaftServerCommand> {
                 final AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm());
                 ping.setLeaderId(server.getLeaderId());
                 logger.debug("ping to all clients, ping={} ...", ping);
-                for (final RemoteRaftClient client : this.server.getConnectedClients().values()) {
+                for (final RemoteClient client : this.server.getConnectedClients().values()) {
                     RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
                     client.sendOneway(cmd).addListener((ChannelFuture f) -> {
                         if (!f.isSuccess()) {

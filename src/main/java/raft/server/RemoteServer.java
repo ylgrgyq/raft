@@ -10,7 +10,7 @@ import raft.ThreadFactoryImpl;
 import raft.Util;
 import raft.server.connections.NettyDecoder;
 import raft.server.connections.NettyEncoder;
-import raft.server.connections.RemoteRaftClient;
+import raft.server.connections.RemoteClient;
 import raft.server.processor.Processor;
 import raft.server.rpc.*;
 
@@ -25,7 +25,7 @@ import java.util.concurrent.*;
 public class RemoteServer {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(RemoteServer.class.getName());
 
-    private final ConcurrentHashMap<String, RemoteRaftClient> clients = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, RemoteClient> clients = new ConcurrentHashMap<>();
     private final HashMap<CommandCode, Pair<Processor, ExecutorService>> processorTable = new HashMap<>();
     private final int port;
     private final EventLoopGroup bossGroup;
@@ -61,7 +61,7 @@ public class RemoteServer {
 
     private CompletableFuture<String> connectToClient(final InetSocketAddress addr) {
         final CompletableFuture<String> connectedFuture = new CompletableFuture<>();
-        final RemoteRaftClient client = new RemoteRaftClient(this.workerGroup, this);
+        final RemoteClient client = new RemoteClient(this.workerGroup, this);
         final ChannelFuture chFuture = client.connect(addr);
         chFuture.addListener((ChannelFuture f) -> {
             if (f.isSuccess()) {
@@ -108,7 +108,7 @@ public class RemoteServer {
         return connectedClientIds;
     }
 
-    ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
+    ConcurrentHashMap<String, RemoteClient> getConnectedClients() {
         return clients;
     }
 

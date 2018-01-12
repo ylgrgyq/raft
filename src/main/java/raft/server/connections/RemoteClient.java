@@ -19,15 +19,15 @@ import java.net.InetSocketAddress;
  * Author: ylgrgyq
  * Date: 17/11/22
  */
-public class RemoteRaftClient {
-    private static final Logger logger = LoggerFactory.getLogger(RemoteRaftClient.class.getName());
+public class RemoteClient {
+    private static final Logger logger = LoggerFactory.getLogger(RemoteClient.class.getName());
 
     private final Bootstrap bootstrap;
     private ChannelFuture channelFuture;
     private String id;
     private RemoteServer server;
 
-    public RemoteRaftClient(final EventLoopGroup eventLoopGroup, final RemoteServer server) {
+    public RemoteClient(final EventLoopGroup eventLoopGroup, final RemoteServer server) {
         this.server = server;
         this.bootstrap = new Bootstrap();
 

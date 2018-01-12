@@ -4,7 +4,7 @@ import io.netty.channel.EventLoopGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
-import raft.server.connections.RemoteRaftClient;
+import raft.server.connections.RemoteClient;
 import raft.server.processor.AppendEntriesProcessor;
 import raft.server.processor.ClientRequestProcessor;
 import raft.server.processor.RaftCommandListener;
@@ -196,7 +196,7 @@ public class RaftServer {
         }
     }
 
-    ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
+    ConcurrentHashMap<String, RemoteClient> getConnectedClients() {
         return this.remoteServer.getConnectedClients();
     }
 

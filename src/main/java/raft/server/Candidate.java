@@ -2,7 +2,7 @@ package raft.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.connections.RemoteRaftClient;
+import raft.server.connections.RemoteClient;
 import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
 import raft.server.rpc.RequestVoteCommand;
@@ -60,7 +60,7 @@ class Candidate extends RaftState<RaftServerCommand> {
             if (this.server.getState() == State.CANDIDATE) {
                 this.cleanPendingRequestVotes();
                 final int candidateTerm = this.server.increaseTerm();
-                final ConcurrentHashMap<String, RemoteRaftClient> clients = this.server.getConnectedClients();
+                final ConcurrentHashMap<String, RemoteClient> clients = this.server.getConnectedClients();
                 final int clientsSize = clients.size();
                 final int votesToWin = this.server.getQuorum();
 
@@ -70,7 +70,7 @@ class Candidate extends RaftState<RaftServerCommand> {
 
                 logger.debug("start election candidateTerm={}, votesToWin={}, clientsSize={}, server={}",
                         candidateTerm, votesToWin, clientsSize, this.server);
-                for (final RemoteRaftClient client : clients.values()) {
+                for (final RemoteClient client : clients.values()) {
                     final RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
                     Future<Void> f = client.send(cmd, req -> {
                         final RemotingCommand res = req.getResponse();
