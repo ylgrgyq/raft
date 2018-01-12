@@ -62,7 +62,7 @@ class Candidate extends RaftState<RaftServerCommand> {
                 final int candidateTerm = this.server.increaseTerm();
                 final ConcurrentHashMap<String, RemoteRaftClient> clients = this.server.getConnectedClients();
                 final int clientsSize = clients.size();
-                final int votesToWin = Math.max(2, clientsSize / 2 + 1);
+                final int votesToWin = this.server.getQuorum();
 
                 final AtomicInteger votesGot = new AtomicInteger();
                 RequestVoteCommand vote = new RequestVoteCommand(candidateTerm);

@@ -4,7 +4,6 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.util.concurrent.DefaultPromise;
 import org.slf4j.LoggerFactory;
 import raft.Pair;
 import raft.ThreadFactoryImpl;
@@ -18,7 +17,6 @@ import raft.server.rpc.*;
 import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -64,8 +62,8 @@ public class RemoteServer {
     private CompletableFuture<String> connectToClient(final InetSocketAddress addr) {
         final CompletableFuture<String> connectedFuture = new CompletableFuture<>();
         final RemoteRaftClient client = new RemoteRaftClient(this.workerGroup, this);
-        final ChannelFuture chfuture = client.connect(addr);
-        chfuture.addListener((ChannelFuture f) -> {
+        final ChannelFuture chFuture = client.connect(addr);
+        chFuture.addListener((ChannelFuture f) -> {
             if (f.isSuccess()) {
                 logger.info("Connect to {} success", addr);
                 final Channel ch = f.channel();
@@ -85,13 +83,29 @@ public class RemoteServer {
         return connectedFuture;
     }
 
-    CompletableFuture<List<String>> connectToClients(List<InetSocketAddress> addrs) {
-        return CompletableFuture.supplyAsync(() ->
-            addrs.stream()
-                    .map(this::connectToClient)
-                    .map(CompletableFuture::join)
-                    .collect(Collectors.toList())
-        );
+    List<String> connectToClients(List<InetSocketAddress> addrs, long timeout, TimeUnit unit)
+            throws TimeoutException, InterruptedException, ExecutionException {
+        final List<String> connectedClientIds = new ArrayList<>(addrs.size());
+        long timeoutMillis = unit.toMillis(timeout);
+
+        for (InetSocketAddress addr : addrs) {
+            if (timeoutMillis > 0) {
+                long start = System.currentTimeMillis();
+                try {
+                    CompletableFuture<String> f = this.connectToClient(addr);
+                    connectedClientIds.add(f.get(timeoutMillis, TimeUnit.MILLISECONDS));
+                    timeoutMillis = timeoutMillis - (System.currentTimeMillis() - start);
+                } catch (Exception ex) {
+                    logger.error("Connecting to {} failed!", addr, ex);
+                    throw ex;
+                }
+            } else {
+                logger.error("Connecting to {} failed due to insufficient timeout quota!", addr);
+                throw new TimeoutException();
+            }
+        }
+
+        return connectedClientIds;
     }
 
     ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
@@ -139,7 +153,7 @@ public class RemoteServer {
                 processorPair.getRight().submit(() -> {
                     try {
                         final RemotingCommand res = processorPair.getLeft().processRequest(req);
-                        if (! req.isOneWay()) {
+                        if (!req.isOneWay()) {
                             res.setRequestId(req.getRequestId());
                             res.setType(RemotingCommandType.RESPONSE);
                             try {

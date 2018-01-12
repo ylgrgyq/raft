@@ -17,6 +17,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,6 +41,8 @@ public class RaftServer {
     // for each server, index of highest log entry known to be replicated on server (initialized to 0, increases monotonically)
     private final ConcurrentHashMap<String, Integer> matchIndex = new ConcurrentHashMap<>();
 
+    private List<String> clientIds = Collections.emptyList();
+    private String voteFor = null;
     private ExecutorService processorExecutorService;
     // latest term server has seen (initialized to 0 on first boot, increases monotonically)
     private AtomicInteger term;
@@ -47,10 +50,10 @@ public class RaftServer {
     private String leaderId;
     private RaftState state;
     private RemoteServer remoteServer;
-    private String voteFor = null;
+    private RaftLog log;
 
     // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
-    private byte[] logs;
+    private ArrayList<LogEntry> logs;
     // index of highest log entry known to be committed (initialized to 0, increases monotonically)
     private int commitIndex;
     // index of highest log entry applied to state machine (initialized to 0, increases monotonically)
@@ -149,9 +152,15 @@ public class RaftServer {
         this.remoteServer.registerProcessor(CommandCode.CLIENT_REQUEST, new ClientRequestProcessor(this), this.processorExecutorService);
     }
 
-    void start(List<InetSocketAddress> clientAddrs) throws InterruptedException {
+    private void initializeNextIndex(){
+        this.clientIds.forEach(id -> nextIndex.put(id, 1));
+    }
+
+    void start(List<InetSocketAddress> clientAddrs) throws InterruptedException, ExecutionException, TimeoutException {
         this.remoteServer.startLocalServer();
-        this.remoteServer.connectToClients(clientAddrs);
+        this.clientIds = this.remoteServer.connectToClients(clientAddrs, 30, TimeUnit.SECONDS);
+
+        initializeNextIndex();
 
         this.stateLock.lock();
         try {
@@ -191,6 +200,10 @@ public class RaftServer {
         return this.remoteServer.getConnectedClients();
     }
 
+    int getQuorum() {
+        return Math.max(2, this.clientIds.size() / 2 + 1);
+    }
+
     public State getState() {
         this.stateLock.lock();
         try {
@@ -198,6 +211,10 @@ public class RaftServer {
         } finally {
             this.stateLock.unlock();
         }
+    }
+
+    public void writeLog(byte[] log) {
+        this.log.append(this.getTerm(), log);
     }
 
     void lockStateLock() {

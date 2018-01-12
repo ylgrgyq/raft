@@ -28,12 +28,17 @@ public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand>
 
     @Override
     protected RemotingCommand doProcess(RaftClientCommand cmd) {
+        RaftClientCommand res = new RaftClientCommand();
+        res.setLeaderId(this.server.getLeaderId());
         if (this.server.getState() == State.LEADER) {
+            byte[] body = cmd.getRequestBody();
+            this.server.writeLog(body);
 
+            res.setSuccess(true);
         } else {
-
+            res.setSuccess(false);
         }
 
-        return null;
+        return RemotingCommand.createResponseCommand(res);
     }
 }
