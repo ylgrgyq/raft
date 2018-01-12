@@ -36,12 +36,8 @@ public class RaftServer {
     private final RaftState<AppendEntriesCommand> follower = new Follower(this, timer);
     private final ReentrantLock stateLock = new ReentrantLock();
 
-    // for each server, index of the next log entry to send to that server (initialized to leader last log index + 1)
-    private final ConcurrentHashMap<String, Integer> nextIndex = new ConcurrentHashMap<>();
-    // for each server, index of highest log entry known to be replicated on server (initialized to 0, increases monotonically)
-    private final ConcurrentHashMap<String, Integer> matchIndex = new ConcurrentHashMap<>();
-
-    private List<String> clientIds = Collections.emptyList();
+    private List<String> peerNodeIds = Collections.emptyList();
+    private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
     private String voteFor = null;
     private ExecutorService processorExecutorService;
     // latest term server has seen (initialized to 0 on first boot, increases monotonically)
@@ -50,10 +46,8 @@ public class RaftServer {
     private String leaderId;
     private RaftState state;
     private RemoteServer remoteServer;
-    private RaftLog log;
+    private RaftLog logs;
 
-    // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
-    private ArrayList<LogEntry> logs;
     // index of highest log entry known to be committed (initialized to 0, increases monotonically)
     private int commitIndex;
     // index of highest log entry applied to state machine (initialized to 0, increases monotonically)
@@ -153,12 +147,12 @@ public class RaftServer {
     }
 
     private void initializeNextIndex(){
-        this.clientIds.forEach(id -> nextIndex.put(id, 1));
+        this.peerNodeIds.forEach(id -> peerNodes.put(id, new RaftPeerNode(1)));
     }
 
     void start(List<InetSocketAddress> clientAddrs) throws InterruptedException, ExecutionException, TimeoutException {
         this.remoteServer.startLocalServer();
-        this.clientIds = this.remoteServer.connectToClients(clientAddrs, 30, TimeUnit.SECONDS);
+        this.peerNodeIds = this.remoteServer.connectToClients(clientAddrs, 30, TimeUnit.SECONDS);
 
         initializeNextIndex();
 
@@ -201,7 +195,7 @@ public class RaftServer {
     }
 
     int getQuorum() {
-        return Math.max(2, this.clientIds.size() / 2 + 1);
+        return Math.max(2, this.peerNodeIds.size() / 2 + 1);
     }
 
     public State getState() {
@@ -214,7 +208,7 @@ public class RaftServer {
     }
 
     public void writeLog(byte[] log) {
-        this.log.append(this.getTerm(), log);
+        this.logs.append(this.getTerm(), log);
     }
 
     void lockStateLock() {
