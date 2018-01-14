@@ -48,17 +48,16 @@ public class RaftServer {
     private RaftState state;
     private RemoteServer remoteServer;
     private RaftLog logs;
-
-    // index of highest log entry known to be committed (initialized to 0, increases monotonically)
-    private int commitIndex;
-    // index of highest log entry applied to state machine (initialized to 0, increases monotonically)
-    private int lastApplied;
+    private long matchIndex;
+    private long nextIndex;
 
     private RaftServer(String selfId, EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port,
                        long clientReconnectDelayMillis, State state) {
         this.term = new AtomicInteger(0);
         this.selfId = selfId;
         this.remoteServer = new RemoteServer(bossGroup, workerGroup, port, clientReconnectDelayMillis);
+        this.logs = new RaftLog();
+        this.nextIndex = 1;
 
         this.state = follower;
         if (state != null) {
@@ -76,7 +75,7 @@ public class RaftServer {
         }
     }
 
-    public boolean tryTransitStateToFollower(int term, String leaderId) {
+    public boolean tryBecomeFollower(int term, String leaderId) {
         this.stateLock.lock();
         try {
             if (term > this.term.get()) {
@@ -96,7 +95,7 @@ public class RaftServer {
         }
     }
 
-    boolean tryTransitStateToLeader(int term) {
+    boolean tryBecomeLeader(int term) {
         this.stateLock.lock();
         try {
             if (this.getState() == State.CANDIDATE &&
@@ -104,6 +103,9 @@ public class RaftServer {
                 this.leaderId = this.selfId;
                 this.term.set(term);
                 this.transitState(leader);
+                for (RaftPeerNode node : this.peerNodes.values()) {
+                    node.setMatchIndex(this.logs.lastIndex());
+                }
                 return true;
             } else {
                 logger.warn("transient state to {} failed, term={} server={}", State.LEADER, term, this.toString());
@@ -114,7 +116,7 @@ public class RaftServer {
         }
     }
 
-    boolean tryTransitStateToCandidate() {
+    boolean tryBecomeCandidate() {
         this.stateLock.lock();
         try {
             if (this.getState() == State.FOLLOWER) {
@@ -152,6 +154,8 @@ public class RaftServer {
         Map<String, RemoteClient> clients = this.remoteServer.connectToClients(clientAddrs, 30, TimeUnit.SECONDS);
         this.peerNodeIds = Collections.unmodifiableList(new ArrayList<>(clients.keySet()));
         for (Map.Entry<String, RemoteClient> c : clients.entrySet()) {
+            // initial next index to arbitrary value
+            // we'll reset this value to last index log when this raft server become leader
             this.peerNodes.put(c.getKey(), new RaftPeerNode(c.getValue(), 1));
         }
 
@@ -206,8 +210,8 @@ public class RaftServer {
         }
     }
 
-    public void appendLog(byte[] log) {
-        this.logs.append(this.getTerm(), log);
+    public void appendLog(LogEntry entry) {
+        this.logs.append(this.getTerm(), entry);
         this.broadcastAppendEntries();
     }
 
@@ -215,9 +219,8 @@ public class RaftServer {
         final AppendEntriesCommand appendReq = new AppendEntriesCommand(this.getTerm());
         appendReq.setLeaderId(this.getLeaderId());
 
-        for (final Map.Entry<String, RaftPeerNode> entry : peerNodes.entrySet()) {
-            final RaftPeerNode peer = entry.getValue();
-//            peer.
+        for (final RaftPeerNode peer: peerNodes.values()) {
+            peer.sendAppend(appendReq);
         }
     }
 

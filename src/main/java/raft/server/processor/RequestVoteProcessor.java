@@ -42,7 +42,7 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
                     this.server.getVoteFor().equals(candidateId));
 
             if (termInVote > termInServer) {
-                server.tryTransitStateToFollower(termInVote, candidateId);
+                server.tryBecomeFollower(termInVote, candidateId);
             }
         } else {
             res = new RequestVoteCommand(termInServer);

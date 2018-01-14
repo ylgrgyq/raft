@@ -78,7 +78,7 @@ class Candidate extends RaftState<RaftServerCommand> {
                             logger.debug("receive request vote response={} from={}", voteRes, node);
                             assert voteRes.getTerm() == candidateTerm;
                             if (voteRes.isVoteGranted() && votesGot.incrementAndGet() >= votesToWin) {
-                                this.server.tryTransitStateToLeader(candidateTerm);
+                                this.server.tryBecomeLeader(candidateTerm);
                             }
                         } else {
                             logger.error("no response returned for request vote");

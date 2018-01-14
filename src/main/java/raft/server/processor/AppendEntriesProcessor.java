@@ -35,7 +35,7 @@ public class AppendEntriesProcessor extends AbstractProcessor<AppendEntriesComma
         final int termInEntry = entry.getTerm();
         final RaftServer server = this.getServer();
         if (! entry.getLeaderId().equals(this.server.getLeaderId())) {
-            server.tryTransitStateToFollower(termInEntry, entry.getLeaderId());
+            server.tryBecomeFollower(termInEntry, entry.getLeaderId());
         }
 
         AppendEntriesCommand response = new AppendEntriesCommand(this.getServer().getTerm());

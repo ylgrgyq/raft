@@ -7,13 +7,13 @@ import java.util.ArrayList;
  * Date: 18/1/8
  */
 public class RaftLog {
-    long commited;
-    long applied;
+    long commitIndex;
+    long appliedIndex;
 
     // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
-    private ArrayList<LogEntry> logs;
+    private ArrayList<LogEntry> logs = new ArrayList<>();
 
-    void append(int term, byte[] log) {
+    void append(int term, LogEntry entry) {
 
     }
 

@@ -30,7 +30,8 @@ public class RaftPeerNode {
         this.matchIndex = 1;
     }
 
-    void appendLog(AppendEntriesCommand base) {
+    void sendAppend(AppendEntriesCommand base) {
+
         RemotingCommand cmd = RemotingCommand.createRequestCommand(base);
         remoteClient.sendOneway(cmd).addListener((ChannelFuture f) -> {
             if (!f.isSuccess()) {
@@ -42,5 +43,12 @@ public class RaftPeerNode {
 
     Future<Void> send(RemotingCommand cmd, PendingRequestCallback callback) {
         return this.remoteClient.send(cmd, callback);
+    }
+
+    public void setMatchIndex(int matchIndex) {
+        this.matchIndex = matchIndex;
+        if (matchIndex >= this.nextIndex) {
+            this.nextIndex = matchIndex + 1;
+        }
     }
 }

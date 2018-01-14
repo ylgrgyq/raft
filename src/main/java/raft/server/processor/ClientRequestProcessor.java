@@ -1,5 +1,6 @@
 package raft.server.processor;
 
+import raft.server.LogEntry;
 import raft.server.RaftServer;
 import raft.server.State;
 import raft.server.rpc.RaftClientCommand;
@@ -31,7 +32,7 @@ public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand>
         RaftClientCommand res = new RaftClientCommand();
         res.setLeaderId(this.server.getLeaderId());
         if (this.server.getState() == State.LEADER) {
-            byte[] body = cmd.getRequestBody();
+            LogEntry body = cmd.getEntry();
             // TODO Handle append log failed
             this.server.appendLog(body);
 

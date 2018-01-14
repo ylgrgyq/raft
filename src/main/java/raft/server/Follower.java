@@ -34,7 +34,7 @@ class Follower extends RaftState<AppendEntriesCommand> {
             try {
                 this.pingTimeoutFuture = this.timer.schedule(() -> {
                     logger.info("not receiving ping for {} millis, start transit to candidate", this.pingTimeoutMillis);
-                    this.server.tryTransitStateToCandidate();
+                    this.server.tryBecomeCandidate();
                 }, this.pingTimeoutMillis, TimeUnit.MILLISECONDS);
             } catch (RejectedExecutionException ex) {
                 logger.error("schedule ping timeout failed", ex);

@@ -1,5 +1,7 @@
 package raft.server.rpc;
 
+import raft.server.LogEntry;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
@@ -8,7 +10,7 @@ import java.nio.charset.StandardCharsets;
  * Date: 17/12/26
  */
 public class RaftClientCommand extends RaftCommand {
-    private byte[] requestBody;
+    private LogEntry entry = LogEntry.emptyEntry;
     private String leaderId = "";
     private boolean success = false;
 
@@ -25,16 +27,30 @@ public class RaftClientCommand extends RaftCommand {
     public byte[] encode() {
         byte[] base = super.encode();
 
-        byte[] body = requestBody != null ? requestBody : SerializableCommand.EMPTY_BYTES;
-        ByteBuffer buffer = ByteBuffer.allocate(base.length + 4 + body.length);
+        byte[] entryBytes = LogEntry.encode(this.entry);
+        byte[] leaderIdBytes = this.leaderId.getBytes(StandardCharsets.UTF_8);
+
+        ByteBuffer buffer = ByteBuffer.allocate(base.length +
+                // for log entry
+                Integer.BYTES +
+                entryBytes.length +
+                // for leader id
+                Integer.BYTES +
+                leaderIdBytes.length +
+                // for success
+                Byte.BYTES);
         buffer.put(base);
-        buffer.putInt(body.length);
-        buffer.put(body);
 
+        // log entry
+        buffer.putInt(entryBytes.length);
+        buffer.put(entryBytes);
+
+        // leader id
         int leaderIdLength = this.leaderId.length();
-        buffer.putInt(leaderIdLength);
-        buffer.put(this.leaderId.getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(leaderIdBytes.length);
+        buffer.put(leaderIdBytes);
 
+        // success
         buffer.put(this.success ? (byte) 1 : (byte) 0);
 
         return buffer.array();
@@ -44,34 +60,31 @@ public class RaftClientCommand extends RaftCommand {
     public ByteBuffer decode(byte[] bytes) {
         final ByteBuffer buf = super.decode(bytes);
 
-        int bodyLength = buf.getInt();
-        requestBody = new byte[bodyLength];
-        buf.get(this.requestBody);
+        // log entry
+        int entryLength = buf.getInt();
+        byte[] entryBytes = new byte[entryLength];
+        buf.get(entryBytes);
+        this.entry = LogEntry.decode(entryBytes);
 
+        // leader id
         int leaderIdLength = buf.getInt();
         byte[] leaderId = new byte[leaderIdLength];
         buf.get(leaderId);
         this.leaderId = new String(leaderId);
 
+        // success
         this.success = buf.get() == 1;
+
         return buf;
     }
 
     @Override
     public String toString() {
         return "RaftClientCommand{" +
-                "requestBodyLength=" + this.requestBody.length +
+                "entry=" + this.entry.toString() +
                 ", leaderId='" + leaderId + '\'' +
                 ", success=" + success +
                 '}';
-    }
-
-    public byte[] getRequestBody() {
-        return requestBody;
-    }
-
-    public void setRequestBody(byte[] requestBody) {
-        this.requestBody = requestBody;
     }
 
     public String getLeaderId() {
@@ -88,5 +101,13 @@ public class RaftClientCommand extends RaftCommand {
 
     public void setSuccess(boolean success) {
         this.success = success;
+    }
+
+    public LogEntry getEntry() {
+        return entry;
+    }
+
+    public void setEntry(LogEntry entry) {
+        this.entry = entry;
     }
 }
