@@ -47,7 +47,7 @@ public class RaftServer {
     private String leaderId;
     private RaftState state;
     private RemoteServer remoteServer;
-    private RaftLog logs;
+    private RaftLog raftLog;
     private long matchIndex;
     private long nextIndex;
 
@@ -56,7 +56,7 @@ public class RaftServer {
         this.term = new AtomicInteger(0);
         this.selfId = selfId;
         this.remoteServer = new RemoteServer(bossGroup, workerGroup, port, clientReconnectDelayMillis);
-        this.logs = new RaftLog();
+        this.raftLog = new RaftLog();
         this.nextIndex = 1;
 
         this.state = follower;
@@ -104,7 +104,7 @@ public class RaftServer {
                 this.term.set(term);
                 this.transitState(leader);
                 for (RaftPeerNode node : this.peerNodes.values()) {
-                    node.setMatchIndex(this.logs.lastIndex());
+                    node.setMatchIndex(this.raftLog.lastIndex());
                 }
                 return true;
             } else {
@@ -156,7 +156,7 @@ public class RaftServer {
         for (Map.Entry<String, RemoteClient> c : clients.entrySet()) {
             // initial next index to arbitrary value
             // we'll reset this value to last index log when this raft server become leader
-            this.peerNodes.put(c.getKey(), new RaftPeerNode(c.getValue(), 1));
+            this.peerNodes.put(c.getKey(), new RaftPeerNode(this, this.raftLog, c.getValue(), 1));
         }
 
         this.stateLock.lock();
@@ -211,16 +211,13 @@ public class RaftServer {
     }
 
     public void appendLog(LogEntry entry) {
-        this.logs.append(this.getTerm(), entry);
+        this.raftLog.append(this.getTerm(), entry);
         this.broadcastAppendEntries();
     }
 
     private void broadcastAppendEntries() {
-        final AppendEntriesCommand appendReq = new AppendEntriesCommand(this.getTerm());
-        appendReq.setLeaderId(this.getLeaderId());
-
         for (final RaftPeerNode peer: peerNodes.values()) {
-            peer.sendAppend(appendReq);
+            peer.sendAppend();
         }
     }
 
@@ -298,8 +295,5 @@ public class RaftServer {
             return new RaftServer(selfId, this.bossGroup, this.workerGroup, this.port,
                     this.clientReconnectDelayMillis, this.state);
         }
-    }
-
-    public static void main(String[] args) {
     }
 }

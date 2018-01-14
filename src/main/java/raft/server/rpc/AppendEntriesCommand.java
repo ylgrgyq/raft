@@ -1,5 +1,7 @@
 package raft.server.rpc;
 
+import raft.server.LogEntry;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
@@ -11,14 +13,13 @@ public class AppendEntriesCommand extends RaftServerCommand {
     // so follower can redirect clients
     private String leaderId = "";
     // index of log entry immediately preceding new ones
-    private long prevLogIndex = -1;
+    private int prevLogIndex = -1;
     // term of prevLogIndex entry
-    private long prevLogTerm = -1;
+    private int prevLogTerm = -1;
     // leader’s commitIndex
-    private long leaderCommit = -1;
+    private int leaderCommit = -1;
     private boolean success = false;
-    // currentTerm, for leader to update itself
-    private int term;
+    private LogEntry entry = LogEntry.emptyEntry;
 
     public AppendEntriesCommand(byte[] body) {
         this.setCode(CommandCode.APPEND_ENTRIES);
@@ -32,14 +33,19 @@ public class AppendEntriesCommand extends RaftServerCommand {
     public ByteBuffer decode(byte[] bytes) {
         final ByteBuffer buf = super.decode(bytes);
 
-        int leaderIdLength = buf.getInt();
-        byte[] leaderIdBytes = new byte[leaderIdLength];
+        int length = buf.getInt();
+        byte[] leaderIdBytes = new byte[length];
         buf.get(leaderIdBytes);
         this.leaderId = new String(leaderIdBytes);
-        this.prevLogIndex = buf.getLong();
-        this.prevLogTerm = buf.getLong();
-        this.leaderCommit = buf.getLong();
+        this.prevLogIndex = buf.getInt();
+        this.prevLogTerm = buf.getInt();
+        this.leaderCommit = buf.getInt();
         this.success = buf.get() == 1;
+
+        length = buf.getInt();
+        byte[] entryBytes = new byte[length];
+        buf.get(entryBytes);
+        this.entry = LogEntry.decode(entryBytes);
 
         return buf;
     }
@@ -52,7 +58,21 @@ public class AppendEntriesCommand extends RaftServerCommand {
             leaderIdBytes = leaderId.getBytes(StandardCharsets.UTF_8);
         }
 
-        ByteBuffer buffer = ByteBuffer.allocate(base.length + 4 + leaderIdBytes.length + 8 + 8 + 8 + 1);
+        byte[] entryBytes = LogEntry.encode(this.entry);
+
+        ByteBuffer buffer = ByteBuffer.allocate(base.length +
+                // leaderId
+                Integer.BYTES + leaderIdBytes.length +
+                // prevLogIndex
+                Integer.BYTES +
+                // prevLogTerm
+                Integer.BYTES +
+                // leaderCommit
+                Integer.BYTES +
+                // success
+                Byte.BYTES +
+                // entry
+                Integer.BYTES + entryBytes.length);
         buffer.put(base);
         buffer.putInt(leaderIdBytes.length);
         buffer.put(leaderIdBytes);
@@ -60,6 +80,8 @@ public class AppendEntriesCommand extends RaftServerCommand {
         buffer.putLong(this.prevLogTerm);
         buffer.putLong(this.leaderCommit);
         buffer.put((byte)(success ? 1 : 0));
+        buffer.putInt(entryBytes.length);
+        buffer.put(entryBytes);
 
         return buffer.array();
     }
@@ -72,27 +94,27 @@ public class AppendEntriesCommand extends RaftServerCommand {
         this.leaderId = leaderId;
     }
 
-    public long getPrevLogIndex() {
+    public int getPrevLogIndex() {
         return prevLogIndex;
     }
 
-    public void setPrevLogIndex(long prevLogIndex) {
+    public void setPrevLogIndex(int prevLogIndex) {
         this.prevLogIndex = prevLogIndex;
     }
 
-    public long getPrevLogTerm() {
+    public int getPrevLogTerm() {
         return prevLogTerm;
     }
 
-    public void setPrevLogTerm(long prevLogTerm) {
+    public void setPrevLogTerm(int prevLogTerm) {
         this.prevLogTerm = prevLogTerm;
     }
 
-    public long getLeaderCommit() {
+    public int getLeaderCommit() {
         return leaderCommit;
     }
 
-    public void setLeaderCommit(long leaderCommit) {
+    public void setLeaderCommit(int leaderCommit) {
         this.leaderCommit = leaderCommit;
     }
 
@@ -104,6 +126,14 @@ public class AppendEntriesCommand extends RaftServerCommand {
         this.success = true;
     }
 
+    public LogEntry getEntry() {
+        return entry;
+    }
+
+    public void setEntry(LogEntry entry) {
+        this.entry = entry;
+    }
+
     @Override
     public String toString() {
         return "AppendEntriesCommand{" +
@@ -112,6 +142,7 @@ public class AppendEntriesCommand extends RaftServerCommand {
                 ", prevLogTerm=" + prevLogTerm +
                 ", leaderCommit=" + leaderCommit +
                 ", success=" + success +
+                ", entry=" + entry.toString() +
                 '}';
     }
 }
