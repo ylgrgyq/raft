@@ -25,7 +25,6 @@ import java.util.concurrent.*;
 public class RemoteServer {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(RemoteServer.class.getName());
 
-    private final ConcurrentHashMap<String, RemoteClient> clients = new ConcurrentHashMap<>();
     private final HashMap<CommandCode, Pair<Processor, ExecutorService>> processorTable = new HashMap<>();
     private final int port;
     private final EventLoopGroup bossGroup;
@@ -59,8 +58,8 @@ public class RemoteServer {
                 this.clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
     }
 
-    private CompletableFuture<String> connectToClient(final InetSocketAddress addr) {
-        final CompletableFuture<String> connectedFuture = new CompletableFuture<>();
+    private CompletableFuture<Pair<String, RemoteClient>> connectToClient(final InetSocketAddress addr) {
+        final CompletableFuture<Pair<String, RemoteClient>> connectedFuture = new CompletableFuture<>();
         final RemoteClient client = new RemoteClient(this.workerGroup, this);
         final ChannelFuture chFuture = client.connect(addr);
         chFuture.addListener((ChannelFuture f) -> {
@@ -68,13 +67,13 @@ public class RemoteServer {
                 logger.info("Connect to {} success", addr);
                 final Channel ch = f.channel();
                 final String id = client.getId();
-                this.clients.put(id, client);
                 ch.closeFuture().addListener(cf -> {
                     logger.warn("Connection with {} lost, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
-                    this.clients.remove(id);
+
+                    // TODO Handle connection lost. maybe we need to pause RaftPeerNode when it's connection was lost
                     scheduleReconnectToClientJob(addr);
                 });
-                connectedFuture.complete(id);
+                connectedFuture.complete(new Pair<>(id, client));
             } else {
                 logger.warn("Connect to {} failed, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
                 scheduleReconnectToClientJob(addr);
@@ -83,17 +82,18 @@ public class RemoteServer {
         return connectedFuture;
     }
 
-    List<String> connectToClients(List<InetSocketAddress> addrs, long timeout, TimeUnit unit)
+    Map<String, RemoteClient> connectToClients(List<InetSocketAddress> addrs, long timeout, TimeUnit unit)
             throws TimeoutException, InterruptedException, ExecutionException {
-        final List<String> connectedClientIds = new ArrayList<>(addrs.size());
+        final Map<String, RemoteClient> connectedClientIds = new HashMap<>(addrs.size());
         long timeoutMillis = unit.toMillis(timeout);
 
         for (InetSocketAddress addr : addrs) {
             if (timeoutMillis > 0) {
                 long start = System.currentTimeMillis();
                 try {
-                    CompletableFuture<String> f = this.connectToClient(addr);
-                    connectedClientIds.add(f.get(timeoutMillis, TimeUnit.MILLISECONDS));
+                    CompletableFuture<Pair<String, RemoteClient>> f = this.connectToClient(addr);
+                    Pair<String, RemoteClient> p = f.get(timeoutMillis, TimeUnit.MILLISECONDS);
+                    connectedClientIds.put(p.getLeft(), p.getRight());
                     timeoutMillis = timeoutMillis - (System.currentTimeMillis() - start);
                 } catch (Exception ex) {
                     logger.error("Connecting to {} failed!", addr, ex);
@@ -106,10 +106,6 @@ public class RemoteServer {
         }
 
         return connectedClientIds;
-    }
-
-    ConcurrentHashMap<String, RemoteClient> getConnectedClients() {
-        return clients;
     }
 
     ChannelFuture startLocalServer() throws InterruptedException {

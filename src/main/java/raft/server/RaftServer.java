@@ -19,6 +19,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -146,15 +147,13 @@ public class RaftServer {
         this.remoteServer.registerProcessor(CommandCode.CLIENT_REQUEST, new ClientRequestProcessor(this), this.processorExecutorService);
     }
 
-    private void initializeNextIndex(){
-        this.peerNodeIds.forEach(id -> peerNodes.put(id, new RaftPeerNode(1)));
-    }
-
     void start(List<InetSocketAddress> clientAddrs) throws InterruptedException, ExecutionException, TimeoutException {
         this.remoteServer.startLocalServer();
-        this.peerNodeIds = this.remoteServer.connectToClients(clientAddrs, 30, TimeUnit.SECONDS);
-
-        initializeNextIndex();
+        Map<String, RemoteClient> clients = this.remoteServer.connectToClients(clientAddrs, 30, TimeUnit.SECONDS);
+        this.peerNodeIds = Collections.unmodifiableList(new ArrayList<>(clients.keySet()));
+        for (Map.Entry<String, RemoteClient> c : clients.entrySet()) {
+            this.peerNodes.put(c.getKey(), new RaftPeerNode(c.getValue(), 1));
+        }
 
         this.stateLock.lock();
         try {
@@ -190,8 +189,8 @@ public class RaftServer {
         }
     }
 
-    ConcurrentHashMap<String, RemoteClient> getConnectedClients() {
-        return this.remoteServer.getConnectedClients();
+    ConcurrentHashMap<String, RaftPeerNode> getConnectedClients() {
+        return this.peerNodes;
     }
 
     int getQuorum() {
@@ -207,8 +206,19 @@ public class RaftServer {
         }
     }
 
-    public void writeLog(byte[] log) {
+    public void appendLog(byte[] log) {
         this.logs.append(this.getTerm(), log);
+        this.broadcastAppendEntries();
+    }
+
+    private void broadcastAppendEntries() {
+        final AppendEntriesCommand appendReq = new AppendEntriesCommand(this.getTerm());
+        appendReq.setLeaderId(this.getLeaderId());
+
+        for (final Map.Entry<String, RaftPeerNode> entry : peerNodes.entrySet()) {
+            final RaftPeerNode peer = entry.getValue();
+//            peer.
+        }
     }
 
     void lockStateLock() {
@@ -285,5 +295,8 @@ public class RaftServer {
             return new RaftServer(selfId, this.bossGroup, this.workerGroup, this.port,
                     this.clientReconnectDelayMillis, this.state);
         }
+    }
+
+    public static void main(String[] args) {
     }
 }

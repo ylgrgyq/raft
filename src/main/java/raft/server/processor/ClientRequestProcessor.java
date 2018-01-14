@@ -32,7 +32,8 @@ public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand>
         res.setLeaderId(this.server.getLeaderId());
         if (this.server.getState() == State.LEADER) {
             byte[] body = cmd.getRequestBody();
-            this.server.writeLog(body);
+            // TODO Handle append log failed
+            this.server.appendLog(body);
 
             res.setSuccess(true);
         } else {

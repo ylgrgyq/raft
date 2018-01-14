@@ -79,8 +79,8 @@ public class RemoteClient {
         return future;
     }
 
-    public Future<Void> send(RemotingCommand cmd, PendingRequestCallback callable) {
-        this.server.addPendingRequest(cmd.getRequestId(), 3000, callable);
+    public Future<Void> send(RemotingCommand cmd, PendingRequestCallback callback) {
+        this.server.addPendingRequest(cmd.getRequestId(), 3000, callback);
         return doSend(cmd);
     }
 

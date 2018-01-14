@@ -16,4 +16,8 @@ public class RaftLog {
     void append(int term, byte[] log) {
 
     }
+
+    int lastIndex(){
+        return 1;
+    }
 }
