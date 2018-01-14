@@ -5,5 +5,5 @@ package raft.server.rpc;
  * Date: 17/12/5
  */
 public interface PendingRequestCallback {
-    void operationComplete(PendingRequest request) throws Exception;
+    void operationComplete(PendingRequest request, RemotingCommand response) throws Exception;
 }

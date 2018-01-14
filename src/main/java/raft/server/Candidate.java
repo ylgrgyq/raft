@@ -2,6 +2,7 @@ package raft.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.server.rpc.PendingRequest;
 import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
 import raft.server.rpc.RequestVoteCommand;
@@ -71,8 +72,7 @@ class Candidate extends RaftState<RaftServerCommand> {
                         candidateTerm, votesToWin, clientsSize, this.server);
                 for (final RaftPeerNode node : clients.values()) {
                     final RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
-                    Future<Void> f = node.send(cmd, req -> {
-                        final RemotingCommand res = req.getResponse();
+                    Future<Void> f = node.send(cmd, (PendingRequest req, RemotingCommand res) -> {
                         if (res != null) {
                             final RequestVoteCommand voteRes = new RequestVoteCommand(res.getBody());
                             logger.debug("receive request vote response={} from={}", voteRes, node);

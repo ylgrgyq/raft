@@ -30,7 +30,7 @@ public class PendingRequest {
 
     public void executeCallback() throws Exception {
         if (callback != null) {
-            callback.operationComplete(this);
+            callback.operationComplete(this, this.res);
         }
     }
 
