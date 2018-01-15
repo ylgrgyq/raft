@@ -10,11 +10,15 @@ import java.util.Base64;
 public class LogEntry {
     public static final LogEntry emptyEntry = new LogEntry();
 
-    private int index;
-    private int term;
+    private int index = 0;
+    private int term = 0;
     private byte[] data = new byte[0];
 
     public static byte[] encode(LogEntry entry){
+        if (entry == null || entry == LogEntry.emptyEntry) {
+            return new byte[0];
+        }
+
         byte[] data = entry.getData();
         ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + Integer.BYTES + Integer.BYTES + data.length);
         buffer.putInt(entry.getIndex());
@@ -26,6 +30,10 @@ public class LogEntry {
     }
 
     public static LogEntry decode(byte[] entryBytes) {
+        if (entryBytes.length == 0) {
+            return LogEntry.emptyEntry;
+        }
+
         ByteBuffer buffer = ByteBuffer.wrap(entryBytes);
         LogEntry entry = new LogEntry();
         entry.setIndex(buffer.getInt());

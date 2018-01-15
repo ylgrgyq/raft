@@ -34,8 +34,7 @@ class Leader extends RaftState<RaftServerCommand> {
     private ScheduledFuture schedulePingJob() {
         try {
             return this.timer.scheduleWithFixedDelay(() -> {
-                final AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm());
-                ping.setLeaderId(server.getLeaderId());
+                final AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm(), server.getLeaderId());
                 logger.debug("ping to all clients, ping={} ...", ping);
                 for (final RaftPeerNode client : this.server.getConnectedClients().values()) {
                     RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);

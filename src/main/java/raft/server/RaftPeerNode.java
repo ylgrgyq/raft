@@ -9,6 +9,8 @@ import raft.server.rpc.PendingRequest;
 import raft.server.rpc.PendingRequestCallback;
 import raft.server.rpc.RemotingCommand;
 
+import java.util.List;
+
 /**
  * Author: ylgrgyq
  * Date: 18/1/12
@@ -28,20 +30,24 @@ public class RaftPeerNode {
     RaftPeerNode(RaftServer server, RaftLog log, RemoteClient remote, int nextIndex) {
         this.remoteClient = remote;
         this.nextIndex = nextIndex;
-        this.matchIndex = 1;
+        this.matchIndex = 0;
         this.server = server;
         this.serverLog = log;
     }
 
     void sendAppend() {
-        LogEntry entry = serverLog.getEntry(nextIndex);
-        LogEntry prevEntry = serverLog.getEntry(nextIndex - 1);
+        List<LogEntry> entries = serverLog.getEntries(this.nextIndex - 1, this.nextIndex + 1);
 
-        AppendEntriesCommand appendReq = new AppendEntriesCommand(this.server.getTerm());
-        appendReq.setPrevLogTerm(prevEntry.getTerm());
-        appendReq.setPrevLogIndex(prevEntry.getIndex());
-        appendReq.setEntry(entry);
-        appendReq.setLeaderCommit(serverLog.commitIndex);
+        AppendEntriesCommand appendReq = new AppendEntriesCommand(this.server.getTerm(), this.server.getLeaderId());
+        appendReq.setLeaderCommit(serverLog.getCommitIndex());
+
+        LogEntry prev = entries.get(0);
+        appendReq.setPrevLogTerm(prev.getTerm());
+        appendReq.setPrevLogIndex(prev.getIndex());
+
+        if (entries.size() > 1) {
+            appendReq.setEntry(entries.get(1));
+        }
 
         RemotingCommand cmd = RemotingCommand.createRequestCommand(appendReq);
         remoteClient.send(cmd, (PendingRequest req, RemotingCommand res) -> {
@@ -64,10 +70,8 @@ public class RaftPeerNode {
         return this.remoteClient.sendOneway(cmd);
     }
 
-    public void setMatchIndex(int matchIndex) {
-        this.matchIndex = matchIndex;
-        if (matchIndex >= this.nextIndex) {
-            this.nextIndex = matchIndex + 1;
-        }
+    void reset(int nextIndex) {
+        this.nextIndex = nextIndex;
+        this.matchIndex = 0;
     }
 }

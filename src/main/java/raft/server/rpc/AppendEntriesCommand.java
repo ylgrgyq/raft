@@ -4,6 +4,7 @@ import raft.server.LogEntry;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 /**
  * Author: ylgrgyq
@@ -13,11 +14,11 @@ public class AppendEntriesCommand extends RaftServerCommand {
     // so follower can redirect clients
     private String leaderId = "";
     // index of log entry immediately preceding new ones
-    private int prevLogIndex = -1;
+    private int prevLogIndex = 0;
     // term of prevLogIndex entry
-    private int prevLogTerm = -1;
+    private int prevLogTerm = 0;
     // leader’s commitIndex
-    private int leaderCommit = -1;
+    private int leaderCommit = 0;
     private boolean success = false;
     private LogEntry entry = LogEntry.emptyEntry;
 
@@ -26,16 +27,19 @@ public class AppendEntriesCommand extends RaftServerCommand {
         this.decode(body);
     }
 
-    public AppendEntriesCommand(int term) {
+    public AppendEntriesCommand(int term, String leaderId) {
         super(term, CommandCode.APPEND_ENTRIES);
+        this.leaderId = leaderId;
     }
 
     public ByteBuffer decode(byte[] bytes) {
         final ByteBuffer buf = super.decode(bytes);
 
         int length = buf.getInt();
+        assert length != 0 : "leaderId must not empty";
         byte[] leaderIdBytes = new byte[length];
         buf.get(leaderIdBytes);
+
         this.leaderId = new String(leaderIdBytes);
         this.prevLogIndex = buf.getInt();
         this.prevLogTerm = buf.getInt();
@@ -54,8 +58,8 @@ public class AppendEntriesCommand extends RaftServerCommand {
         byte[] base = super.encode();
 
         byte[] leaderIdBytes = SerializableCommand.EMPTY_BYTES;
-        if (leaderId != null) {
-            leaderIdBytes = leaderId.getBytes(StandardCharsets.UTF_8);
+        if (this.leaderId != null) {
+            leaderIdBytes = this.leaderId.getBytes(StandardCharsets.UTF_8);
         }
 
         byte[] entryBytes = LogEntry.encode(this.entry);
@@ -122,12 +126,15 @@ public class AppendEntriesCommand extends RaftServerCommand {
         return success;
     }
 
-    public void markSuccess() {
-        this.success = true;
+    public void setSuccess(boolean success) {
+        this.success = success;
     }
 
-    public LogEntry getEntry() {
-        return entry;
+    public Optional<LogEntry> getEntry() {
+        if (this.entry == LogEntry.emptyEntry) {
+            return Optional.empty();
+        }
+        return Optional.of(entry);
     }
 
     public void setEntry(LogEntry entry) {

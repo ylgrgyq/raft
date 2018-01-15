@@ -39,10 +39,14 @@ public class RaftServer {
 
     private List<String> peerNodeIds = Collections.emptyList();
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
-    private String voteFor = null;
     private ExecutorService processorExecutorService;
+
+    // TODO need persistent
+    private String voteFor = null;
     // latest term server has seen (initialized to 0 on first boot, increases monotonically)
+    // TODO need persistent
     private AtomicInteger term;
+
     private String selfId;
     private String leaderId;
     private RaftState state;
@@ -104,7 +108,7 @@ public class RaftServer {
                 this.term.set(term);
                 this.transitState(leader);
                 for (RaftPeerNode node : this.peerNodes.values()) {
-                    node.setMatchIndex(this.raftLog.lastIndex());
+                    node.reset(this.raftLog.lastIndex() + 1);
                 }
                 return true;
             } else {
@@ -208,6 +212,10 @@ public class RaftServer {
         } finally {
             this.stateLock.unlock();
         }
+    }
+
+    public RaftLog getRaftLog() {
+        return raftLog;
     }
 
     public void appendLog(LogEntry entry) {
