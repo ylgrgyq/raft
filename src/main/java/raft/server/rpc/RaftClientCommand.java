@@ -27,26 +27,23 @@ public class RaftClientCommand extends RaftCommand {
     byte[] encode() {
         byte[] base = super.encode();
 
-        byte[] entryBytes = LogEntry.encode(this.entry);
+        byte[] entryBytes = this.entry.encode();
         byte[] leaderIdBytes = this.leaderId.getBytes(StandardCharsets.UTF_8);
 
         ByteBuffer buffer = ByteBuffer.allocate(base.length +
-                // for log entry
-                Integer.BYTES +
+                // log entry
                 entryBytes.length +
-                // for leader id
+                // leader id
                 Integer.BYTES +
                 leaderIdBytes.length +
-                // for success
+                // success
                 Byte.BYTES);
         buffer.put(base);
 
         // log entry
-        buffer.putInt(entryBytes.length);
         buffer.put(entryBytes);
 
         // leader id
-        int leaderIdLength = this.leaderId.length();
         buffer.putInt(leaderIdBytes.length);
         buffer.put(leaderIdBytes);
 
@@ -61,10 +58,7 @@ public class RaftClientCommand extends RaftCommand {
         final ByteBuffer buf = super.decode(bytes);
 
         // log entry
-        int entryLength = buf.getInt();
-        byte[] entryBytes = new byte[entryLength];
-        buf.get(entryBytes);
-        this.entry = LogEntry.decode(entryBytes);
+        this.entry = LogEntry.from(buf);
 
         // leader id
         int leaderIdLength = buf.getInt();
@@ -92,7 +86,7 @@ public class RaftClientCommand extends RaftCommand {
     }
 
     public void setLeaderId(String leaderId) {
-        this.leaderId = leaderId;
+        this.leaderId = leaderId == null ? "" : leaderId;
     }
 
     public boolean isSuccess() {

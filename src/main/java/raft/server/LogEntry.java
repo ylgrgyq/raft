@@ -10,31 +10,13 @@ import java.util.Base64;
 public class LogEntry {
     public static final LogEntry emptyEntry = new LogEntry();
 
+    //TODO reduce encoded bytes size for empty entry
+    //TODO do not encode empty entry repeatedly
     private int index = 0;
     private int term = 0;
     private byte[] data = new byte[0];
 
-    public static byte[] encode(LogEntry entry){
-        if (entry == null || entry == LogEntry.emptyEntry) {
-            return new byte[0];
-        }
-
-        byte[] data = entry.getData();
-        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + Integer.BYTES + Integer.BYTES + data.length);
-        buffer.putInt(entry.getIndex());
-        buffer.putInt(entry.getTerm());
-        buffer.putInt(data.length);
-        buffer.put(data);
-
-        return buffer.array();
-    }
-
-    public static LogEntry decode(byte[] entryBytes) {
-        if (entryBytes.length == 0) {
-            return LogEntry.emptyEntry;
-        }
-
-        ByteBuffer buffer = ByteBuffer.wrap(entryBytes);
+    public static LogEntry from(ByteBuffer buffer) {
         LogEntry entry = new LogEntry();
         entry.setIndex(buffer.getInt());
         entry.setTerm(buffer.getInt());
@@ -45,6 +27,17 @@ public class LogEntry {
         entry.setData(data);
 
         return entry;
+    }
+
+    public byte[] encode(){
+        ByteBuffer buffer = ByteBuffer.allocate(this.getSize());
+        buffer.putInt(this.getIndex());
+        buffer.putInt(this.getTerm());
+        byte[] data = this.getData();
+        buffer.putInt(data.length);
+        buffer.put(data);
+
+        return buffer.array();
     }
 
     public int getIndex() {
@@ -69,6 +62,10 @@ public class LogEntry {
 
     public void setData(byte[] data) {
         this.data = data;
+    }
+
+    public int getSize() {
+        return Integer.BYTES + Integer.BYTES + Integer.BYTES + data.length;
     }
 
     @Override
