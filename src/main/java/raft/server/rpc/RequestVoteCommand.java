@@ -22,7 +22,7 @@ public class RequestVoteCommand extends RaftServerCommand {
         super(term, CommandCode.REQUEST_VOTE);
     }
 
-    public ByteBuffer decode(byte[] bytes) {
+    ByteBuffer decode(byte[] bytes) {
         ByteBuffer buf = super.decode(bytes);
         int idLength = buf.getInt();
         byte[] idBytes = new byte[idLength];
@@ -34,10 +34,10 @@ public class RequestVoteCommand extends RaftServerCommand {
         return buf;
     }
 
-    public byte[] encode() {
+    byte[] encode() {
         byte[] base = super.encode();
 
-        byte[] idBytes = SerializableCommand.EMPTY_BYTES;
+        byte[] idBytes = RaftCommand.EMPTY_BYTES;
         if (candidateId != null) {
             idBytes = candidateId.getBytes(StandardCharsets.UTF_8);
         }

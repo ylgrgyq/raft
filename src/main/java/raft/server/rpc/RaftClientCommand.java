@@ -24,7 +24,7 @@ public class RaftClientCommand extends RaftCommand {
     }
 
     @Override
-    public byte[] encode() {
+    byte[] encode() {
         byte[] base = super.encode();
 
         byte[] entryBytes = LogEntry.encode(this.entry);
@@ -57,7 +57,7 @@ public class RaftClientCommand extends RaftCommand {
     }
 
     @Override
-    public ByteBuffer decode(byte[] bytes) {
+    ByteBuffer decode(byte[] bytes) {
         final ByteBuffer buf = super.decode(bytes);
 
         // log entry

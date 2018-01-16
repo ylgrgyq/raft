@@ -22,14 +22,14 @@ public abstract class RaftServerCommand extends RaftCommand {
     }
 
     @Override
-    public byte[] encode() {
+    byte[] encode() {
         final ByteBuffer buf = ByteBuffer.allocate(4);
         buf.putInt(this.term);
         return buf.array();
     }
 
     @Override
-    public ByteBuffer decode(byte[] bytes) {
+    ByteBuffer decode(byte[] bytes) {
         final ByteBuffer buf = ByteBuffer.wrap(bytes);
         this.term = buf.getInt();
         return buf;
