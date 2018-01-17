@@ -2,7 +2,6 @@ package raft.server.processor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.LogEntry;
 import raft.server.RaftLog;
 import raft.server.RaftServer;
 import raft.server.rpc.AppendEntriesCommand;
@@ -10,7 +9,6 @@ import raft.server.rpc.RemotingCommand;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Author: ylgrgyq
@@ -34,37 +32,31 @@ public class AppendEntriesProcessor extends AbstractProcessor<AppendEntriesComma
 
     @Override
     protected RemotingCommand doProcess(AppendEntriesCommand appendCmd) {
-        logger.debug("receive append entries command, cmd={}, server={}", appendCmd, this.server);
+        logger.debug("receive append entries command, cmd={}, server={}", appendCmd, this.getServer());
         final int termInEntry = appendCmd.getTerm();
         final RaftServer server = this.getServer();
         final RaftLog raftLog = server.getRaftLog();
+        int termInServer = server.getTerm();
 
-        int termInServer = this.getServer().getTerm();
-        final AppendEntriesCommand response = new AppendEntriesCommand(termInServer, this.getServer().getLeaderId());
+        final AppendEntriesCommand response = new AppendEntriesCommand(termInServer, server.getLeaderId());
         response.setSuccess(false);
 
         raftLog.getEntry(appendCmd.getPrevLogIndex()).ifPresent(prevEntry -> {
             if (prevEntry.getTerm() == appendCmd.getPrevLogTerm() && termInEntry >= termInServer) {
-                if (!appendCmd.getLeaderId().equals(this.server.getLeaderId())) {
-                    server.tryBecomeFollower(termInEntry, appendCmd.getLeaderId());
-                }
+                assert appendCmd.getLeaderId().equals(server.getLeaderId());
+                assert termInEntry == termInServer;
 
-                Optional<LogEntry> entry = appendCmd.getEntry();
-                if (entry.isPresent()) {
-                    try {
-                        raftLog.appendEntries(entry.get());
-                        response.setSuccess(true);
-                        raftLog.tryCommitTo(appendCmd.getLeaderCommit());
-                    } catch (Exception ex) {
-                        logger.error("some thing wrong with append entries");
-                    }
-                } else {
+                try {
+                    raftLog.appendEntries(appendCmd.getEntries());
+                    response.setSuccess(true);
                     raftLog.tryCommitTo(appendCmd.getLeaderCommit());
+                } catch (Exception ex) {
+                    logger.error("append entries failed, cmd={}", appendCmd, ex);
                 }
             }
         });
 
-        logger.debug("respond append entries command, response={}, server={}", response, this.server);
+        logger.debug("respond append entries command, response={}, server={}", response, this.getServer());
         return RemotingCommand.createResponseCommand(response);
     }
 }

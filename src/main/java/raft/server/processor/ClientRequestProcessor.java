@@ -30,11 +30,11 @@ public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand>
     @Override
     protected RemotingCommand doProcess(RaftClientCommand cmd) {
         RaftClientCommand res = new RaftClientCommand();
-        res.setLeaderId(this.server.getLeaderId());
-        if (this.server.getState() == State.LEADER) {
+        res.setLeaderId(this.getServer().getLeaderId());
+        if (this.getServer().getState() == State.LEADER) {
             LogEntry body = cmd.getEntry();
             // TODO Handle append log failed
-            this.server.appendLog(body);
+            this.getServer().appendLog(body);
 
             res.setSuccess(true);
         } else {

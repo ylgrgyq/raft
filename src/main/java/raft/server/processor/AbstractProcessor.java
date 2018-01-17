@@ -13,7 +13,7 @@ import java.util.List;
  * Date: 17/12/2
  */
 abstract class AbstractProcessor<T extends RaftCommand> implements Processor{
-    protected final RaftServer server;
+    private final RaftServer server;
 
     private List<RaftCommandListener<T>> raftCommandListeners = Collections.emptyList();
 

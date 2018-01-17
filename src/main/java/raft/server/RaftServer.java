@@ -36,6 +36,7 @@ public class RaftServer {
     private final RaftState<RaftServerCommand> candidate = new Candidate(this, timer);
     private final RaftState<AppendEntriesCommand> follower = new Follower(this, timer);
     private final ReentrantLock stateLock = new ReentrantLock();
+    private final int maxMsgSize = 16;
 
     private List<String> peerNodeIds = Collections.emptyList();
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
@@ -218,12 +219,16 @@ public class RaftServer {
         return raftLog;
     }
 
+    public int getMaxMsgSize() {
+        return maxMsgSize;
+    }
+
     public void appendLog(LogEntry entry) {
         this.raftLog.append(this.getTerm(), entry);
         this.broadcastAppendEntries();
     }
 
-    private void broadcastAppendEntries() {
+    void broadcastAppendEntries() {
         for (final RaftPeerNode peer: peerNodes.values()) {
             peer.sendAppend();
         }

@@ -28,8 +28,12 @@ public class RaftLog {
         entry.setTerm(term);
     }
 
-    public void appendEntries(LogEntry entry) {
+    public void appendEntries(List<LogEntry> entries) {
+//        If an existing entry conflicts with a new one (same index
+//        but different terms), delete the existing entry and all that
+//        follow it (§5.3)
 
+//        Append any new entries not already in the log
     }
 
     public Optional<LogEntry> getEntry(int index){

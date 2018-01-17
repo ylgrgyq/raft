@@ -2,9 +2,7 @@ package raft.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.RaftServerCommand;
-import raft.server.rpc.RemotingCommand;
 
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -33,14 +31,8 @@ class Leader extends RaftState<RaftServerCommand> {
 
     private ScheduledFuture schedulePingJob() {
         try {
-            return this.timer.scheduleWithFixedDelay(() -> {
-                final AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm(), server.getLeaderId());
-                logger.debug("ping to all clients, ping={} ...", ping);
-                for (final RaftPeerNode client : this.server.getConnectedClients().values()) {
-                    RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
-                    client.sendOneway(cmd);
-                }
-            }, this.pingIntervalMillis, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
+            return this.timer.scheduleWithFixedDelay(this.server::broadcastAppendEntries,
+                    0, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException ex) {
             logger.error("schedule sending ping failed, will lose leadership later", ex);
         }

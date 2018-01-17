@@ -160,6 +160,7 @@ public class AppendEntriesCommand extends RaftServerCommand {
     }
 
     public void setEntries(List<LogEntry> entries) {
+        Preconditions.checkNotNull(entries);
         this.entries = entries;
     }
 
