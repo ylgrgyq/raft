@@ -86,9 +86,7 @@ public class RaftServer {
             if (term > this.term.get()) {
                 this.leaderId = leaderId;
                 this.term.set(term);
-                if (this.voteFor == null) {
-                    this.voteFor = leaderId;
-                }
+                this.voteFor = null;
                 this.transitState(follower);
                 return true;
             } else {
@@ -107,6 +105,7 @@ public class RaftServer {
                     term == this.term.get()) {
                 this.leaderId = this.selfId;
                 this.term.set(term);
+                this.voteFor = null;
                 this.transitState(leader);
                 for (RaftPeerNode node : this.peerNodes.values()) {
                     node.reset(this.raftLog.lastIndex() + 1);
@@ -126,6 +125,7 @@ public class RaftServer {
         try {
             if (this.getState() == State.FOLLOWER) {
                 this.leaderId = null;
+                this.voteFor = null;
                 this.transitState(candidate);
                 return true;
             } else {
@@ -185,7 +185,7 @@ public class RaftServer {
         }
     }
 
-    String getId() {
+    public String getId() {
         return this.selfId;
     }
 
@@ -193,6 +193,15 @@ public class RaftServer {
         this.stateLock.lock();
         try {
             return voteFor;
+        } finally {
+            this.stateLock.unlock();
+        }
+    }
+
+    public void setVoteFor(String voteFor) {
+        this.stateLock.lock();
+        try {
+            this.voteFor = voteFor;
         } finally {
             this.stateLock.unlock();
         }

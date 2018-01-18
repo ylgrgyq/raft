@@ -56,6 +56,15 @@ public class RaftLog {
         return this.logs.size() - 1;
     }
 
+    public boolean isUpToDate(int term, int index) {
+        LogEntry lastEntryOnServer = this.getEntry(this.lastIndex()).orElse(null);
+        assert lastEntryOnServer != null;
+
+        return term > lastEntryOnServer.getTerm() ||
+                (term == lastEntryOnServer.getTerm() &&
+                        index >= lastEntryOnServer.getIndex());
+    }
+
     public int getCommitIndex() {
         return commitIndex;
     }

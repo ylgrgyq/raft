@@ -38,12 +38,12 @@ public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEnt
         final RaftLog raftLog = server.getRaftLog();
         int termInServer = server.getTerm();
 
-        final AppendEntriesCommand response = new AppendEntriesCommand(termInServer, server.getLeaderId());
+        final AppendEntriesCommand response = new AppendEntriesCommand(termInServer, server.getId());
         response.setSuccess(false);
 
         raftLog.getEntry(appendCmd.getPrevLogIndex()).ifPresent(prevEntry -> {
             if (prevEntry.getTerm() == appendCmd.getPrevLogTerm() && termInEntry >= termInServer) {
-                assert appendCmd.getLeaderId().equals(server.getLeaderId());
+                assert appendCmd.getFrom().equals(server.getLeaderId());
                 assert termInEntry == termInServer;
 
                 try {

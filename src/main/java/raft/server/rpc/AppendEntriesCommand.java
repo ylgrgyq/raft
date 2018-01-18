@@ -101,10 +101,6 @@ public class AppendEntriesCommand extends RaftServerCommand {
         return buffer.array();
     }
 
-    public String getLeaderId() {
-        return this.getFrom();
-    }
-
     public int getPrevLogIndex() {
         return prevLogIndex;
     }
