@@ -4,7 +4,6 @@ import com.google.common.base.Preconditions;
 import raft.server.LogEntry;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -15,8 +14,6 @@ import java.util.stream.IntStream;
  * Date: 17/11/22
  */
 public class AppendEntriesCommand extends RaftServerCommand {
-    // so follower can redirect clients
-    private String leaderId = "";
     // index of log entry immediately preceding new ones
     private int prevLogIndex = 0;
     // term of prevLogIndex entry
@@ -32,10 +29,7 @@ public class AppendEntriesCommand extends RaftServerCommand {
     }
 
     public AppendEntriesCommand(int term, String leaderId) {
-        super(term, CommandCode.APPEND_ENTRIES);
-        Preconditions.checkArgument(leaderId != null && leaderId.isEmpty(),
-                "need non empty leaderId for AppendEntriesCommand");
-        this.leaderId = leaderId;
+        super(term, leaderId, CommandCode.APPEND_ENTRIES);
     }
 
     private List<LogEntry> decodeEntries(ByteBuffer buffer) {
@@ -55,12 +49,6 @@ public class AppendEntriesCommand extends RaftServerCommand {
     ByteBuffer decode(byte[] bytes) {
         final ByteBuffer buf = super.decode(bytes);
 
-        int length = buf.getInt();
-        assert length != 0 : "leaderId must not empty";
-
-        byte[] leaderIdBytes = new byte[length];
-        buf.get(leaderIdBytes);
-        this.leaderId = new String(leaderIdBytes);
         this.prevLogIndex = buf.getInt();
         this.prevLogTerm = buf.getInt();
         this.leaderCommit = buf.getInt();
@@ -90,13 +78,9 @@ public class AppendEntriesCommand extends RaftServerCommand {
     byte[] encode() {
         byte[] base = super.encode();
 
-        assert this.leaderId != null;
-        byte[] leaderIdBytes = this.leaderId.getBytes(StandardCharsets.UTF_8);
         byte[] entriesBytes = this.encodeEntries();
 
         ByteBuffer buffer = ByteBuffer.allocate(base.length +
-                // leaderId
-                Integer.BYTES + leaderIdBytes.length +
                 // prevLogIndex
                 Integer.BYTES +
                 // prevLogTerm
@@ -108,8 +92,6 @@ public class AppendEntriesCommand extends RaftServerCommand {
                 // entries
                 entriesBytes.length);
         buffer.put(base);
-        buffer.putInt(leaderIdBytes.length);
-        buffer.put(leaderIdBytes);
         buffer.putInt(this.prevLogIndex);
         buffer.putInt(this.prevLogTerm);
         buffer.putInt(this.leaderCommit);
@@ -120,7 +102,7 @@ public class AppendEntriesCommand extends RaftServerCommand {
     }
 
     public String getLeaderId() {
-        return leaderId;
+        return this.getFrom();
     }
 
     public int getPrevLogIndex() {
@@ -167,7 +149,8 @@ public class AppendEntriesCommand extends RaftServerCommand {
     @Override
     public String toString() {
         return "AppendEntriesCommand{" +
-                "leaderId='" + leaderId + '\'' +
+                "leaderId='" + this.getFrom() + '\'' +
+                ", term=" + this.getTerm() +
                 ", prevLogIndex=" + prevLogIndex +
                 ", prevLogTerm=" + prevLogTerm +
                 ", leaderCommit=" + leaderCommit +

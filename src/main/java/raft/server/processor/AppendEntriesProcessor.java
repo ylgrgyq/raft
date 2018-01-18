@@ -14,7 +14,7 @@ import java.util.List;
  * Author: ylgrgyq
  * Date: 17/12/2
  */
-public class AppendEntriesProcessor extends AbstractProcessor<AppendEntriesCommand> {
+public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEntriesCommand> {
     private static final Logger logger = LoggerFactory.getLogger(AppendEntriesProcessor.class.getName());
 
     public AppendEntriesProcessor(RaftServer server) {
@@ -31,7 +31,7 @@ public class AppendEntriesProcessor extends AbstractProcessor<AppendEntriesComma
     }
 
     @Override
-    protected RemotingCommand doProcess(AppendEntriesCommand appendCmd) {
+    protected RemotingCommand process0(AppendEntriesCommand appendCmd) {
         logger.debug("receive append entries command, cmd={}, server={}", appendCmd, this.getServer());
         final int termInEntry = appendCmd.getTerm();
         final RaftServer server = this.getServer();

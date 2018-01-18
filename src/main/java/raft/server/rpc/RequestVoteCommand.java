@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
  * Date: 17/11/22
  */
 public class RequestVoteCommand extends RaftServerCommand {
-    private String candidateId = "";
     private long lastLogIndex = -1;
     private long lastLogTerm = -1;
     private boolean voteGranted = false;
@@ -18,16 +17,12 @@ public class RequestVoteCommand extends RaftServerCommand {
         this.decode(body);
     }
 
-    public RequestVoteCommand(int term) {
-        super(term, CommandCode.REQUEST_VOTE);
+    public RequestVoteCommand(int term, String candidateId) {
+        super(term, candidateId, CommandCode.REQUEST_VOTE);
     }
 
     ByteBuffer decode(byte[] bytes) {
         ByteBuffer buf = super.decode(bytes);
-        int idLength = buf.getInt();
-        byte[] idBytes = new byte[idLength];
-        buf.get(idBytes);
-        this.candidateId = new String(idBytes);
         this.lastLogIndex = buf.getLong();
         this.lastLogTerm = buf.getLong();
         this.voteGranted = buf.get() == 1;
@@ -37,15 +32,8 @@ public class RequestVoteCommand extends RaftServerCommand {
     byte[] encode() {
         byte[] base = super.encode();
 
-        byte[] idBytes = RaftCommand.EMPTY_BYTES;
-        if (candidateId != null) {
-            idBytes = candidateId.getBytes(StandardCharsets.UTF_8);
-        }
-
-        ByteBuffer buf = ByteBuffer.allocate(base.length + 4 + idBytes.length + 8 + 8 + 1);
+        ByteBuffer buf = ByteBuffer.allocate(base.length + Long.BYTES + Long.BYTES + Byte.BYTES);
         buf.put(base);
-        buf.putInt(idBytes.length);
-        buf.put(idBytes);
         buf.putLong(lastLogIndex);
         buf.putLong(lastLogTerm);
         buf.put((byte)(voteGranted ? 1 : 0));
@@ -54,11 +42,7 @@ public class RequestVoteCommand extends RaftServerCommand {
     }
 
     public String getCandidateId() {
-        return candidateId;
-    }
-
-    public void setCandidateId(String candidateId) {
-        this.candidateId = candidateId;
+        return this.getFrom();
     }
 
     public long getLastLogIndex() {
@@ -88,7 +72,8 @@ public class RequestVoteCommand extends RaftServerCommand {
     @Override
     public String toString() {
         return "RequestVoteCommand{" +
-                "candidateId='" + candidateId + '\'' +
+                "candidateId='" + this.getFrom() + '\'' +
+                ", term=" + this.getTerm() +
                 ", lastLogIndex=" + lastLogIndex +
                 ", lastLogTerm=" + lastLogTerm +
                 ", voteGranted=" + voteGranted +

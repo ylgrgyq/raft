@@ -12,7 +12,7 @@ import java.util.List;
  * Author: ylgrgyq
  * Date: 17/12/2
  */
-public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> {
+public class RequestVoteProcessor extends AbstractServerCmdProcessor<RequestVoteCommand> {
     private static final Logger logger = LoggerFactory.getLogger(RequestVoteProcessor.class.getName());
 
     public RequestVoteProcessor(RaftServer server) {
@@ -29,14 +29,14 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
     }
 
     @Override
-    protected RemotingCommand doProcess(RequestVoteCommand vote) {
+    protected RemotingCommand process0(RequestVoteCommand vote) {
         logger.debug("receive request vote command, cmd={}, server={}", vote, this.getServer());
         RequestVoteCommand res;
         final int termInVote = vote.getTerm();
         final int termInServer = this.getServer().getTerm();
         final String candidateId = vote.getCandidateId();
         if (termInVote >= termInServer) {
-            res = new RequestVoteCommand(termInVote);
+            res = new RequestVoteCommand(termInVote, candidateId);
             res.setVoteGranted(termInVote > termInServer ||
                     this.getServer().getVoteFor() == null ||
                     this.getServer().getVoteFor().equals(candidateId));
@@ -45,7 +45,7 @@ public class RequestVoteProcessor extends AbstractProcessor<RequestVoteCommand> 
                 getServer().tryBecomeFollower(termInVote, candidateId);
             }
         } else {
-            res = new RequestVoteCommand(termInServer);
+            res = new RequestVoteCommand(termInServer, candidateId);
             res.setVoteGranted(false);
         }
 
