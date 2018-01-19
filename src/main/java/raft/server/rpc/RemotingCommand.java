@@ -12,11 +12,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class RemotingCommand {
     private static final AtomicInteger requestIdGenerator = new AtomicInteger();
 
-    private int requestId = requestIdGenerator.incrementAndGet();
+    static final RemotingCommand emptyResponse;
+    static {
+        emptyResponse = new RemotingCommand();
+        emptyResponse.setType(RemotingCommandType.RESPONSE);
+    }
 
-    private CommandCode commandCode;
+    private int requestId = requestIdGenerator.incrementAndGet();
+    private CommandCode commandCode = CommandCode.EMPTY;
     private RemotingCommandType type;
     private boolean oneWay = false;
+
     private byte[] body;
 
     private RemotingCommand() {
