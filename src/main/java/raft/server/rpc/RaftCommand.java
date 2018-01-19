@@ -1,10 +1,14 @@
 package raft.server.rpc;
 
+import java.nio.ByteBuffer;
+
 /**
  * Author: ylgrgyq
  * Date: 17/12/26
  */
-public abstract class RaftCommand implements SerializableCommand {
+public abstract class RaftCommand {
+    static byte[] EMPTY_BYTES = new byte[0];
+
     private CommandCode code;
 
     RaftCommand(){
@@ -20,5 +24,13 @@ public abstract class RaftCommand implements SerializableCommand {
 
     void setCode(CommandCode code) {
         this.code = code;
+    }
+
+    byte[] encode() {
+        return RaftCommand.EMPTY_BYTES;
+    }
+
+    ByteBuffer decode(byte[] bytes) {
+        return ByteBuffer.wrap(bytes);
     }
 }

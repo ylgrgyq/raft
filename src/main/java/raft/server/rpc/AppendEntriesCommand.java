@@ -1,98 +1,127 @@
 package raft.server.rpc;
 
+import com.google.common.base.Preconditions;
+import raft.server.LogEntry;
+
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * Author: ylgrgyq
  * Date: 17/11/22
  */
 public class AppendEntriesCommand extends RaftServerCommand {
-    // so follower can redirect clients
-    private String leaderId = "";
     // index of log entry immediately preceding new ones
-    private long prevLogIndex = -1;
+    private int prevLogIndex = 0;
     // term of prevLogIndex entry
-    private long prevLogTerm = -1;
+    private int prevLogTerm = 0;
     // leader’s commitIndex
-    private long leaderCommit = -1;
+    private int leaderCommit = 0;
     private boolean success = false;
-    // currentTerm, for leader to update itself
-    private int term;
+    private List<LogEntry> entries = Collections.emptyList();
 
     public AppendEntriesCommand(byte[] body) {
         this.setCode(CommandCode.APPEND_ENTRIES);
         this.decode(body);
     }
 
-    public AppendEntriesCommand(int term) {
-        super(term, CommandCode.APPEND_ENTRIES);
+    public AppendEntriesCommand(int term, String leaderId) {
+        super(term, leaderId, CommandCode.APPEND_ENTRIES);
     }
 
-    public ByteBuffer decode(byte[] bytes) {
+    private List<LogEntry> decodeEntries(ByteBuffer buffer) {
+        List<LogEntry> ret;
+        int size = buffer.getInt();
+        if (size == 0) {
+            ret = Collections.emptyList();
+        } else {
+            ArrayList<LogEntry> entries = new ArrayList<>(size);
+            IntStream.range(0, size + 1).forEach(i -> LogEntry.from(buffer));
+            ret = entries;
+        }
+
+        return ret;
+    }
+
+    ByteBuffer decode(byte[] bytes) {
         final ByteBuffer buf = super.decode(bytes);
 
-        int leaderIdLength = buf.getInt();
-        byte[] leaderIdBytes = new byte[leaderIdLength];
-        buf.get(leaderIdBytes);
-        this.leaderId = new String(leaderIdBytes);
-        this.prevLogIndex = buf.getLong();
-        this.prevLogTerm = buf.getLong();
-        this.leaderCommit = buf.getLong();
+        this.prevLogIndex = buf.getInt();
+        this.prevLogTerm = buf.getInt();
+        this.leaderCommit = buf.getInt();
         this.success = buf.get() == 1;
 
+        this.entries = this.decodeEntries(buf);
+
+        assert !buf.hasRemaining();
         return buf;
     }
 
-    public byte[] encode() {
+    // encode entries with entries count
+    private byte[] encodeEntries(){
+        if (this.entries.isEmpty()) {
+            ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
+            buffer.putInt(0);
+            return buffer.array();
+        } else {
+            int size = this.entries.stream().mapToInt(LogEntry::getSize).sum();
+            ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + size);
+            buffer.putInt(this.entries.size());
+            this.entries.stream().map(LogEntry::encode).forEach(buffer::put);
+            return buffer.array();
+        }
+    }
+
+    byte[] encode() {
         byte[] base = super.encode();
 
-        byte[] leaderIdBytes = SerializableCommand.EMPTY_BYTES;
-        if (leaderId != null) {
-            leaderIdBytes = leaderId.getBytes(StandardCharsets.UTF_8);
-        }
+        byte[] entriesBytes = this.encodeEntries();
 
-        ByteBuffer buffer = ByteBuffer.allocate(base.length + 4 + leaderIdBytes.length + 8 + 8 + 8 + 1);
+        ByteBuffer buffer = ByteBuffer.allocate(base.length +
+                // prevLogIndex
+                Integer.BYTES +
+                // prevLogTerm
+                Integer.BYTES +
+                // leaderCommit
+                Integer.BYTES +
+                // success
+                Byte.BYTES +
+                // entries
+                entriesBytes.length);
         buffer.put(base);
-        buffer.putInt(leaderIdBytes.length);
-        buffer.put(leaderIdBytes);
-        buffer.putLong(this.prevLogIndex);
-        buffer.putLong(this.prevLogTerm);
-        buffer.putLong(this.leaderCommit);
+        buffer.putInt(this.prevLogIndex);
+        buffer.putInt(this.prevLogTerm);
+        buffer.putInt(this.leaderCommit);
         buffer.put((byte)(success ? 1 : 0));
+        buffer.put(entriesBytes);
 
         return buffer.array();
     }
 
-    public String getLeaderId() {
-        return leaderId;
-    }
-
-    public void setLeaderId(String leaderId) {
-        this.leaderId = leaderId;
-    }
-
-    public long getPrevLogIndex() {
+    public int getPrevLogIndex() {
         return prevLogIndex;
     }
 
-    public void setPrevLogIndex(long prevLogIndex) {
+    public void setPrevLogIndex(int prevLogIndex) {
         this.prevLogIndex = prevLogIndex;
     }
 
-    public long getPrevLogTerm() {
+    public int getPrevLogTerm() {
         return prevLogTerm;
     }
 
-    public void setPrevLogTerm(long prevLogTerm) {
+    public void setPrevLogTerm(int prevLogTerm) {
         this.prevLogTerm = prevLogTerm;
     }
 
-    public long getLeaderCommit() {
+    public int getLeaderCommit() {
         return leaderCommit;
     }
 
-    public void setLeaderCommit(long leaderCommit) {
+    public void setLeaderCommit(int leaderCommit) {
         this.leaderCommit = leaderCommit;
     }
 
@@ -100,18 +129,29 @@ public class AppendEntriesCommand extends RaftServerCommand {
         return success;
     }
 
-    public void markSuccess() {
-        this.success = true;
+    public void setSuccess(boolean success) {
+        this.success = success;
+    }
+
+    public List<LogEntry> getEntries() {
+        return this.entries;
+    }
+
+    public void setEntries(List<LogEntry> entries) {
+        Preconditions.checkNotNull(entries);
+        this.entries = entries;
     }
 
     @Override
     public String toString() {
         return "AppendEntriesCommand{" +
-                "leaderId='" + leaderId + '\'' +
+                "leaderId='" + this.getFrom() + '\'' +
+                ", term=" + this.getTerm() +
                 ", prevLogIndex=" + prevLogIndex +
                 ", prevLogTerm=" + prevLogTerm +
                 ", leaderCommit=" + leaderCommit +
                 ", success=" + success +
+                ", entries=" + entries +
                 '}';
     }
 }

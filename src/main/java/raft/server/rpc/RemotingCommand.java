@@ -3,6 +3,7 @@ package raft.server.rpc;
 import io.netty.buffer.ByteBuf;
 
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -12,11 +13,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class RemotingCommand {
     private static final AtomicInteger requestIdGenerator = new AtomicInteger();
 
-    private int requestId = requestIdGenerator.incrementAndGet();
+    static final RemotingCommand emptyResponse;
+    static {
+        emptyResponse = new RemotingCommand();
+        emptyResponse.setType(RemotingCommandType.RESPONSE);
+    }
 
-    private CommandCode commandCode;
+    private int requestId = requestIdGenerator.incrementAndGet();
+    private CommandCode commandCode = CommandCode.NONE;
     private RemotingCommandType type;
     private boolean oneWay = false;
+
     private byte[] body;
 
     private RemotingCommand() {
@@ -81,8 +88,12 @@ public class RemotingCommand {
         return this.type;
     }
 
-    public byte[] getBody() {
-        return this.body;
+    public Optional<byte[]> getBody() {
+        if (this.body != null) {
+            return Optional.of(this.body);
+        } else {
+            return Optional.empty();
+        }
     }
 
     public void setCommandCode(CommandCode commandCode) {
@@ -132,7 +143,7 @@ public class RemotingCommand {
 
         if (getCommandCode() != that.getCommandCode()) return false;
         if (getType() != that.getType()) return false;
-        return Arrays.equals(getBody(), that.getBody());
+        return Arrays.equals(this.body, that.body);
     }
 
     @Override
@@ -140,7 +151,7 @@ public class RemotingCommand {
         int result = getRequestId();
         result = 31 * result + getCommandCode().hashCode();
         result = 31 * result + getType().hashCode();
-        result = 31 * result + Arrays.hashCode(getBody());
+        result = 31 * result + Arrays.hashCode(this.body);
         return result;
     }
 }

@@ -10,15 +10,12 @@ import raft.ThreadFactoryImpl;
 import raft.Util;
 import raft.server.connections.NettyDecoder;
 import raft.server.connections.NettyEncoder;
-import raft.server.connections.RemoteRaftClient;
+import raft.server.connections.RemoteClient;
 import raft.server.processor.Processor;
 import raft.server.rpc.*;
 
 import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 
 /**
@@ -28,7 +25,6 @@ import java.util.concurrent.*;
 public class RemoteServer {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(RemoteServer.class.getName());
 
-    private final ConcurrentHashMap<String, RemoteRaftClient> clients = new ConcurrentHashMap<>();
     private final HashMap<CommandCode, Pair<Processor, ExecutorService>> processorTable = new HashMap<>();
     private final int port;
     private final EventLoopGroup bossGroup;
@@ -38,7 +34,7 @@ public class RemoteServer {
     private ConcurrentHashMap<Integer, PendingRequest> pendingRequestTable = new ConcurrentHashMap<>();
 
     private ScheduledExecutorService timer;
-    private ExecutorService callbackExecutor;
+    private ExecutorService generalExecutor;
     private long clientReconnectDelayMillis;
 
     RemoteServer(EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port, long clientReconnectDelayMillis) {
@@ -47,7 +43,7 @@ public class RemoteServer {
         this.port = port;
         this.clientReconnectDelayMillis = clientReconnectDelayMillis;
 
-        this.callbackExecutor = Executors.newFixedThreadPool(4,
+        this.generalExecutor = Executors.newFixedThreadPool(4,
                 new ThreadFactoryImpl("RemoteServerCallbackPoll_"));
 
         this.timer = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("RaftServerTimer_"));
@@ -62,33 +58,54 @@ public class RemoteServer {
                 this.clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
     }
 
-    private void connectToClient(final InetSocketAddress addr) {
-        final RemoteRaftClient client = new RemoteRaftClient(this.workerGroup, this);
-        final ChannelFuture future = client.connect(addr);
-        future.addListener((ChannelFuture f) -> {
+    private CompletableFuture<Pair<String, RemoteClient>> connectToClient(final InetSocketAddress addr) {
+        final CompletableFuture<Pair<String, RemoteClient>> connectedFuture = new CompletableFuture<>();
+        final RemoteClient client = new RemoteClient(this.workerGroup, this);
+        final ChannelFuture chFuture = client.connect(addr);
+        chFuture.addListener((ChannelFuture f) -> {
             if (f.isSuccess()) {
                 logger.info("Connect to {} success", addr);
                 final Channel ch = f.channel();
                 final String id = client.getId();
-                this.clients.put(id, client);
                 ch.closeFuture().addListener(cf -> {
                     logger.warn("Connection with {} lost, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
-                    this.clients.remove(id);
+
+                    // TODO Handle connection lost. maybe we need to pause RaftPeerNode when it's connection was lost
                     scheduleReconnectToClientJob(addr);
                 });
+                connectedFuture.complete(new Pair<>(id, client));
             } else {
                 logger.warn("Connect to {} failed, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
                 scheduleReconnectToClientJob(addr);
             }
         });
+        return connectedFuture;
     }
 
-    void connectToClients(List<InetSocketAddress> addrs) {
-        addrs.forEach(this::connectToClient);
-    }
+    Map<String, RemoteClient> connectToClients(List<InetSocketAddress> addrs, long timeout, TimeUnit unit)
+            throws TimeoutException, InterruptedException, ExecutionException {
+        final Map<String, RemoteClient> connectedClientIds = new HashMap<>(addrs.size());
+        long timeoutMillis = unit.toMillis(timeout);
 
-    ConcurrentHashMap<String, RemoteRaftClient> getConnectedClients() {
-        return clients;
+        for (InetSocketAddress addr : addrs) {
+            if (timeoutMillis > 0) {
+                long start = System.currentTimeMillis();
+                try {
+                    CompletableFuture<Pair<String, RemoteClient>> f = this.connectToClient(addr);
+                    Pair<String, RemoteClient> p = f.get(timeoutMillis, TimeUnit.MILLISECONDS);
+                    connectedClientIds.put(p.getLeft(), p.getRight());
+                    timeoutMillis = timeoutMillis - (System.currentTimeMillis() - start);
+                } catch (Exception ex) {
+                    logger.error("Connecting to {} failed!", addr, ex);
+                    throw ex;
+                }
+            } else {
+                logger.error("Connecting to {} failed due to insufficient timeout quota!", addr);
+                throw new TimeoutException();
+            }
+        }
+
+        return connectedClientIds;
     }
 
     ChannelFuture startLocalServer() throws InterruptedException {
@@ -132,7 +149,7 @@ public class RemoteServer {
                 processorPair.getRight().submit(() -> {
                     try {
                         final RemotingCommand res = processorPair.getLeft().processRequest(req);
-                        if (! req.isOneWay()) {
+                        if (!req.isOneWay()) {
                             res.setRequestId(req.getRequestId());
                             res.setType(RemotingCommandType.RESPONSE);
                             try {
@@ -160,12 +177,12 @@ public class RemoteServer {
         }
     }
 
-    private ExecutorService getCallbackExecutor() {
-        return this.callbackExecutor;
+    private ExecutorService getGeneralExecutor() {
+        return this.generalExecutor;
     }
 
     private void executeRequestCallback(PendingRequest pendingRequest) {
-        final ExecutorService executor = this.getCallbackExecutor();
+        final ExecutorService executor = this.getGeneralExecutor();
         if (executor != null) {
             try {
                 executor.submit(() -> {
@@ -221,7 +238,7 @@ public class RemoteServer {
 
     void shutdown() {
         this.timer.shutdown();
-        this.callbackExecutor.shutdown();
+        this.generalExecutor.shutdown();
         this.bossGroup.shutdownGracefully();
         this.workerGroup.shutdownGracefully();
     }

@@ -1,14 +1,13 @@
 package raft.server;
 
-import io.netty.channel.ChannelFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.connections.RemoteRaftClient;
-import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.RaftServerCommand;
-import raft.server.rpc.RemotingCommand;
 
-import java.util.concurrent.*;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Author: ylgrgyq
@@ -32,20 +31,8 @@ class Leader extends RaftState<RaftServerCommand> {
 
     private ScheduledFuture schedulePingJob() {
         try {
-            return this.timer.scheduleWithFixedDelay(() -> {
-                final AppendEntriesCommand ping = new AppendEntriesCommand(server.getTerm());
-                ping.setLeaderId(server.getLeaderId());
-                logger.debug("ping to all clients, ping={} ...", ping);
-                for (final RemoteRaftClient client : this.server.getConnectedClients().values()) {
-                    RemotingCommand cmd = RemotingCommand.createRequestCommand(ping);
-                    client.sendOneway(cmd).addListener((ChannelFuture f) -> {
-                        if (!f.isSuccess()) {
-                            logger.warn("ping to {} failed", client, f.cause());
-                            client.close();
-                        }
-                    });
-                }
-            }, this.pingIntervalMillis, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
+            return this.timer.scheduleWithFixedDelay(this.server::broadcastAppendEntries,
+                    0, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException ex) {
             logger.error("schedule sending ping failed, will lose leadership later", ex);
         }
@@ -55,7 +42,7 @@ class Leader extends RaftState<RaftServerCommand> {
     public void finish() {
         logger.debug("finish leader, server={}", this.server);
         if (this.pingTimeoutFuture != null) {
-            this.pingTimeoutFuture.cancel(true);
+            this.pingTimeoutFuture.cancel(false);
         }
     }
 }

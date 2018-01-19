@@ -3,6 +3,9 @@ package raft.server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.rpc.AppendEntriesCommand;
+import raft.server.rpc.RaftCommand;
+import raft.server.rpc.RaftServerCommand;
+import raft.server.rpc.RequestVoteCommand;
 
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -13,7 +16,7 @@ import java.util.concurrent.TimeUnit;
  * Author: ylgrgyq
  * Date: 17/12/7
  */
-class Follower extends RaftState<AppendEntriesCommand> {
+class Follower extends RaftState<RaftCommand> {
     private static final Logger logger = LoggerFactory.getLogger(Follower.class.getName());
 
     private final long pingTimeoutMillis = 2 * Integer.parseInt(System.getProperty("raft.server.leader.ping.interval.millis", "2000"));
@@ -34,7 +37,11 @@ class Follower extends RaftState<AppendEntriesCommand> {
             try {
                 this.pingTimeoutFuture = this.timer.schedule(() -> {
                     logger.info("not receiving ping for {} millis, start transit to candidate", this.pingTimeoutMillis);
-                    this.server.tryTransitStateToCandidate();
+                    try {
+                        this.server.tryBecomeCandidate();
+                    } catch (Exception ex) {
+                        logger.error("become cancidate failed", ex);
+                    }
                 }, this.pingTimeoutMillis, TimeUnit.MILLISECONDS);
             } catch (RejectedExecutionException ex) {
                 logger.error("schedule ping timeout failed", ex);
@@ -47,14 +54,14 @@ class Follower extends RaftState<AppendEntriesCommand> {
     public synchronized void finish() {
         logger.debug("finish follower, server={}", this.server);
         if (this.pingTimeoutFuture != null) {
-            this.pingTimeoutFuture.cancel(true);
+            this.pingTimeoutFuture.cancel(false);
             this.pingTimeoutFuture = null;
         }
     }
 
     @Override
-    public void onReceiveRaftCommand(AppendEntriesCommand cmd) {
-        if (this.server.getState() == State.FOLLOWER) {
+    public void onReceiveRaftCommand(RaftCommand cmd) {
+        if (cmd instanceof AppendEntriesCommand || cmd instanceof RequestVoteCommand){
             if (this.pingTimeoutFuture != null) {
                 synchronized (this) {
                     if (this.pingTimeoutFuture != null) {
