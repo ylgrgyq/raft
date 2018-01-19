@@ -31,7 +31,6 @@ public class PendingRequest {
 
     public void executeCallback() throws Exception {
         if (callback != null) {
-            this.res.getBody().get();
             callback.operationComplete(this, this.res);
         }
     }
