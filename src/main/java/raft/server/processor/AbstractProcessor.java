@@ -2,6 +2,7 @@ package raft.server.processor;
 
 import raft.server.RaftServer;
 import raft.server.rpc.RaftCommand;
+import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
 
 import java.util.ArrayList;
@@ -15,9 +16,9 @@ import java.util.List;
 abstract class AbstractProcessor<T extends RaftCommand> implements Processor{
     private final RaftServer server;
 
-    private List<RaftCommandListener<T>> raftCommandListeners = Collections.emptyList();
+    private List<RaftCommandListener<RaftCommand>> raftCommandListeners = Collections.emptyList();
 
-    AbstractProcessor(RaftServer server, List<RaftCommandListener<T>> listeners){
+    AbstractProcessor(RaftServer server, List<RaftCommandListener<RaftCommand>> listeners){
         this.server = server;
         if (listeners != null) {
             this.raftCommandListeners = listeners;

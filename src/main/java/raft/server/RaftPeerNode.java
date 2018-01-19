@@ -4,11 +4,9 @@ import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.connections.RemoteClient;
-import raft.server.rpc.AppendEntriesCommand;
-import raft.server.rpc.PendingRequest;
-import raft.server.rpc.PendingRequestCallback;
-import raft.server.rpc.RemotingCommand;
+import raft.server.rpc.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -36,7 +34,7 @@ public class RaftPeerNode {
     }
 
     void sendAppend() {
-        List<LogEntry> entries = serverLog.getEntries(this.nextIndex - 1, this.nextIndex + 1);
+        List<LogEntry> entries = serverLog.getEntries(this.nextIndex - 1, this.nextIndex + this.server.getMaxMsgSize());
 
         AppendEntriesCommand appendReq = new AppendEntriesCommand(this.server.getTerm(), this.server.getLeaderId());
         appendReq.setLeaderCommit(serverLog.getCommitIndex());
@@ -44,19 +42,22 @@ public class RaftPeerNode {
         LogEntry prev = entries.get(0);
         appendReq.setPrevLogTerm(prev.getTerm());
         appendReq.setPrevLogIndex(prev.getIndex());
-
-        if (entries.size() > 1) {
-            appendReq.setEntry(entries.get(1));
-        }
+        appendReq.setEntries(entries.subList(1, entries.size()));
 
         RemotingCommand cmd = RemotingCommand.createRequestCommand(appendReq);
-        remoteClient.send(cmd, (PendingRequest req, RemotingCommand res) -> {
-            if (res != null) {
-                final AppendEntriesCommand appendRes = new AppendEntriesCommand(res.getBody());
-                if (appendRes.isSuccess()){
-
+        this.send(cmd, (PendingRequest req, RemotingCommand res) -> {
+            if (res.getBody().isPresent()) {
+                final AppendEntriesCommand appendRes = new AppendEntriesCommand(res.getBody().get());
+                if (appendRes.getTerm() > this.server.getTerm()){
+                    this.server.tryBecomeFollower(appendRes.getTerm(), appendRes.getFrom());
                 } else {
-
+                    if (appendRes.isSuccess()) {
+                        this.matchIndex = entries.get(entries.size() - 1).getIndex();
+                        this.nextIndex = this.matchIndex + 1;
+                    } else {
+                        this.nextIndex--;
+                        this.sendAppend();
+                    }
                 }
             }
         });

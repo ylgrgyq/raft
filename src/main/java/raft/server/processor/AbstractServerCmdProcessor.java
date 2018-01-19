@@ -1,6 +1,7 @@
 package raft.server.processor;
 
 import raft.server.RaftServer;
+import raft.server.rpc.RaftCommand;
 import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
 
@@ -11,7 +12,7 @@ import java.util.List;
  * Date: 18/1/17
  */
 public abstract class AbstractServerCmdProcessor<T extends RaftServerCommand> extends AbstractProcessor<T> {
-    AbstractServerCmdProcessor(RaftServer server, List<RaftCommandListener<T>> raftCommandListeners) {
+    AbstractServerCmdProcessor(RaftServer server, List<RaftCommandListener<RaftCommand>> raftCommandListeners) {
         super(server, raftCommandListeners);
     }
 

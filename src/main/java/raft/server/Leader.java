@@ -42,7 +42,7 @@ class Leader extends RaftState<RaftServerCommand> {
     public void finish() {
         logger.debug("finish leader, server={}", this.server);
         if (this.pingTimeoutFuture != null) {
-            this.pingTimeoutFuture.cancel(true);
+            this.pingTimeoutFuture.cancel(false);
         }
     }
 }

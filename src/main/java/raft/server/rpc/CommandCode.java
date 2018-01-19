@@ -5,7 +5,7 @@ package raft.server.rpc;
  * Date: 17/12/1
  */
 public enum CommandCode {
-    EMPTY((byte) 0),
+    NONE((byte) 0),
     REQUEST_VOTE((byte) 1),
     APPEND_ENTRIES((byte) 2),
     CLIENT_REQUEST((byte) 3);

@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import raft.server.RaftLog;
 import raft.server.RaftServer;
 import raft.server.rpc.AppendEntriesCommand;
+import raft.server.rpc.RaftCommand;
+import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
 
 import java.util.Collections;
@@ -21,7 +23,7 @@ public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEnt
         this(server, Collections.emptyList());
     }
 
-    public AppendEntriesProcessor(RaftServer server, List<RaftCommandListener<AppendEntriesCommand>> listeners) {
+    public AppendEntriesProcessor(RaftServer server, List<RaftCommandListener<RaftCommand>> listeners) {
         super(server, listeners);
     }
 
@@ -43,10 +45,10 @@ public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEnt
 
         raftLog.getEntry(appendCmd.getPrevLogIndex()).ifPresent(prevEntry -> {
             if (prevEntry.getTerm() == appendCmd.getPrevLogTerm() && termInEntry >= termInServer) {
-                assert appendCmd.getFrom().equals(server.getLeaderId());
                 assert termInEntry == termInServer;
 
                 try {
+                    server.setLeaderId(appendCmd.getFrom());
                     raftLog.appendEntries(appendCmd.getEntries());
                     response.setSuccess(true);
                     raftLog.tryCommitTo(appendCmd.getLeaderCommit());

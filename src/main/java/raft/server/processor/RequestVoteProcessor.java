@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import raft.server.LogEntry;
 import raft.server.RaftLog;
 import raft.server.RaftServer;
+import raft.server.rpc.RaftCommand;
 import raft.server.rpc.RemotingCommand;
 import raft.server.rpc.RequestVoteCommand;
 
@@ -21,7 +22,7 @@ public class RequestVoteProcessor extends AbstractServerCmdProcessor<RequestVote
         this(server, null);
     }
 
-    public RequestVoteProcessor(RaftServer server, List<RaftCommandListener<RequestVoteCommand>> listeners) {
+    public RequestVoteProcessor(RaftServer server, List<RaftCommandListener<RaftCommand>> listeners) {
         super(server, listeners);
     }
 

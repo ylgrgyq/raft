@@ -9,9 +9,7 @@ import raft.server.processor.AppendEntriesProcessor;
 import raft.server.processor.ClientRequestProcessor;
 import raft.server.processor.RaftCommandListener;
 import raft.server.processor.RequestVoteProcessor;
-import raft.server.rpc.AppendEntriesCommand;
-import raft.server.rpc.CommandCode;
-import raft.server.rpc.RaftServerCommand;
+import raft.server.rpc.*;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -34,7 +32,7 @@ public class RaftServer {
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private final RaftState<RaftServerCommand> leader = new Leader(this, timer);
     private final RaftState<RaftServerCommand> candidate = new Candidate(this, timer);
-    private final RaftState<AppendEntriesCommand> follower = new Follower(this, timer);
+    private final RaftState<RaftCommand> follower = new Follower(this, timer);
     private final ReentrantLock stateLock = new ReentrantLock();
     private final int maxMsgSize = 16;
 
@@ -109,6 +107,7 @@ public class RaftServer {
                 this.transitState(leader);
                 for (RaftPeerNode node : this.peerNodes.values()) {
                     node.reset(this.raftLog.lastIndex() + 1);
+                    node.sendAppend();
                 }
                 return true;
             } else {
@@ -123,15 +122,12 @@ public class RaftServer {
     boolean tryBecomeCandidate() {
         this.stateLock.lock();
         try {
-            if (this.getState() == State.FOLLOWER) {
-                this.leaderId = null;
-                this.voteFor = null;
-                this.transitState(candidate);
-                return true;
-            } else {
-                logger.warn("transient state to {} failed, server={}", State.CANDIDATE, this.toString());
-                return false;
-            }
+            assert this.getState() == State.FOLLOWER;
+
+            this.leaderId = null;
+            this.voteFor = null;
+            this.transitState(candidate);
+            return true;
         } finally {
             this.stateLock.unlock();
         }
@@ -147,10 +143,11 @@ public class RaftServer {
     }
 
     private void registerProcessors() {
-        List<RaftCommandListener<AppendEntriesCommand>> listeners = new ArrayList<>();
+        List<RaftCommandListener<RaftCommand>> listeners = new ArrayList<>();
         listeners.add(this.follower);
+
         this.remoteServer.registerProcessor(CommandCode.APPEND_ENTRIES, new AppendEntriesProcessor(this, listeners), this.processorExecutorService);
-        this.remoteServer.registerProcessor(CommandCode.REQUEST_VOTE, new RequestVoteProcessor(this), this.processorExecutorService);
+        this.remoteServer.registerProcessor(CommandCode.REQUEST_VOTE, new RequestVoteProcessor(this, listeners), this.processorExecutorService);
         this.remoteServer.registerProcessor(CommandCode.CLIENT_REQUEST, new ClientRequestProcessor(this), this.processorExecutorService);
     }
 
@@ -207,7 +204,18 @@ public class RaftServer {
         }
     }
 
-    ConcurrentHashMap<String, RaftPeerNode> getConnectedClients() {
+    public void setLeaderId(String leaderId) {
+        if (! leaderId.equals(this.leaderId)) {
+            this.stateLock.lock();
+            try {
+                this.leaderId = leaderId;
+            } finally {
+                this.stateLock.unlock();
+            }
+        }
+    }
+
+    ConcurrentHashMap<String, RaftPeerNode> getPeerNodes() {
         return this.peerNodes;
     }
 

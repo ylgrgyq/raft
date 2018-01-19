@@ -47,8 +47,8 @@ class Candidate extends RaftState<RaftServerCommand> {
                 , electionTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
-    private void cleanPendingRequestVotes(){
-        for (final Map.Entry<Integer, Future<Void>> e: this.pendingRequestVote.entrySet()) {
+    private void cleanPendingRequestVotes() {
+        for (final Map.Entry<Integer, Future<Void>> e : this.pendingRequestVote.entrySet()) {
             e.getValue().cancel(true);
             this.pendingRequestVote.remove(e.getKey());
         }
@@ -57,39 +57,40 @@ class Candidate extends RaftState<RaftServerCommand> {
     private void startElection() {
         this.server.lockStateLock();
         try {
-            if (this.server.getState() == State.CANDIDATE) {
-                this.cleanPendingRequestVotes();
-                final int candidateTerm = this.server.increaseTerm();
-                final ConcurrentHashMap<String, RaftPeerNode> clients = this.server.getConnectedClients();
-                final int clientsSize = clients.size();
-                final int votesToWin = this.server.getQuorum();
+            assert this.server.getState() == State.CANDIDATE;
 
-                final AtomicInteger votesGot = new AtomicInteger();
-                RequestVoteCommand vote = new RequestVoteCommand(candidateTerm);
-                vote.setCandidateId(server.getId());
+            this.cleanPendingRequestVotes();
+            final int candidateTerm = this.server.increaseTerm();
 
-                logger.debug("start election candidateTerm={}, votesToWin={}, clientsSize={}, server={}",
-                        candidateTerm, votesToWin, clientsSize, this.server);
-                for (final RaftPeerNode node : clients.values()) {
-                    final RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
-                    Future<Void> f = node.send(cmd, (PendingRequest req, RemotingCommand res) -> {
-                        if (res != null) {
-                            final RequestVoteCommand voteRes = new RequestVoteCommand(res.getBody());
-                            logger.debug("receive request vote response={} from={}", voteRes, node);
-                            assert voteRes.getTerm() == candidateTerm;
+            // got self vote initially
+            final int votesToWin = this.server.getQuorum() - 1;
+
+            final AtomicInteger votesGot = new AtomicInteger();
+            RequestVoteCommand vote = new RequestVoteCommand(candidateTerm, this.server.getId());
+
+            logger.debug("start election candidateTerm={}, votesToWin={}, server={}",
+                    candidateTerm, votesToWin, this.server);
+            for (final RaftPeerNode node : this.server.getPeerNodes().values()) {
+                final RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
+                Future<Void> f = node.send(cmd, (PendingRequest req, RemotingCommand res) -> {
+                    if (res.getBody().isPresent()) {
+                        final RequestVoteCommand voteRes = new RequestVoteCommand(res.getBody().get());
+                        logger.debug("receive request vote response={} from={}", voteRes, node);
+                        if (voteRes.getTerm() > this.server.getTerm()) {
+                            this.server.tryBecomeFollower(voteRes.getTerm(), voteRes.getFrom());
+                        } else {
                             if (voteRes.isVoteGranted() && votesGot.incrementAndGet() >= votesToWin) {
                                 this.server.tryBecomeLeader(candidateTerm);
                             }
-                        } else {
-                            logger.error("no response returned for request vote");
-                            logger.error(cmd.toString());
                         }
-                    });
-                    this.pendingRequestVote.put(cmd.getRequestId(), f);
-                }
-
-                this.scheduleElectionTimeoutJob();
+                    } else {
+                        logger.error("no valid response returned for request vote: {}", cmd.toString());
+                    }
+                });
+                this.pendingRequestVote.put(cmd.getRequestId(), f);
             }
+
+            this.scheduleElectionTimeoutJob();
         } finally {
             this.server.releaseStateLock();
         }
@@ -98,7 +99,7 @@ class Candidate extends RaftState<RaftServerCommand> {
     public void finish() {
         logger.debug("finish candidate, server={}", this.server);
         if (this.electionTimeoutFuture != null) {
-            this.electionTimeoutFuture.cancel(true);
+            this.electionTimeoutFuture.cancel(false);
             this.electionTimeoutFuture = null;
         }
         this.cleanPendingRequestVotes();
