@@ -5,12 +5,7 @@ import org.slf4j.LoggerFactory;
 import raft.server.RaftLog;
 import raft.server.RaftServer;
 import raft.server.rpc.AppendEntriesCommand;
-import raft.server.rpc.RaftCommand;
-import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
-
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Author: ylgrgyq
@@ -20,16 +15,12 @@ public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEnt
     private static final Logger logger = LoggerFactory.getLogger(AppendEntriesProcessor.class.getName());
 
     public AppendEntriesProcessor(RaftServer server) {
-        this(server, Collections.emptyList());
-    }
-
-    public AppendEntriesProcessor(RaftServer server, List<RaftCommandListener<RaftCommand>> listeners) {
-        super(server, listeners);
+        super(server);
     }
 
     @Override
-    protected AppendEntriesCommand decodeRemotingCommand(RemotingCommand request) {
-        return new AppendEntriesCommand(request.getBody());
+    protected AppendEntriesCommand decodeRemotingCommand(byte[] requestBody) {
+        return new AppendEntriesCommand(requestBody);
     }
 
     @Override

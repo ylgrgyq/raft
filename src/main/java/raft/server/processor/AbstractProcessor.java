@@ -16,26 +16,23 @@ import java.util.List;
 abstract class AbstractProcessor<T extends RaftCommand> implements Processor{
     private final RaftServer server;
 
-    private List<RaftCommandListener<RaftCommand>> raftCommandListeners = Collections.emptyList();
-
-    AbstractProcessor(RaftServer server, List<RaftCommandListener<RaftCommand>> listeners){
+    AbstractProcessor(RaftServer server) {
         this.server = server;
-        if (listeners != null) {
-            this.raftCommandListeners = listeners;
-        } else {
-            this.raftCommandListeners = new ArrayList<>();
-        }
     }
-
-    protected abstract T decodeRemotingCommand(RemotingCommand request);
 
     protected abstract RemotingCommand doProcess(T cmd);
 
-    public RemotingCommand processRequest(RemotingCommand request) {
-        T cmd = this.decodeRemotingCommand(request);
+    protected abstract T decodeRemotingCommand(byte[] requestBody);
 
-        this.raftCommandListeners.forEach(listener -> listener.onReceiveRaftCommand(cmd));
-        return this.doProcess(cmd);
+    public RemotingCommand processRequest(RemotingCommand request) {
+        if (request.getBody().isPresent()) {
+            T cmd = this.decodeRemotingCommand(request.getBody().get());
+
+            return this.doProcess(cmd);
+        }
+
+        // TODO send error msg to requesting peer?
+        throw new RuntimeException("request body is empty");
     }
 
     protected RaftServer getServer() {

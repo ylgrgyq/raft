@@ -1,31 +1,17 @@
 package raft.server;
 
-import raft.server.processor.RaftCommandListener;
-import raft.server.rpc.RaftCommand;
-import raft.server.rpc.RaftServerCommand;
-
-import java.util.concurrent.ScheduledExecutorService;
-
 /**
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-abstract class RaftState<T extends RaftCommand> implements LifeCycle, RaftCommandListener<T> {
-    protected final ScheduledExecutorService timer;
-
+abstract class RaftState implements LifeCycle, TickTimeoutProcessor {
     private final State state;
-    protected final RaftServer server;
 
-    RaftState(RaftServer server, ScheduledExecutorService timer, State state){
+    RaftState(State state){
         this.state = state;
-        this.server = server;
-        this.timer = timer;
     }
 
     State getState() {
         return state;
     }
-
-    @Override
-    public void onReceiveRaftCommand(T cmd) {}
 }

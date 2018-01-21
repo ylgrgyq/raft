@@ -1,31 +1,30 @@
 package raft.server.processor;
 
 import raft.server.RaftServer;
-import raft.server.rpc.RaftCommand;
 import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
-
-import java.util.List;
 
 /**
  * Author: ylgrgyq
  * Date: 18/1/17
  */
 public abstract class AbstractServerCmdProcessor<T extends RaftServerCommand> extends AbstractProcessor<T> {
-    AbstractServerCmdProcessor(RaftServer server, List<RaftCommandListener<RaftCommand>> raftCommandListeners) {
-        super(server, raftCommandListeners);
+    AbstractServerCmdProcessor(RaftServer server) {
+        super(server);
     }
 
-    abstract RemotingCommand process0(T cmd);
+    protected abstract RemotingCommand process0(T appendCmd);
 
-    @Override
-    protected RemotingCommand doProcess(T cmd) {
+    public RemotingCommand doProcess(T cmd) {
+        this.getServer().onReceiveRaftCommand(cmd);
+
         int termInServer = this.getServer().getTerm();
         int termInCmd = cmd.getTerm();
 
         if (termInCmd > termInServer) {
             this.getServer().tryBecomeFollower(termInCmd, cmd.getFrom());
         }
-        return process0(cmd);
+
+        return this.process0(cmd);
     }
 }
