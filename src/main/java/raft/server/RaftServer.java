@@ -167,7 +167,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             this.peerNodes.put(c.getKey(), new RaftPeerNode(this, this.raftLog, c.getValue(), 1));
         }
 
-
         this.state.start();
 
         this.tickGenerator.scheduleWithFixedDelay(() -> {
