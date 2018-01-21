@@ -19,17 +19,13 @@ import java.util.List;
 public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEntriesCommand> {
     private static final Logger logger = LoggerFactory.getLogger(AppendEntriesProcessor.class.getName());
 
-    public AppendEntriesProcessor(RaftServer server) {
-        this(server, Collections.emptyList());
-    }
-
-    public AppendEntriesProcessor(RaftServer server, List<RaftCommandListener<RaftCommand>> listeners) {
+    public AppendEntriesProcessor(RaftServer server, List<RaftCommandListener<RaftServerCommand>> listeners) {
         super(server, listeners);
     }
 
     @Override
-    protected AppendEntriesCommand decodeRemotingCommand(RemotingCommand request) {
-        return new AppendEntriesCommand(request.getBody());
+    protected AppendEntriesCommand decodeRemotingCommand(byte[] requestBody) {
+        return new AppendEntriesCommand(requestBody);
     }
 
     @Override

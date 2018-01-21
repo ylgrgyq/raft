@@ -15,16 +15,12 @@ import java.util.List;
  */
 public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand> {
     public ClientRequestProcessor(RaftServer server) {
-        this(server, Collections.emptyList());
-    }
-
-    public ClientRequestProcessor(RaftServer server, List<RaftCommandListener<RaftClientCommand>> listeners) {
-        super(server, listeners);
+        super(server);
     }
 
     @Override
-    protected RaftClientCommand decodeRemotingCommand(RemotingCommand request) {
-        return new RaftClientCommand(request.getBody());
+    protected RaftClientCommand decodeRemotingCommand(byte[] requestBody) {
+        return new RaftClientCommand(requestBody);
     }
 
     @Override
