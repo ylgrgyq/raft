@@ -4,11 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.RaftLog;
 import raft.server.RaftServer;
-import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
 import raft.server.rpc.RequestVoteCommand;
-
-import java.util.List;
 
 /**
  * Author: ylgrgyq
@@ -17,8 +14,8 @@ import java.util.List;
 public class RequestVoteProcessor extends AbstractServerCmdProcessor<RequestVoteCommand> {
     private static final Logger logger = LoggerFactory.getLogger(RequestVoteProcessor.class.getName());
 
-    public RequestVoteProcessor(RaftServer server, List<RaftCommandListener<RaftServerCommand>> listeners) {
-        super(server, listeners);
+    public RequestVoteProcessor(RaftServer server) {
+        super(server);
     }
 
     @Override

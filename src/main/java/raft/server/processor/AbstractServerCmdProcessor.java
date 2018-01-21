@@ -4,31 +4,19 @@ import raft.server.RaftServer;
 import raft.server.rpc.RaftServerCommand;
 import raft.server.rpc.RemotingCommand;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 /**
  * Author: ylgrgyq
  * Date: 18/1/17
  */
 public abstract class AbstractServerCmdProcessor<T extends RaftServerCommand> extends AbstractProcessor<T> {
-    private List<RaftCommandListener<RaftServerCommand>> raftCommandListeners = Collections.emptyList();
-
-    AbstractServerCmdProcessor(RaftServer server, List<RaftCommandListener<RaftServerCommand>> listeners) {
+    AbstractServerCmdProcessor(RaftServer server) {
         super(server);
-
-        if (listeners != null) {
-            this.raftCommandListeners = listeners;
-        } else {
-            this.raftCommandListeners = new ArrayList<>();
-        }
     }
 
     protected abstract RemotingCommand process0(T appendCmd);
 
     public RemotingCommand doProcess(T cmd) {
-        this.raftCommandListeners.forEach(listener -> listener.onReceiveRaftCommand(cmd));
+        this.getServer().onReceiveRaftCommand(cmd);
 
         int termInServer = this.getServer().getTerm();
         int termInCmd = cmd.getTerm();

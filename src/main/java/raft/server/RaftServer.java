@@ -9,7 +9,9 @@ import raft.server.processor.AppendEntriesProcessor;
 import raft.server.processor.ClientRequestProcessor;
 import raft.server.processor.RaftCommandListener;
 import raft.server.processor.RequestVoteProcessor;
-import raft.server.rpc.*;
+import raft.server.rpc.CommandCode;
+import raft.server.rpc.RaftCommand;
+import raft.server.rpc.RaftServerCommand;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -26,7 +28,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-public class RaftServer {
+public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private static final Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
 
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
@@ -143,11 +145,8 @@ public class RaftServer {
     }
 
     private void registerProcessors() {
-        List<RaftCommandListener<RaftCommand>> listeners = new ArrayList<>();
-        listeners.add(this.follower);
-
-        this.remoteServer.registerProcessor(CommandCode.APPEND_ENTRIES, new AppendEntriesProcessor(this, listeners), this.processorExecutorService);
-        this.remoteServer.registerProcessor(CommandCode.REQUEST_VOTE, new RequestVoteProcessor(this, listeners), this.processorExecutorService);
+        this.remoteServer.registerProcessor(CommandCode.APPEND_ENTRIES, new AppendEntriesProcessor(this), this.processorExecutorService);
+        this.remoteServer.registerProcessor(CommandCode.REQUEST_VOTE, new RequestVoteProcessor(this), this.processorExecutorService);
         this.remoteServer.registerProcessor(CommandCode.CLIENT_REQUEST, new ClientRequestProcessor(this), this.processorExecutorService);
     }
 
@@ -271,6 +270,11 @@ public class RaftServer {
         this.remoteServer.shutdown();
         this.processorExecutorService.shutdown();
         this.timer.shutdown();
+    }
+
+    @Override
+    public void onReceiveRaftCommand(RaftServerCommand cmd) {
+
     }
 
     @Override
