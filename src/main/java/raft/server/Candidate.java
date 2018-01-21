@@ -8,7 +8,8 @@ import raft.server.rpc.RemotingCommand;
 import raft.server.rpc.RequestVoteCommand;
 
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -17,34 +18,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 class Candidate extends RaftState<RaftServerCommand> {
     private static final Logger logger = LoggerFactory.getLogger(Candidate.class.getName());
-
-    private final int maxElectionTimeoutMillis = Integer.parseInt(System.getProperty("raft.server.max.election.timeout.millis", "5000"));
-    private final int minElectionTimeoutMillis = Integer.parseInt(System.getProperty("raft.server.min.election.timeout.millis", "1000"));
-    private ScheduledFuture electionTimeoutFuture;
     private Map<Integer, Future<Void>> pendingRequestVote = new ConcurrentHashMap<>();
 
-    Candidate(RaftServer server, ScheduledExecutorService timer) {
-        super(server, timer, State.CANDIDATE);
+    Candidate(RaftServer server) {
+        super(server, State.CANDIDATE);
     }
 
     public void start() {
         logger.debug("start candidate, server={}", this.server);
-        startElection();
-    }
-
-    private void scheduleElectionTimeoutJob() {
-        if (this.electionTimeoutFuture != null) {
-            this.electionTimeoutFuture.cancel(true);
-        }
-
-        final ThreadLocalRandom random = ThreadLocalRandom.current();
-        final int electionTimeoutMillis = random.nextInt(this.minElectionTimeoutMillis, this.maxElectionTimeoutMillis);
-
-        this.electionTimeoutFuture = this.timer.schedule(() -> {
-                    logger.warn("election timeout, start reelection, server={}", this.server);
-                    this.startElection();
-                }
-                , electionTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
     private void cleanPendingRequestVotes() {
@@ -89,19 +70,17 @@ class Candidate extends RaftState<RaftServerCommand> {
                 });
                 this.pendingRequestVote.put(cmd.getRequestId(), f);
             }
-
-            this.scheduleElectionTimeoutJob();
         } finally {
             this.server.releaseStateLock();
         }
     }
 
+    @Override
+    public void processTickTimeout(long currentTick) {
+        this.startElection();
+    }
+
     public void finish() {
         logger.debug("finish candidate, server={}", this.server);
-        if (this.electionTimeoutFuture != null) {
-            this.electionTimeoutFuture.cancel(false);
-            this.electionTimeoutFuture = null;
-        }
-        this.cleanPendingRequestVotes();
     }
 }

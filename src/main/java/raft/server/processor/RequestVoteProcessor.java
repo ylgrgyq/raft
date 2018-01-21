@@ -40,6 +40,7 @@ public class RequestVoteProcessor extends AbstractServerCmdProcessor<RequestVote
                 termInVote >= termInServer &&
                 raftLog.isUpToDate(vote.getLastLogTerm(), vote.getLastLogIndex())) {
             server.setVoteFor(candidateId);
+            server.clearTickCount();
             res.setVoteGranted(true);
         }
 
