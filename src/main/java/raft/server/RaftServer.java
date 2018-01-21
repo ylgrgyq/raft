@@ -56,7 +56,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private List<String> peerNodeIds = Collections.emptyList();
 
     // TODO need persistent
-    private String voteFor = null;
+    private String voteFor;
     // latest term server has seen (initialized to 0 on first boot, increases monotonically)
     // TODO need persistent
     private AtomicInteger term;
@@ -73,7 +73,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.raftLog = new RaftLog();
         this.nextIndex = 1;
         this.tickIntevalMs = builder.tickIntervalMs;
-        this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
 
         this.state = follower;
         if (builder.state != null) {
@@ -89,6 +88,22 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
                     break;
             }
         }
+        this.reset();
+    }
+
+    private void reset() {
+        this.voteFor = null;
+        this.tickCount.set(0);
+        this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
+    }
+
+    private void transitState(RaftState nextState) {
+        if (this.state != nextState) {
+            this.state.finish();
+
+            this.state = nextState;
+            nextState.start();
+        }
     }
 
     public boolean tryBecomeFollower(int term, String leaderId) {
@@ -97,9 +112,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             if (term > this.term.get()) {
                 this.leaderId = leaderId;
                 this.term.set(term);
-                this.voteFor = null;
-                this.tickCount.set(0);
-                this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
+                this.reset();
                 this.transitState(follower);
                 return true;
             } else {
@@ -115,13 +128,13 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.stateLock.lock();
         try {
             if (this.getState() == State.CANDIDATE &&
-                    term == this.term.get()) {
+                    term <= this.term.get()) {
                 this.leaderId = this.selfId;
-                this.term.set(term);
-                this.voteFor = null;
-                this.tickCount.set(0);
-                this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
+                this.reset();
                 this.transitState(leader);
+
+                // reinitialize nextIndex for every peer node
+                // then send them initial empty AppendEntries RPC (heartbeat)
                 for (RaftPeerNode node : this.peerNodes.values()) {
                     node.reset(this.raftLog.lastIndex() + 1);
                     node.sendAppend();
@@ -136,31 +149,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         }
     }
 
-    private boolean tryBecomeCandidate() {
-        this.stateLock.lock();
-        try {
-            assert this.getState() == State.FOLLOWER;
-
-            this.leaderId = null;
-            this.voteFor = null;
-            this.tickCount.set(0);
-            this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
-            this.transitState(candidate);
-            return true;
-        } finally {
-            this.stateLock.unlock();
-        }
-    }
-
-    private void transitState(RaftState nextState) {
-        if (this.state != nextState) {
-            this.state.finish();
-
-            this.state = nextState;
-            nextState.start();
-        }
-    }
-
     private void registerProcessors() {
         this.remoteServer.registerProcessor(CommandCode.APPEND_ENTRIES, new AppendEntriesProcessor(this), this.processorExecutorService);
         this.remoteServer.registerProcessor(CommandCode.REQUEST_VOTE, new RequestVoteProcessor(this), this.processorExecutorService);
@@ -168,6 +156,8 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     }
 
     void start(List<InetSocketAddress> clientAddrs) throws InterruptedException, ExecutionException, TimeoutException {
+        this.registerProcessors();
+
         this.remoteServer.startLocalServer();
         Map<String, RemoteClient> clients = this.remoteServer.connectToClients(clientAddrs, 30, TimeUnit.SECONDS);
         this.peerNodeIds = Collections.unmodifiableList(new ArrayList<>(clients.keySet()));
@@ -177,31 +167,22 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             this.peerNodes.put(c.getKey(), new RaftPeerNode(this, this.raftLog, c.getValue(), 1));
         }
 
-        this.stateLock.lock();
-        try {
-            this.state.start();
-        } finally {
-            this.stateLock.unlock();
-        }
+
+        this.state.start();
 
         this.tickGenerator.scheduleWithFixedDelay(() -> {
             long tick = this.tickCount.incrementAndGet();
-            this.tickCount.set(0);
-
-            long timeoutTicks;
-            if (this.getState() == State.LEADER) {
-                timeoutTicks = RaftServer.pingIntervalTicks;
-            } else {
-                timeoutTicks = this.electionTimeoutTicks;
-            }
-
-            if (tick > timeoutTicks) {
+            if (this.state.isTickTimeout(tick)) {
+                this.tickCount.set(0);
                 try {
                     this.tickTimeoutExecutors.submit(() -> {
+                        this.stateLock.lock();
                         try {
-                            this.state.processTickTimeout(tick);
+                            this.state.processTickTimeout();
                         } catch (Throwable t) {
                             logger.error("process tick timeout failed on tick {} of state {}", tick, this.state.getState(), t);
+                        } finally {
+                            this.stateLock.unlock();
                         }
                     });
                 } catch (RejectedExecutionException ex) {
@@ -214,15 +195,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
 
     public int getTerm() {
         return this.term.get();
-    }
-
-    private int increaseTerm() {
-        this.stateLock.lock();
-        try {
-            return this.term.incrementAndGet();
-        } finally {
-            this.stateLock.unlock();
-        }
     }
 
     public String getId() {
@@ -284,6 +256,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         }
     }
 
+    // TODO encapsulate RaftLog only in RaftServer and delete this method?
     public RaftLog getRaftLog() {
         return raftLog;
     }
@@ -305,20 +278,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         for (final RaftPeerNode peer : peerNodes.values()) {
             peer.sendAppend();
         }
-    }
-
-    private void lockStateLock() {
-        this.stateLock.lock();
-    }
-
-    private void releaseStateLock() {
-        this.stateLock.unlock();
-    }
-
-    void initialize() throws Exception {
-
-
-        this.registerProcessors();
     }
 
     void shutdown() {
@@ -347,10 +306,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
                 '}';
     }
 
-    interface TickTimeoutProcessor {
-        void processTickTimeout(long currentTick);
-    }
-
     class Leader extends RaftState {
         Leader() {
             super(State.LEADER);
@@ -366,7 +321,12 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         }
 
         @Override
-        public void processTickTimeout(long currentTick) {
+        public boolean isTickTimeout(long currentTick) {
+            return currentTick >= RaftServer.pingIntervalTicks;
+        }
+
+        @Override
+        public void processTickTimeout() {
             RaftServer.this.broadcastAppendEntries();
         }
     }
@@ -380,18 +340,28 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             logger.debug("start follower, server={}", RaftServer.this);
         }
 
-        public synchronized void finish() {
+        public void finish() {
             logger.debug("finish follower, server={}", RaftServer.this);
         }
 
         @Override
-        public void processTickTimeout(long currentTick) {
+        public boolean isTickTimeout(long currentTick) {
+            return currentTick >= RaftServer.this.electionTimeoutTicks;
+        }
+
+        private void becomeCandidate() {
+            RaftServer.this.leaderId = null;
+            RaftServer.this.reset();
+            RaftServer.this.transitState(RaftServer.this.candidate);
+        }
+
+        @Override
+        public void processTickTimeout() {
+            assert RaftServer.this.stateLock.isLocked();
+
             logger.info("election timeout, become candidate");
-            try {
-                RaftServer.this.tryBecomeCandidate();
-            } catch (Exception ex) {
-                logger.error("become candidate failed", ex);
-            }
+
+            this.becomeCandidate();
         }
     }
 
@@ -407,6 +377,10 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             this.startElection();
         }
 
+        public void finish() {
+            logger.debug("finish candidate, server={}", RaftServer.this);
+        }
+
         private void cleanPendingRequestVotes() {
             for (final Map.Entry<Integer, Future<Void>> e : this.pendingRequestVote.entrySet()) {
                 e.getValue().cancel(true);
@@ -415,52 +389,48 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         }
 
         private void startElection() {
-            RaftServer.this.lockStateLock();
-            try {
-                assert RaftServer.this.getState() == State.CANDIDATE;
+            assert RaftServer.this.getState() == State.CANDIDATE;
 
-                this.cleanPendingRequestVotes();
-                final int candidateTerm = RaftServer.this.increaseTerm();
+            this.cleanPendingRequestVotes();
+            final int candidateTerm = RaftServer.this.term.incrementAndGet();
 
-                // got self vote initially
-                final int votesToWin = RaftServer.this.getQuorum() - 1;
+            // got self vote initially
+            final int votesToWin = RaftServer.this.getQuorum() - 1;
 
-                final AtomicInteger votesGot = new AtomicInteger();
-                RequestVoteCommand vote = new RequestVoteCommand(candidateTerm, RaftServer.this.getId());
+            final AtomicInteger votesGot = new AtomicInteger();
+            RequestVoteCommand vote = new RequestVoteCommand(candidateTerm, RaftServer.this.getId());
 
-                logger.debug("start election candidateTerm={}, votesToWin={}, server={}",
-                        candidateTerm, votesToWin, RaftServer.this);
-                for (final RaftPeerNode node : RaftServer.this.getPeerNodes().values()) {
-                    final RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
-                    Future<Void> f = node.send(cmd, (PendingRequest req, RemotingCommand res) -> {
-                        if (res.getBody().isPresent()) {
-                            final RequestVoteCommand voteRes = new RequestVoteCommand(res.getBody().get());
-                            logger.debug("receive request vote response={} from={}", voteRes, node);
-                            if (voteRes.getTerm() > RaftServer.this.getTerm()) {
-                                RaftServer.this.tryBecomeFollower(voteRes.getTerm(), voteRes.getFrom());
-                            } else {
-                                if (voteRes.isVoteGranted() && votesGot.incrementAndGet() >= votesToWin) {
-                                    RaftServer.this.tryBecomeLeader(candidateTerm);
-                                }
-                            }
+            logger.debug("start election candidateTerm={}, votesToWin={}, server={}",
+                    candidateTerm, votesToWin, RaftServer.this);
+            for (final RaftPeerNode node : RaftServer.this.getPeerNodes().values()) {
+                final RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
+                Future<Void> f = node.send(cmd, (PendingRequest req, RemotingCommand res) -> {
+                    if (res.getBody().isPresent()) {
+                        final RequestVoteCommand voteRes = new RequestVoteCommand(res.getBody().get());
+                        logger.debug("receive request vote response={} from={}", voteRes, node);
+                        if (voteRes.getTerm() > RaftServer.this.getTerm()) {
+                            RaftServer.this.tryBecomeFollower(voteRes.getTerm(), voteRes.getFrom());
                         } else {
-                            logger.error("no valid response returned for request vote: {}", cmd.toString());
+                            if (voteRes.isVoteGranted() && votesGot.incrementAndGet() >= votesToWin) {
+                                RaftServer.this.tryBecomeLeader(candidateTerm);
+                            }
                         }
-                    });
-                    this.pendingRequestVote.put(cmd.getRequestId(), f);
-                }
-            } finally {
-                RaftServer.this.releaseStateLock();
+                    } else {
+                        logger.error("no valid response returned for request vote: {}. maybe request timeout", cmd.toString());
+                    }
+                });
+                this.pendingRequestVote.put(cmd.getRequestId(), f);
             }
         }
 
         @Override
-        public void processTickTimeout(long currentTick) {
-            this.startElection();
+        public boolean isTickTimeout(long currentTick) {
+            return currentTick >= RaftServer.this.electionTimeoutTicks;
         }
 
-        public void finish() {
-            logger.debug("finish candidate, server={}", RaftServer.this);
+        @Override
+        public void processTickTimeout() {
+            this.startElection();
         }
     }
 
@@ -498,7 +468,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         RaftServerBuilder withTickInterval(long tickInterval, TimeUnit unit) {
             this.tickIntervalMs = unit.toMillis(tickInterval);
             Preconditions.checkArgument(this.tickIntervalMs >= 100,
-                    "processTickTimeout interval should >= 100ms");
+                    "raft server tick interval should >= 100ms");
             return this;
         }
 

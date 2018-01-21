@@ -71,7 +71,6 @@ public class RaftServerStartup {
 
         RaftServer server = serverBuilder.build();
 
-        server.initialize();
         server.start(clientAddrs);
 
         Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
