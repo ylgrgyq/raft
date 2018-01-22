@@ -1,5 +1,7 @@
 package raft.server;
 
+import com.google.common.base.Preconditions;
+
 import static com.google.common.base.Preconditions.*;
 
 import java.util.ArrayList;
@@ -70,8 +72,10 @@ public class RaftLog {
     }
 
     public boolean tryCommitTo(int commitTo) {
-        if (commitTo > getCommitIndex()) {
-            this.commitIndex = Math.min(commitTo, lastIndex());
+        Preconditions.checkArgument(commitTo > this.lastIndex(),
+                "try commit to {} but last index in log is {}", commitTo, this.lastIndex());
+        if (commitTo > this.getCommitIndex()) {
+            this.commitIndex = commitTo;
             return true;
         }
 

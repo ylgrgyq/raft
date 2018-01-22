@@ -84,11 +84,6 @@ public class RemoteClient {
         return doSend(cmd);
     }
 
-    public Future<Void> sendOneway(RemotingCommand cmd) {
-        cmd.markOneWay(true);
-        return doSend(cmd);
-    }
-
     public ChannelFuture close() {
         return channelFuture.channel().close();
     }

@@ -15,14 +15,12 @@ import raft.server.rpc.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -39,7 +37,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     // TODO better use ThreadPoolExecutor to give every thread pool a name
     private final ScheduledExecutorService tickGenerator = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService tickTimeoutExecutors = Executors.newFixedThreadPool(8);
-    private ExecutorService processorExecutorService = Executors.newFixedThreadPool(processorThreadPoolSize,
+    private final ExecutorService processorExecutorService = Executors.newFixedThreadPool(processorThreadPoolSize,
             new ThreadFactoryImpl("RaftServerProcessorThread_"));
     private final RaftState leader = new Leader();
     private final RaftState candidate = new Candidate();
@@ -51,7 +49,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private final String selfId;
     private final RemoteServer remoteServer;
     private final RaftLog raftLog;
-    private final long tickIntevalMs;
+    private final long tickIntervalMs;
 
     private List<String> peerNodeIds = Collections.emptyList();
 
@@ -63,7 +61,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private String leaderId;
     private RaftState state;
     private long matchIndex;
-    private long nextIndex;
     private long electionTimeoutTicks;
 
     private RaftServer(RaftServerBuilder builder) {
@@ -71,8 +68,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.selfId = builder.selfId;
         this.remoteServer = new RemoteServer(builder.bossGroup, builder.workerGroup, builder.port, builder.clientReconnectDelayMs);
         this.raftLog = new RaftLog();
-        this.nextIndex = 1;
-        this.tickIntevalMs = builder.tickIntervalMs;
+        this.tickIntervalMs = builder.tickIntervalMs;
 
         this.state = follower;
         if (builder.state != null) {
@@ -92,12 +88,16 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     }
 
     private void reset() {
+        assert this.stateLock.isLocked();
+
         this.voteFor = null;
         this.tickCount.set(0);
         this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
     }
 
     private void transitState(RaftState nextState) {
+        assert this.stateLock.isLocked();
+
         if (this.state != nextState) {
             this.state.finish();
 
@@ -137,7 +137,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
                 // then send them initial empty AppendEntries RPC (heartbeat)
                 for (RaftPeerNode node : this.peerNodes.values()) {
                     node.reset(this.raftLog.lastIndex() + 1);
-                    node.sendAppend();
+                    node.sendAppend(RaftServer.maxMsgSize);
                 }
                 return true;
             } else {
@@ -164,7 +164,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         for (Map.Entry<String, RemoteClient> c : clients.entrySet()) {
             // initial next index to arbitrary value
             // we'll reset this value to last index log when this raft server become leader
-            this.peerNodes.put(c.getKey(), new RaftPeerNode(this, this.raftLog, c.getValue(), 1));
+            this.peerNodes.put(c.getKey(), new RaftPeerNode(c.getKey(), this, this.raftLog, c.getValue(), 1));
         }
 
         this.state.start();
@@ -189,7 +189,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
                 }
             }
 
-        }, this.tickIntevalMs, this.tickIntevalMs, TimeUnit.MILLISECONDS);
+        }, this.tickIntervalMs, this.tickIntervalMs, TimeUnit.MILLISECONDS);
     }
 
     public int getTerm() {
@@ -247,25 +247,15 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     }
 
     public State getState() {
-        this.stateLock.lock();
-        try {
-            return state.getState();
-        } finally {
-            this.stateLock.unlock();
-        }
+        return this.state.getState();
     }
 
-    // TODO encapsulate RaftLog only in RaftServer and delete this method?
     public RaftLog getRaftLog() {
-        return raftLog;
-    }
-
-    int getMaxMsgSize() {
-        return maxMsgSize;
+        return this.raftLog;
     }
 
     public String getLeaderId() {
-        return leaderId;
+        return this.leaderId;
     }
 
     public void appendLog(LogEntry entry) {
@@ -275,8 +265,22 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
 
     private void broadcastAppendEntries() {
         for (final RaftPeerNode peer : peerNodes.values()) {
-            peer.sendAppend();
+            peer.sendAppend(RaftServer.maxMsgSize);
         }
+    }
+
+    void updateCommit(){
+        // kth biggest number
+        int k = this.getQuorum() - 1;
+        List<Integer> matchedIndexes = peerNodes.values().stream()
+                .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
+        int kthMatchedIndexes = matchedIndexes.get(k);
+        Optional<LogEntry> kthLog = this.raftLog.getEntry(kthMatchedIndexes);
+        kthLog.ifPresent(e -> {
+            if (e.getTerm() == this.getTerm()) {
+                this.raftLog.tryCommitTo(kthMatchedIndexes);
+            }
+        });
     }
 
     void shutdown() {
