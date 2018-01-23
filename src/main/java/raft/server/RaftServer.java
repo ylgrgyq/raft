@@ -384,6 +384,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
 
         public void finish() {
             logger.debug("finish candidate, server={}", RaftServer.this);
+            this.cleanPendingRequestVotes();
         }
 
         private void cleanPendingRequestVotes() {
@@ -407,8 +408,15 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             } else {
                 final AtomicInteger votesGot = new AtomicInteger();
                 RequestVoteCommand vote = new RequestVoteCommand(candidateTerm, RaftServer.this.getId());
+                Optional<LogEntry> lastEntry = RaftServer.this.raftLog.getEntry(RaftServer.this.raftLog.lastIndex());
+                assert lastEntry.isPresent();
 
-                logger.debug("start election candidateTerm={}, votesToWin={}, server={}",
+                lastEntry.ifPresent((e) -> {
+                    vote.setLastLogIndex(e.getIndex());
+                    vote.setLastLogTerm(e.getTerm());
+                });
+
+                logger.debug("start election candidateTerm={}, votesToWin={}, server={}, voteCmd={}",
                         candidateTerm, votesToWin, RaftServer.this);
                 for (final RaftPeerNode node : RaftServer.this.getPeerNodes().values()) {
                     final RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
@@ -424,7 +432,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
                                 }
                             }
                         } else {
-                            logger.error("no valid response returned for request vote: {}. maybe request timeout", cmd.toString());
+                            logger.error("no valid response returned for request vote {}. maybe request timeout", cmd.toString());
                         }
                     });
                     this.pendingRequestVote.put(cmd.getRequestId(), f);
@@ -445,7 +453,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
 
     @SuppressWarnings("unused")
     static class RaftServerBuilder {
-        private long clientReconnectDelayMs = 3000;
+        private long clientReconnectDelayMs = 1000;
         private long tickIntervalMs = 100;
 
         private EventLoopGroup bossGroup;

@@ -73,8 +73,8 @@ public class RaftLog {
     }
 
     public synchronized boolean tryCommitTo(int commitTo) {
-        Preconditions.checkArgument(commitTo > this.lastIndex(),
-                "try commit to {} but last index in log is {}", commitTo, this.lastIndex());
+        Preconditions.checkArgument(commitTo <= this.lastIndex(),
+                "try commit to %s but last index in log is %s", commitTo, this.lastIndex());
         if (commitTo > this.getCommitIndex()) {
             this.commitIndex = commitTo;
             return true;

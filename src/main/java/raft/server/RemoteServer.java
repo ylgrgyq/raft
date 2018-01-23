@@ -257,15 +257,19 @@ public class RemoteServer {
         protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand req) throws Exception {
             switch (req.getType()) {
                 case REQUEST:
-                    logger.debug("receive request {}", req);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("receive request {} from {}", req, Util.parseChannelRemoteAddr(ctx.channel()));
+                    }
                     processRequestCommand(ctx, req);
                     break;
                 case RESPONSE:
-                    logger.debug("receive response {}", req);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("receive response {} from {}", req, Util.parseChannelRemoteAddr(ctx.channel()));
+                    }
                     processResponseCommand(ctx, req);
                     break;
                 default:
-                    logger.warn("unknown remote command type {}", req.toString());
+                    logger.warn("unknown remote command type {} from {}", req.toString(), Util.parseChannelRemoteAddr(ctx.channel()));
                     break;
             }
         }

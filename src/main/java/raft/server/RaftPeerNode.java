@@ -53,6 +53,7 @@ class RaftPeerNode {
         appendReq.setPrevLogIndex(prev.getIndex());
         appendReq.setEntries(entries.subList(1, entries.size()));
 
+        logger.debug("send append {}", appendReq);
         this.send(RemotingCommand.createRequestCommand(appendReq),
                 (PendingRequest req, RemotingCommand res) -> {
                     if (res.getBody().isPresent()) {

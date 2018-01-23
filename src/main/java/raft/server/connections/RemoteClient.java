@@ -66,10 +66,11 @@ public class RemoteClient {
     }
 
     private Future<Void> doSend(RemotingCommand cmd) {
+        logger.debug("send remoting command {} to {}", cmd, this.id);
         ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
         future.addListener(f -> {
             if (!f.isSuccess()) {
-                logger.warn("send request to {} failed", this, f.cause());
+                logger.warn("send request to {} failed", RemoteClient.this, f.cause());
                 if (!cmd.isOneWay()) {
                     this.server.removePendingRequest(cmd.getRequestId());
                 }
