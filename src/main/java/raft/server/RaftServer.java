@@ -88,8 +88,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     }
 
     private void reset() {
-        assert this.stateLock.isLocked();
-
         this.voteFor = null;
         this.tickCount.set(0);
         this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
@@ -159,7 +157,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.registerProcessors();
 
         this.remoteServer.startLocalServer();
-        Map<String, RemoteClient> clients = this.remoteServer.connectToClients(clientAddrs, 30, TimeUnit.SECONDS);
+        Map<String, RemoteClient> clients = this.remoteServer.connectToClients(clientAddrs, 10, TimeUnit.SECONDS);
         this.peerNodeIds = Collections.unmodifiableList(new ArrayList<>(clients.keySet()));
         for (Map.Entry<String, RemoteClient> c : clients.entrySet()) {
             // initial next index to arbitrary value
@@ -264,8 +262,12 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     }
 
     private void broadcastAppendEntries() {
-        for (final RaftPeerNode peer : peerNodes.values()) {
-            peer.sendAppend(RaftServer.maxMsgSize);
+        if (peerNodes.isEmpty()) {
+            this.raftLog.tryCommitTo(this.raftLog.lastIndex());
+        } else {
+            for (final RaftPeerNode peer : peerNodes.values()) {
+                peer.sendAppend(RaftServer.maxMsgSize);
+            }
         }
     }
 
@@ -400,29 +402,33 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             // got self vote initially
             final int votesToWin = RaftServer.this.getQuorum() - 1;
 
-            final AtomicInteger votesGot = new AtomicInteger();
-            RequestVoteCommand vote = new RequestVoteCommand(candidateTerm, RaftServer.this.getId());
+            if (votesToWin == 0) {
+                RaftServer.this.tryBecomeLeader(candidateTerm);
+            } else {
+                final AtomicInteger votesGot = new AtomicInteger();
+                RequestVoteCommand vote = new RequestVoteCommand(candidateTerm, RaftServer.this.getId());
 
-            logger.debug("start election candidateTerm={}, votesToWin={}, server={}",
-                    candidateTerm, votesToWin, RaftServer.this);
-            for (final RaftPeerNode node : RaftServer.this.getPeerNodes().values()) {
-                final RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
-                Future<Void> f = node.send(cmd, (PendingRequest req, RemotingCommand res) -> {
-                    if (res.getBody().isPresent()) {
-                        final RequestVoteCommand voteRes = new RequestVoteCommand(res.getBody().get());
-                        logger.debug("receive request vote response={} from={}", voteRes, node);
-                        if (voteRes.getTerm() > RaftServer.this.getTerm()) {
-                            RaftServer.this.tryBecomeFollower(voteRes.getTerm(), voteRes.getFrom());
-                        } else {
-                            if (voteRes.isVoteGranted() && votesGot.incrementAndGet() >= votesToWin) {
-                                RaftServer.this.tryBecomeLeader(candidateTerm);
+                logger.debug("start election candidateTerm={}, votesToWin={}, server={}",
+                        candidateTerm, votesToWin, RaftServer.this);
+                for (final RaftPeerNode node : RaftServer.this.getPeerNodes().values()) {
+                    final RemotingCommand cmd = RemotingCommand.createRequestCommand(vote);
+                    Future<Void> f = node.send(cmd, (PendingRequest req, RemotingCommand res) -> {
+                        if (res.getBody().isPresent()) {
+                            final RequestVoteCommand voteRes = new RequestVoteCommand(res.getBody().get());
+                            logger.debug("receive request vote response={} from={}", voteRes, node);
+                            if (voteRes.getTerm() > RaftServer.this.getTerm()) {
+                                RaftServer.this.tryBecomeFollower(voteRes.getTerm(), voteRes.getFrom());
+                            } else {
+                                if (voteRes.isVoteGranted() && votesGot.incrementAndGet() >= votesToWin) {
+                                    RaftServer.this.tryBecomeLeader(candidateTerm);
+                                }
                             }
+                        } else {
+                            logger.error("no valid response returned for request vote: {}. maybe request timeout", cmd.toString());
                         }
-                    } else {
-                        logger.error("no valid response returned for request vote: {}. maybe request timeout", cmd.toString());
-                    }
-                });
-                this.pendingRequestVote.put(cmd.getRequestId(), f);
+                    });
+                    this.pendingRequestVote.put(cmd.getRequestId(), f);
+                }
             }
         }
 

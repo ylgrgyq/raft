@@ -26,6 +26,7 @@ public class RemoteClient {
     private ChannelFuture channelFuture;
     private String id;
     private RemoteServer server;
+    private volatile boolean closed;
 
     public RemoteClient(final EventLoopGroup eventLoopGroup, final RemoteServer server) {
         this.server = server;
@@ -85,7 +86,12 @@ public class RemoteClient {
     }
 
     public ChannelFuture close() {
+        this.closed = true;
         return channelFuture.channel().close();
+    }
+
+    public boolean isClosed() {
+        return closed;
     }
 
     @Override

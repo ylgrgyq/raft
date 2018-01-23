@@ -18,7 +18,7 @@ public abstract class RaftServerCommand extends RaftCommand {
 
     RaftServerCommand(int term, String from, CommandCode code) {
         super(code);
-        Preconditions.checkArgument(from != null && from.isEmpty(),
+        Preconditions.checkArgument(from != null && !from.isEmpty(),
                 "need non empty from for RaftServerCommand");
         this.term = term;
         this.from = from;

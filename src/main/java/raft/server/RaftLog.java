@@ -24,13 +24,14 @@ public class RaftLog {
         this.logs.add(sentinel);
     }
 
-    void append(int term, LogEntry entry) {
+    synchronized void append(int term, LogEntry entry) {
         int lastIndex = this.lastIndex();
         entry.setIndex(lastIndex);
         entry.setTerm(term);
+        this.logs.add(entry);
     }
 
-    public void appendEntries(List<LogEntry> entries) {
+    public synchronized void appendEntries(List<LogEntry> entries) {
 //        If an existing entry conflicts with a new one (same index
 //        but different terms), delete the existing entry and all that
 //        follow it (§5.3)
@@ -38,17 +39,17 @@ public class RaftLog {
 //        Append any new entries not already in the log
     }
 
-    public Optional<LogEntry> getEntry(int index){
-        checkArgument(index >= 0, "invalid index: %d", index);
+    public synchronized Optional<LogEntry> getEntry(int index){
+        List<LogEntry> entries = getEntries(index, index + 1);
 
-        if (index > this.lastIndex()) {
+        if (entries.isEmpty()) {
             return Optional.empty();
         } else {
-            return Optional.of(this.logs.get(index));
+            return Optional.of(entries.get(0));
         }
     }
 
-    public List<LogEntry> getEntries(int start, int end) {
+    public synchronized List<LogEntry> getEntries(int start, int end) {
         checkArgument(start >= 0 && end >= 1 && start < end, "invalid start and end: %d %d", start, end);
 
         return this.logs.subList(start, Math.min(end, this.logs.size()));
@@ -58,7 +59,7 @@ public class RaftLog {
         return this.logs.size() - 1;
     }
 
-    public boolean isUpToDate(int term, int index) {
+    public synchronized boolean isUpToDate(int term, int index) {
         LogEntry lastEntryOnServer = this.getEntry(this.lastIndex()).orElse(null);
         assert lastEntryOnServer != null;
 
@@ -71,7 +72,7 @@ public class RaftLog {
         return commitIndex;
     }
 
-    public boolean tryCommitTo(int commitTo) {
+    public synchronized boolean tryCommitTo(int commitTo) {
         Preconditions.checkArgument(commitTo > this.lastIndex(),
                 "try commit to {} but last index in log is {}", commitTo, this.lastIndex());
         if (commitTo > this.getCommitIndex()) {

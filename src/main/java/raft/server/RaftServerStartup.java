@@ -6,6 +6,8 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -21,6 +23,8 @@ import java.util.stream.Collectors;
  * Date: 17/11/29
  */
 public class RaftServerStartup {
+    private static final Logger logger = LoggerFactory.getLogger(RaftServerStartup.class.getName());
+
     public static void main(String[] args) throws Exception {
         Options options = new Options();
         options.addOption("p", "port", true, "server port");
@@ -71,8 +75,12 @@ public class RaftServerStartup {
 
         RaftServer server = serverBuilder.build();
 
-        server.start(clientAddrs);
-
-        Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
+        try {
+            server.start(clientAddrs);
+            Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
+        } catch (Exception ex) {
+            logger.error("start raft server failed", ex);
+            server.shutdown();
+        }
     }
 }
