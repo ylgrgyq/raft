@@ -53,33 +53,38 @@ public class RemoteServer {
         this.processorTable.put(code, new Pair<>(processor, service));
     }
 
-    private void scheduleReconnectToClientJob(final InetSocketAddress addr) {
-        this.workerGroup.schedule(() -> this.connectToClient(addr),
+    private void scheduleReconnectToClientJob(final CompletableFuture<Pair<String, RemoteClient>> connectedFuture,
+                                              final RemoteClient client,
+                                              final InetSocketAddress addr) {
+        this.workerGroup.schedule(() -> this.connectToClient(connectedFuture, client, addr),
                 this.clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
     }
 
-    private CompletableFuture<Pair<String, RemoteClient>> connectToClient(final InetSocketAddress addr) {
-        final CompletableFuture<Pair<String, RemoteClient>> connectedFuture = new CompletableFuture<>();
-        final RemoteClient client = new RemoteClient(this.workerGroup, this);
-        final ChannelFuture chFuture = client.connect(addr);
-        chFuture.addListener((ChannelFuture f) -> {
-            if (f.isSuccess()) {
-                logger.info("Connect to {} success", addr);
-                final Channel ch = f.channel();
-                final String id = client.getId();
-                ch.closeFuture().addListener(cf -> {
-                    logger.warn("Connection with {} lost, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
+    private void connectToClient(final CompletableFuture<Pair<String, RemoteClient>> connectedFuture,
+                                 final RemoteClient client,
+                                 final InetSocketAddress addr) {
+        if (client.isClosed()) {
+            connectedFuture.completeExceptionally(new IllegalStateException("remote client closed"));
+        } else {
+            final ChannelFuture chFuture = client.connect(addr);
+            chFuture.addListener((ChannelFuture f) -> {
+                if (f.isSuccess()) {
+                    logger.info("connect to {} success", addr);
+                    final Channel ch = f.channel();
+                    final String id = client.getId();
+                    ch.closeFuture().addListener(cf -> {
+                        logger.warn("connection with {} lost, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
 
-                    // TODO Handle connection lost. maybe we need to pause RaftPeerNode when it's connection was lost
-                    scheduleReconnectToClientJob(addr);
-                });
-                connectedFuture.complete(new Pair<>(id, client));
-            } else {
-                logger.warn("Connect to {} failed, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
-                scheduleReconnectToClientJob(addr);
-            }
-        });
-        return connectedFuture;
+                        // TODO Handle connection lost. maybe we need to pause RaftPeerNode when it's connection was lost
+                        scheduleReconnectToClientJob(connectedFuture, client, addr);
+                    });
+                    connectedFuture.complete(new Pair<>(id, client));
+                } else {
+                    logger.warn("connect to {} failed, start reconnect after {} millis", addr, this.clientReconnectDelayMillis);
+                    scheduleReconnectToClientJob(connectedFuture, client, addr);
+                }
+            });
+        }
     }
 
     Map<String, RemoteClient> connectToClients(List<InetSocketAddress> addrs, long timeout, TimeUnit unit)
@@ -90,17 +95,20 @@ public class RemoteServer {
         for (InetSocketAddress addr : addrs) {
             if (timeoutMillis > 0) {
                 long start = System.currentTimeMillis();
+                final CompletableFuture<Pair<String, RemoteClient>> f = new CompletableFuture<>();
+                final RemoteClient client = new RemoteClient(this.workerGroup, this);
                 try {
-                    CompletableFuture<Pair<String, RemoteClient>> f = this.connectToClient(addr);
+                    this.connectToClient(f, client, addr);
                     Pair<String, RemoteClient> p = f.get(timeoutMillis, TimeUnit.MILLISECONDS);
                     connectedClientIds.put(p.getLeft(), p.getRight());
                     timeoutMillis = timeoutMillis - (System.currentTimeMillis() - start);
                 } catch (Exception ex) {
-                    logger.error("Connecting to {} failed!", addr, ex);
+                    logger.error("initial connecting to {} failed, stop trying to connect!", addr, ex);
+                    client.close();
                     throw ex;
                 }
             } else {
-                logger.error("Connecting to {} failed due to insufficient timeout quota!", addr);
+                logger.error("connecting to {} failed due to insufficient timeout quota!", addr);
                 throw new TimeoutException();
             }
         }
