@@ -45,6 +45,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private final ReentrantLock stateLock = new ReentrantLock();
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
     private final AtomicLong tickCount = new AtomicLong();
+    private final long clientReconnectDelayMs;
 
     private final String selfId;
     private final RemoteServer remoteServer;
@@ -66,7 +67,8 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private RaftServer(RaftServerBuilder builder) {
         this.term = new AtomicInteger(0);
         this.selfId = builder.selfId;
-        this.remoteServer = new RemoteServer(builder.bossGroup, builder.workerGroup, builder.port, builder.clientReconnectDelayMs);
+        this.clientReconnectDelayMs = builder.clientReconnectDelayMs;
+        this.remoteServer = new RemoteServer(builder.bossGroup, builder.workerGroup, builder.port);
         this.raftLog = new RaftLog();
         this.tickIntervalMs = builder.tickIntervalMs;
 
@@ -157,13 +159,17 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.registerProcessors();
 
         this.remoteServer.startLocalServer();
-        Map<String, RemoteClient> clients = this.remoteServer.connectToClients(clientAddrs, 10, TimeUnit.SECONDS);
-        this.peerNodeIds = Collections.unmodifiableList(new ArrayList<>(clients.keySet()));
-        for (Map.Entry<String, RemoteClient> c : clients.entrySet()) {
+        List<RemoteClient> clients = this.remoteServer.connectToClients(clientAddrs, this.clientReconnectDelayMs);
+        List<String> peerIds = new ArrayList<>(clients.size());
+        for (RemoteClient c : clients) {
+            String id = c.getId();
             // initial next index to arbitrary value
             // we'll reset this value to last index log when this raft server become leader
-            this.peerNodes.put(c.getKey(), new RaftPeerNode(c.getKey(), this, this.raftLog, c.getValue(), 1));
+            this.peerNodes.put(id, new RaftPeerNode(id, this, this.raftLog, c, 1));
+            peerIds.add(id);
         }
+
+        this.peerNodeIds = Collections.unmodifiableList(peerIds);
 
         this.state.start();
 

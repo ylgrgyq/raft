@@ -1,5 +1,6 @@
 package raft.server.connections;
 
+import com.google.common.base.Preconditions;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -14,6 +15,7 @@ import raft.server.rpc.PendingRequestCallback;
 import raft.server.rpc.RemotingCommand;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Author: ylgrgyq
@@ -26,17 +28,23 @@ public class RemoteClient {
     private ChannelFuture channelFuture;
     private String id;
     private RemoteServer server;
-    private volatile boolean closed;
+    private InetSocketAddress clientAddr;
 
-    public RemoteClient(final EventLoopGroup eventLoopGroup, final RemoteServer server) {
+    public RemoteClient(final RemoteServer server, final InetSocketAddress addr) {
+        this(new NioEventLoopGroup(1), server, addr);
+    }
+
+    public RemoteClient(final EventLoopGroup eventLoopGroup, final RemoteServer server, final InetSocketAddress addr) {
+        Preconditions.checkNotNull(eventLoopGroup);
+        Preconditions.checkNotNull(server);
+        Preconditions.checkNotNull(addr);
+
         this.server = server;
-        this.bootstrap = new Bootstrap();
+        this.clientAddr = addr;
+        this.id = Util.parseSocketAddress(addr);
 
-        if (eventLoopGroup != null){
-            this.bootstrap.group(eventLoopGroup);
-        } else {
-            this.bootstrap.group(new NioEventLoopGroup(1));
-        }
+        this.bootstrap = new Bootstrap();
+        this.bootstrap.group(eventLoopGroup);
         this.bootstrap.channel(NioSocketChannel.class);
         this.bootstrap.option(ChannelOption.TCP_NODELAY, true);
         this.bootstrap.handler(new ChannelInitializer<SocketChannel>() {
@@ -51,9 +59,29 @@ public class RemoteClient {
         });
     }
 
-    public ChannelFuture connect(InetSocketAddress addr) {
+    private void scheduleReconnectToClientJob(ChannelFuture chFuture, long clientReconnectDelayMillis) {
+        chFuture.channel().eventLoop().schedule(() -> this.connect(clientReconnectDelayMillis),
+                clientReconnectDelayMillis, TimeUnit.MILLISECONDS);
+    }
+
+    public ChannelFuture connect(long clientReconnectDelayMillis) {
+        InetSocketAddress addr = this.clientAddr;
         synchronized (this.bootstrap) {
-            channelFuture = this.bootstrap.connect(addr);
+            this.channelFuture = this.bootstrap.connect(addr);
+            this.channelFuture.addListener(f -> {
+                if (f.isSuccess()) {
+                    logger.info("connect to {} success", addr);
+                    this.channelFuture.channel().closeFuture().addListener(cf -> {
+                        logger.warn("connection with {} lost, start reconnect after {} millis", addr, clientReconnectDelayMillis);
+
+                        // TODO Handle connection lost. maybe we need to pause RaftPeerNode when it's connection was lost
+                        scheduleReconnectToClientJob(this.channelFuture, clientReconnectDelayMillis);
+                    });
+                } else {
+                    logger.warn("connect to {} failed, start reconnect after {} millis", addr, clientReconnectDelayMillis);
+                    scheduleReconnectToClientJob(this.channelFuture, clientReconnectDelayMillis);
+                }
+            });
         }
         return channelFuture;
     }
@@ -66,19 +94,26 @@ public class RemoteClient {
     }
 
     private Future<Void> doSend(RemotingCommand cmd) {
-        logger.debug("send remoting command {} to {}", cmd, this.id);
-        ChannelFuture future = channelFuture.channel().writeAndFlush(cmd);
-        future.addListener(f -> {
-            if (!f.isSuccess()) {
-                logger.warn("send request to {} failed", RemoteClient.this, f.cause());
-                if (!cmd.isOneWay()) {
-                    this.server.removePendingRequest(cmd.getRequestId());
+        Channel ch = channelFuture.channel();
+        if (ch.isActive()) {
+            logger.debug("send remoting command {} to {}", cmd, this.id);
+            ChannelFuture future = ch.writeAndFlush(cmd);
+            future.addListener(f -> {
+                if (!f.isSuccess()) {
+                    logger.warn("send request to {} failed", RemoteClient.this, f.cause());
+                    if (!cmd.isOneWay()) {
+                        this.server.removePendingRequest(cmd.getRequestId());
+                    }
+                    this.close();
                 }
-                this.close();
-            }
-        });
+            });
+            return future;
+        }
 
-        return future;
+        if (!cmd.isOneWay()) {
+            this.server.removePendingRequest(cmd.getRequestId());
+        }
+        return ch.eventLoop().newFailedFuture(new RuntimeException("connection lost"));
     }
 
     public Future<Void> send(RemotingCommand cmd, PendingRequestCallback callback) {
@@ -87,12 +122,7 @@ public class RemoteClient {
     }
 
     public ChannelFuture close() {
-        this.closed = true;
-        return channelFuture.channel().close();
-    }
-
-    public boolean isClosed() {
-        return closed;
+        return Util.closeChannel(channelFuture.channel());
     }
 
     @Override
