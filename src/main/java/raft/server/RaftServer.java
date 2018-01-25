@@ -2,6 +2,7 @@ package raft.server;
 
 import com.google.common.base.Preconditions;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
@@ -469,11 +470,13 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         private String selfId;
 
         RaftServerBuilder withBossGroup(EventLoopGroup group) {
+            Preconditions.checkNotNull(group);
             this.bossGroup = group;
             return this;
         }
 
         RaftServerBuilder withWorkerGroup(EventLoopGroup group) {
+            Preconditions.checkNotNull(group);
             this.workerGroup = group;
             return this;
         }
@@ -483,8 +486,8 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             return this;
         }
 
-        RaftServerBuilder withRole(String role) {
-            this.state = State.valueOf(role);
+        RaftServerBuilder withState(String state) {
+            this.state = State.valueOf(state);
             return this;
         }
 
@@ -496,11 +499,20 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         }
 
         RaftServerBuilder withClientReconnectDelay(long delay, TimeUnit timeUnit) {
+            Preconditions.checkArgument(delay > 0);
             this.clientReconnectDelayMs = timeUnit.toMillis(delay);
             return this;
         }
 
         RaftServer build() throws UnknownHostException {
+            if (this.bossGroup == null) {
+                this.bossGroup = new NioEventLoopGroup(1);
+            }
+
+            if (this.workerGroup == null) {
+                this.workerGroup = new NioEventLoopGroup();
+            }
+
             this.selfId = InetAddress.getLocalHost().getHostAddress() + ":" + this.port;
             return new RaftServer(this);
         }

@@ -15,7 +15,6 @@ import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 /**
@@ -70,7 +69,7 @@ public class RaftServerStartup {
         serverBuilder.withServerPort(serverPort);
 
         if (cmd.hasOption("state")) {
-            serverBuilder.withRole(cmd.getOptionValue("state"));
+            serverBuilder.withState(cmd.getOptionValue("state"));
         }
 
         RaftServer server = serverBuilder.build();

@@ -1,5 +1,7 @@
 package raft.server.processor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import raft.server.LogEntry;
 import raft.server.RaftServer;
 import raft.server.State;
@@ -14,6 +16,8 @@ import java.util.List;
  * Date: 17/12/26
  */
 public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand> {
+    private static final Logger logger = LoggerFactory.getLogger(ClientRequestProcessor.class.getName());
+
     public ClientRequestProcessor(RaftServer server) {
         super(server);
     }
@@ -28,11 +32,14 @@ public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand>
         RaftClientCommand res = new RaftClientCommand();
         res.setLeaderId(this.getServer().getLeaderId());
         if (this.getServer().getState() == State.LEADER) {
-            LogEntry body = cmd.getEntry();
-            // TODO Handle append log failed
-            this.getServer().appendLog(body);
-
-            res.setSuccess(true);
+            LogEntry entry = cmd.getEntry();
+            try {
+                this.getServer().appendLog(entry);
+                res.setSuccess(true);
+            } catch (Throwable t) {
+                logger.error("append log failed {}", entry, t);
+                res.setSuccess(false);
+            }
         } else {
             res.setSuccess(false);
         }
