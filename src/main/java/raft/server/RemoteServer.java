@@ -124,7 +124,7 @@ public class RemoteServer {
                 });
             } catch (RejectedExecutionException e) {
                 logger.error("too many request with command code {} and thread pool is busy, reject command from {}",
-                        req.getCommandCode(), Util.parseChannelRemoteAddr(ctx.channel()));
+                        req.getCommandCode(), Util.parseChannelRemoteAddrToString(ctx.channel()));
             }
         } else {
             logger.error("no processor for command code {}, current supported command codes is {}",
@@ -182,7 +182,7 @@ public class RemoteServer {
             this.executeRequestCallback(pendingRequest);
         } else {
             logger.warn("got response without matched pending request, maybe request have been canceled, {}",
-                    Util.parseChannelRemoteAddr(ctx.channel()));
+                    Util.parseChannelRemoteAddrToString(ctx.channel()));
             logger.warn(res.toString());
         }
     }
@@ -205,25 +205,25 @@ public class RemoteServer {
             switch (req.getType()) {
                 case REQUEST:
                     if (logger.isDebugEnabled()) {
-                        logger.debug("receive request {} from {}", req, Util.parseChannelRemoteAddr(ctx.channel()));
+                        logger.debug("receive request {} from {}", req, Util.parseChannelRemoteAddrToString(ctx.channel()));
                     }
                     processRequestCommand(ctx, req);
                     break;
                 case RESPONSE:
                     if (logger.isDebugEnabled()) {
-                        logger.debug("receive response {} from {}", req, Util.parseChannelRemoteAddr(ctx.channel()));
+                        logger.debug("receive response {} from {}", req, Util.parseChannelRemoteAddrToString(ctx.channel()));
                     }
                     processResponseCommand(ctx, req);
                     break;
                 default:
-                    logger.warn("unknown remote command type {} from {}", req.toString(), Util.parseChannelRemoteAddr(ctx.channel()));
+                    logger.warn("unknown remote command type {} from {}", req.toString(), Util.parseChannelRemoteAddrToString(ctx.channel()));
                     break;
             }
         }
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            logger.error("got unexpected exception on address {}", Util.parseChannelRemoteAddr(ctx.channel()), cause);
+            logger.error("got unexpected exception on address {}", Util.parseChannelRemoteAddrToString(ctx.channel()), cause);
         }
     }
 }

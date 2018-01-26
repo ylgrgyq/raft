@@ -41,7 +41,7 @@ public class RemoteClient {
 
         this.server = server;
         this.clientAddr = addr;
-        this.id = Util.parseSocketAddress(addr);
+        this.id = Util.parseSocketAddressToString(addr);
 
         this.bootstrap = new Bootstrap();
         this.bootstrap.group(eventLoopGroup);
@@ -88,7 +88,7 @@ public class RemoteClient {
 
     public String getId() {
         if (this.id == null) {
-            this.id = Util.parseChannelRemoteAddr(channelFuture.channel());
+            this.id = Util.parseChannelRemoteAddrToString(channelFuture.channel());
         }
         return this.id;
     }
