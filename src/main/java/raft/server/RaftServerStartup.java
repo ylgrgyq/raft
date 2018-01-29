@@ -51,13 +51,13 @@ public class RaftServerStartup {
             }
         }
 
-        List<InetSocketAddress> clientAddrs = Arrays.stream(prop.getProperty("client.addrs")
+        List<String> clientAddrs = Arrays.stream(prop.getProperty("client.addrs")
                 .split(","))
                 .map(addrs -> addrs.split(":"))
                 .filter(addrs -> !("" + serverPort).equals(addrs[1]))
                 .map(addrs -> {
                     int p = Integer.parseInt(addrs[1]);
-                    return new InetSocketAddress(addrs[0], p);
+                    return addrs[0] + ":" + p;
                 }).collect(Collectors.toList());
 
         RaftServer.RaftServerBuilder serverBuilder = new RaftServer.RaftServerBuilder();

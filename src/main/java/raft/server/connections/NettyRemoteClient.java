@@ -28,7 +28,7 @@ import java.util.concurrent.*;
  * Date: 18/1/25
  */
 public class NettyRemoteClient {
-    private static final Logger logger = LoggerFactory.getLogger(RemoteClient.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(NettyRemoteClient.class.getName());
 
     private final ConcurrentHashMap<Integer, PendingRequest> pendingRequestTable = new ConcurrentHashMap<>();
     private final Bootstrap bootstrap;

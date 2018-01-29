@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.Pair;
 import raft.Util;
-import raft.server.RemoteServer;
 import raft.server.processor.Processor;
 import raft.server.rpc.CommandCode;
 import raft.server.rpc.RemotingCommand;
@@ -23,24 +22,24 @@ import java.util.concurrent.RejectedExecutionException;
  * Date: 18/1/25
  */
 public class NettyRemoteServer {
-    private static final Logger logger = LoggerFactory.getLogger(RemoteServer.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(NettyRemoteServer.class.getName());
 
     private final HashMap<CommandCode, Pair<Processor, ExecutorService>> processorTable = new HashMap<>();
     private final int port;
     private final EventLoopGroup bossGroup;
     private final EventLoopGroup workerGroup;
 
-    NettyRemoteServer(EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port) {
+    public NettyRemoteServer(EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port) {
         this.bossGroup = bossGroup;
         this.workerGroup = workerGroup;
         this.port = port;
     }
 
-    void registerProcessor(CommandCode code, Processor processor, ExecutorService service) {
+    public void registerProcessor(CommandCode code, Processor processor, ExecutorService service) {
         this.processorTable.put(code, new Pair<>(processor, service));
     }
 
-    ChannelFuture startLocalServer() throws InterruptedException {
+    public ChannelFuture startLocalServer() throws InterruptedException {
         ServerBootstrap b = new ServerBootstrap();
         b.group(this.bossGroup, this.workerGroup)
                 .option(ChannelOption.SO_BACKLOG, 1024)
@@ -62,7 +61,7 @@ public class NettyRemoteServer {
     }
 
 
-    void shutdown() {
+    public void shutdown() {
         this.bossGroup.shutdownGracefully();
         this.workerGroup.shutdownGracefully();
     }

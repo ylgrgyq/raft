@@ -6,7 +6,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
-import raft.server.connections.RemoteClient;
+import raft.server.connections.NettyRemoteClient;
+import raft.server.connections.NettyRemoteServer;
 import raft.server.processor.AppendEntriesProcessor;
 import raft.server.processor.ClientRequestProcessor;
 import raft.server.processor.RaftCommandListener;
@@ -14,9 +15,11 @@ import raft.server.processor.RequestVoteProcessor;
 import raft.server.rpc.*;
 
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -46,10 +49,10 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private final ReentrantLock stateLock = new ReentrantLock();
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
     private final AtomicLong tickCount = new AtomicLong();
-    private final long clientReconnectDelayMs;
 
     private final String selfId;
-    private final RemoteServer remoteServer;
+    private final NettyRemoteServer remoteServer;
+    private final NettyRemoteClient remoteClient;
     private final RaftLog raftLog;
     private final long tickIntervalMs;
 
@@ -68,8 +71,8 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private RaftServer(RaftServerBuilder builder) {
         this.term = new AtomicInteger(0);
         this.selfId = builder.selfId;
-        this.clientReconnectDelayMs = builder.clientReconnectDelayMs;
-        this.remoteServer = new RemoteServer(builder.bossGroup, builder.workerGroup, builder.port);
+        this.remoteServer = new NettyRemoteServer(builder.bossGroup, builder.workerGroup, builder.port);
+        this.remoteClient = new NettyRemoteClient(builder.workerGroup, builder.clientReconnectDelayMs);
         this.raftLog = new RaftLog();
         this.tickIntervalMs = builder.tickIntervalMs;
 
@@ -156,21 +159,18 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.remoteServer.registerProcessor(CommandCode.CLIENT_REQUEST, new ClientRequestProcessor(this), this.processorExecutorService);
     }
 
-    void start(List<InetSocketAddress> clientAddrs) throws InterruptedException, ExecutionException, TimeoutException {
+    void start(List<String> clientAddrs) throws InterruptedException, ExecutionException, TimeoutException {
         this.registerProcessors();
 
         this.remoteServer.startLocalServer();
-        List<RemoteClient> clients = this.remoteServer.connectToClients(clientAddrs, this.clientReconnectDelayMs);
-        List<String> peerIds = new ArrayList<>(clients.size());
-        for (RemoteClient c : clients) {
-            String id = c.getId();
+        this.remoteClient.connectToClients(clientAddrs);
+        for (String id : clientAddrs) {
             // initial next index to arbitrary value
             // we'll reset this value to last index log when this raft server become leader
-            this.peerNodes.put(id, new RaftPeerNode(id, this, this.raftLog, c, 1));
-            peerIds.add(id);
+            this.peerNodes.put(id, new RaftPeerNode(id, this, this.raftLog, this.remoteClient, 1));
         }
 
-        this.peerNodeIds = Collections.unmodifiableList(peerIds);
+        this.peerNodeIds = Collections.unmodifiableList(clientAddrs);
 
         this.state.start();
 

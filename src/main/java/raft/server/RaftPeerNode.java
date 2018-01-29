@@ -3,7 +3,7 @@ package raft.server;
 import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.connections.RemoteClient;
+import raft.server.connections.NettyRemoteClient;
 import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.PendingRequest;
 import raft.server.rpc.PendingRequestCallback;
@@ -19,7 +19,7 @@ class RaftPeerNode {
     private static final Logger logger = LoggerFactory.getLogger(RaftPeerNode.class.getName());
 
     private final String peerId;
-    private final RemoteClient remoteClient;
+    private final NettyRemoteClient remoteClient;
     private final RaftServer server;
     private final RaftLog serverLog;
 
@@ -28,7 +28,7 @@ class RaftPeerNode {
     // index of highest log entry known to be replicated on server (initialized to 0, increases monotonically)
     private int matchIndex;
 
-    RaftPeerNode(String peerId, RaftServer server, RaftLog log, RemoteClient remote, int nextIndex) {
+    RaftPeerNode(String peerId, RaftServer server, RaftLog log, NettyRemoteClient remote, int nextIndex) {
         this.peerId = peerId;
         this.remoteClient = remote;
         this.nextIndex = nextIndex;
@@ -84,7 +84,7 @@ class RaftPeerNode {
     }
 
     Future<Void> send(RemotingCommand cmd, PendingRequestCallback callback) {
-        return this.remoteClient.send(cmd, callback);
+        return this.remoteClient.send(this.peerId, cmd, callback);
     }
 
     synchronized void reset(int nextIndex) {
