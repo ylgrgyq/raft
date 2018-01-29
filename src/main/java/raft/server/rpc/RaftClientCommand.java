@@ -21,7 +21,7 @@ public class RaftClientCommand extends RaftCommand {
     }
 
     public RaftClientCommand() {
-        super(CommandCode.REQUEST_VOTE);
+        super(CommandCode.CLIENT_REQUEST);
     }
 
     @Override

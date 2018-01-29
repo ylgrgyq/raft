@@ -108,7 +108,7 @@ public class NettyRemoteClient {
 
             return Optional.empty();
         } else {
-            logger.info("create channel for addr %s, currently known addrs is %s", addr, this.channelMap.keySet());
+            logger.info("create channel for addr {}, currently known addrs is {}", addr, this.channelMap.keySet());
             this.connect(addr);
             return Optional.empty();
         }

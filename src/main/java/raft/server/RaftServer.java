@@ -84,9 +84,11 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
                     break;
                 case FOLLOWER:
                     this.state = follower;
+                    this.leaderId = builder.leaderId;
                     break;
                 case LEADER:
                     this.state = leader;
+                    this.leaderId = this.selfId;
                     break;
             }
         }
@@ -468,6 +470,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         private int port;
         private State state;
         private String selfId;
+        private String leaderId;
 
         RaftServerBuilder withBossGroup(EventLoopGroup group) {
             Preconditions.checkNotNull(group);
@@ -486,8 +489,19 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             return this;
         }
 
-        RaftServerBuilder withState(String state) {
-            this.state = State.valueOf(state);
+        RaftServerBuilder withLeaderState() {
+            this.state = State.LEADER;
+            return this;
+        }
+
+        RaftServerBuilder withFollowerState(String leaderId) {
+            this.state = State.FOLLOWER;
+            this.leaderId = leaderId;
+            return this;
+        }
+
+        RaftServerBuilder withCandidateState() {
+            this.state = State.CANDIDATE;
             return this;
         }
 

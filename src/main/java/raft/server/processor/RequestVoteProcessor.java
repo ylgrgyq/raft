@@ -25,7 +25,7 @@ public class RequestVoteProcessor extends AbstractServerCmdProcessor<RequestVote
 
     @Override
     protected RemotingCommand process0(RequestVoteCommand vote) {
-        logger.debug("receive request vote command, cmd={}, server={}", vote, this.getServer());
+        logger.debug("receive request vote command, request={}, server={}", vote, this.getServer());
         final int termInVote = vote.getTerm();
         final RaftServer server = this.getServer();
         final int termInServer = server.getTerm();

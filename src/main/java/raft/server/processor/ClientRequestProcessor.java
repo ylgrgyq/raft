@@ -28,11 +28,12 @@ public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand>
     }
 
     @Override
-    protected RemotingCommand doProcess(RaftClientCommand cmd) {
+    protected RemotingCommand doProcess(RaftClientCommand req) {
+        logger.debug("receive client command, request={}, server={}", req, this.getServer());
         RaftClientCommand res = new RaftClientCommand();
         res.setLeaderId(this.getServer().getLeaderId());
         if (this.getServer().getState() == State.LEADER) {
-            LogEntry entry = cmd.getEntry();
+            LogEntry entry = req.getEntry();
             try {
                 this.getServer().appendLog(entry);
                 res.setSuccess(true);
@@ -44,6 +45,7 @@ public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand>
             res.setSuccess(false);
         }
 
+        logger.debug("respond client command, response={}, server={}", res, this.getServer());
         return RemotingCommand.createResponseCommand(res);
     }
 }

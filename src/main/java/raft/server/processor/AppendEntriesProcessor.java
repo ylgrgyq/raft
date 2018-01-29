@@ -24,9 +24,9 @@ public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEnt
     }
 
     @Override
-    protected RemotingCommand process0(AppendEntriesCommand appendCmd) {
-        logger.debug("receive append entries command, cmd={}, server={}", appendCmd, this.getServer());
-        final int termInEntry = appendCmd.getTerm();
+    protected RemotingCommand process0(AppendEntriesCommand req) {
+        logger.debug("receive append entries command, request={}, server={}", req, this.getServer());
+        final int termInEntry = req.getTerm();
         final RaftServer server = this.getServer();
         final RaftLog raftLog = server.getRaftLog();
         int termInServer = server.getTerm();
@@ -34,17 +34,17 @@ public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEnt
         final AppendEntriesCommand response = new AppendEntriesCommand(termInServer, server.getId());
         response.setSuccess(false);
 
-        raftLog.getEntry(appendCmd.getPrevLogIndex()).ifPresent(prevEntry -> {
-            if (prevEntry.getTerm() == appendCmd.getPrevLogTerm() && termInEntry >= termInServer) {
+        raftLog.getEntry(req.getPrevLogIndex()).ifPresent(prevEntry -> {
+            if (prevEntry.getTerm() == req.getPrevLogTerm() && termInEntry >= termInServer) {
                 assert termInEntry == termInServer;
 
                 try {
-                    server.setLeaderId(appendCmd.getFrom());
-                    raftLog.appendEntries(appendCmd.getEntries());
+                    server.setLeaderId(req.getFrom());
+                    raftLog.appendEntries(req.getEntries());
                     response.setSuccess(true);
-                    raftLog.tryCommitTo(appendCmd.getLeaderCommit());
+                    raftLog.tryCommitTo(req.getLeaderCommit());
                 } catch (Exception ex) {
-                    logger.error("append entries failed, cmd={}", appendCmd, ex);
+                    logger.error("append entries failed, request={}", req, ex);
                 }
             }
         });

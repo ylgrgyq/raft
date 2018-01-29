@@ -68,8 +68,8 @@ public class RaftServerStartup {
         serverBuilder.withWorkerGroup(workerGroup);
         serverBuilder.withServerPort(serverPort);
 
-        if (cmd.hasOption("state")) {
-            serverBuilder.withState(cmd.getOptionValue("state"));
+        if (cmd.hasOption("leader")) {
+            serverBuilder.withLeaderState();
         }
 
         RaftServer server = serverBuilder.build();
