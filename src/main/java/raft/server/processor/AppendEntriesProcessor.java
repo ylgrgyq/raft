@@ -2,7 +2,6 @@ package raft.server.processor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.RaftLog;
 import raft.server.RaftServer;
 import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.RemotingCommand;
@@ -28,24 +27,17 @@ public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEnt
         logger.debug("receive append entries command, request={}, server={}", req, this.getServer());
         final int termInEntry = req.getTerm();
         final RaftServer server = this.getServer();
-        final RaftLog raftLog = server.getRaftLog();
         int termInServer = server.getTerm();
 
         final AppendEntriesCommand response = new AppendEntriesCommand(termInServer, server.getId());
         response.setSuccess(false);
 
-        raftLog.getEntry(req.getPrevLogIndex()).ifPresent(prevEntry -> {
+        server.getEntry(req.getPrevLogIndex()).ifPresent(prevEntry -> {
             if (prevEntry.getTerm() == req.getPrevLogTerm() && termInEntry >= termInServer) {
                 assert termInEntry == termInServer;
 
-                try {
-                    server.setLeaderId(req.getFrom());
-                    raftLog.appendEntries(req.getEntries());
-                    response.setSuccess(true);
-                    raftLog.tryCommitTo(req.getLeaderCommit());
-                } catch (Exception ex) {
-                    logger.error("append entries failed, request={}", req, ex);
-                }
+                boolean success = server.appendLogsOnFollower(req.getLeaderCommit(), req.getFrom(), req.getEntries());
+                response.setSuccess(success);
             }
         });
 

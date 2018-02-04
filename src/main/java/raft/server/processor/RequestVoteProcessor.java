@@ -2,7 +2,7 @@ package raft.server.processor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.RaftLog;
+import raft.server.log.RaftLog;
 import raft.server.RaftServer;
 import raft.server.rpc.RemotingCommand;
 import raft.server.rpc.RequestVoteCommand;

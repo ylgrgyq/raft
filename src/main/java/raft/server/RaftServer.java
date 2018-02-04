@@ -1,6 +1,6 @@
 package raft.server;
 
-import com.google.common.base.Preconditions;
+import static com.google.common.base.Preconditions.*;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.slf4j.Logger;
@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.server.connections.NettyRemoteClient;
 import raft.server.connections.NettyRemoteServer;
+import raft.server.log.RaftLog;
 import raft.server.processor.AppendEntriesProcessor;
 import raft.server.processor.ClientRequestProcessor;
 import raft.server.processor.RaftCommandListener;
@@ -73,7 +74,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.selfId = builder.selfId;
         this.remoteServer = new NettyRemoteServer(builder.bossGroup, builder.workerGroup, builder.port);
         this.remoteClient = new NettyRemoteClient(builder.workerGroup, builder.clientReconnectDelayMs);
-        this.raftLog = new RaftLog();
+        this.raftLog = new RaftLog(null);
         this.tickIntervalMs = builder.tickIntervalMs;
 
         this.state = follower;
@@ -162,6 +163,9 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     }
 
     void start(List<String> clientAddrs) throws InterruptedException, ExecutionException, TimeoutException {
+        checkNotNull(clientAddrs);
+        checkArgument((clientAddrs.size() & 0x1) != 0, "need odd number of raft servers in a raft cluster");
+
         this.registerProcessors();
 
         this.remoteServer.startLocalServer();
@@ -229,7 +233,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.tickCount.set(0);
     }
 
-    public void setLeaderId(String leaderId) {
+    private void setLeaderId(String leaderId) {
         if (!leaderId.equals(this.leaderId)) {
             this.stateLock.lock();
             try {
@@ -253,7 +257,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         return Math.max(2, this.peerNodeIds.size() / 2 + 1);
     }
 
-    public State getState() {
+    private State getState() {
         return this.state.getState();
     }
 
@@ -265,9 +269,51 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         return this.leaderId;
     }
 
-    public void appendLog(LogEntry entry) {
-        this.raftLog.append(this.getTerm(), entry);
-        this.broadcastAppendEntries();
+    public boolean appendLogOnLeader(LogEntry entry) {
+        this.stateLock.tryLock();
+        try {
+            if (this.getState() == State.LEADER) {
+                try {
+                    this.raftLog.append(this.getTerm(), entry);
+                    this.broadcastAppendEntries();
+                    return true;
+                } catch (Throwable t) {
+                    logger.error("append log failed {}", entry, t);
+                }
+            }
+        } finally {
+            this.stateLock.unlock();
+        }
+
+        return false;
+    }
+
+    public Optional<LogEntry> getEntry(int index){
+        return this.raftLog.getEntry(index);
+    }
+
+    public boolean appendLogsOnFollower(int leaderCommitId, String leaderId, List<LogEntry> entries) {
+        this.stateLock.tryLock();
+        try {
+            State state = this.getState();
+            if (state == State.FOLLOWER) {
+                try {
+                    this.setLeaderId(leaderId);
+                    raftLog.appendEntries(entries);
+                    raftLog.tryCommitTo(leaderCommitId);
+                    return true;
+                } catch (Exception ex) {
+                    logger.error("append entries failed, leaderCommitId={}, leaderId, entries",
+                            leaderCommitId, leaderId, entries, ex);
+                }
+            } else {
+                logger.error("append logs failed due to invalid state: {}", state);
+            }
+        } finally {
+            this.stateLock.unlock();
+        }
+
+        return false;
     }
 
     private void broadcastAppendEntries() {
@@ -473,13 +519,13 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         private String leaderId;
 
         RaftServerBuilder withBossGroup(EventLoopGroup group) {
-            Preconditions.checkNotNull(group);
+            checkNotNull(group);
             this.bossGroup = group;
             return this;
         }
 
         RaftServerBuilder withWorkerGroup(EventLoopGroup group) {
-            Preconditions.checkNotNull(group);
+            checkNotNull(group);
             this.workerGroup = group;
             return this;
         }
@@ -507,13 +553,13 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
 
         RaftServerBuilder withTickInterval(long tickInterval, TimeUnit unit) {
             this.tickIntervalMs = unit.toMillis(tickInterval);
-            Preconditions.checkArgument(this.tickIntervalMs >= 100,
+            checkArgument(this.tickIntervalMs >= 100,
                     "raft server tick interval should >= 100ms");
             return this;
         }
 
         RaftServerBuilder withClientReconnectDelay(long delay, TimeUnit timeUnit) {
-            Preconditions.checkArgument(delay > 0);
+            checkArgument(delay > 0);
             this.clientReconnectDelayMs = timeUnit.toMillis(delay);
             return this;
         }

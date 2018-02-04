@@ -4,6 +4,7 @@ import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.connections.NettyRemoteClient;
+import raft.server.log.RaftLog;
 import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.PendingRequest;
 import raft.server.rpc.PendingRequestCallback;

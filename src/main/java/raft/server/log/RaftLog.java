@@ -1,8 +1,7 @@
-package raft.server;
-
-import com.google.common.base.Preconditions;
+package raft.server.log;
 
 import static com.google.common.base.Preconditions.*;
+import raft.server.LogEntry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,15 +15,30 @@ public class RaftLog {
     private static final LogEntry sentinel = new LogEntry();
     private int commitIndex = 0;
     private int lastApplied = 0;
+    private int offset;
+    private Storage storage;
 
     // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
     private ArrayList<LogEntry> logs = new ArrayList<>();
 
-    RaftLog() {
+    public RaftLog(Storage storage) {
+        checkNotNull(storage);
+
+//        int firstIndex = storage.getFirstIndex();
+        int lastIndex = storage.getLastIndex();
+
+        this.offset = lastIndex + 1;
+
+        //TODO etcd set commitIndex and lastApplied to firstIndex
+        this.commitIndex = this.offset;
+        this.lastApplied = this.offset;
+
+        this.storage = storage;
+
         this.logs.add(sentinel);
     }
 
-    synchronized void append(int term, LogEntry entry) {
+    public synchronized void append(int term, LogEntry entry) {
         int lastIndex = this.lastIndex();
         entry.setIndex(lastIndex);
         entry.setTerm(term);
@@ -37,6 +51,16 @@ public class RaftLog {
 //        follow it (§5.3)
 
 //        Append any new entries not already in the log
+    }
+
+    public int getTerm(int index) {
+
+        return this.storage.getFirstIndex();
+    }
+
+    int getFirstIndex(){
+//        this.
+        return 0;
     }
 
     public synchronized Optional<LogEntry> getEntry(int index){
@@ -55,7 +79,7 @@ public class RaftLog {
         return this.logs.subList(start, Math.min(end, this.logs.size()));
     }
 
-    int lastIndex() {
+    public int lastIndex() {
         return this.logs.size() - 1;
     }
 
@@ -73,7 +97,7 @@ public class RaftLog {
     }
 
     public synchronized boolean tryCommitTo(int commitTo) {
-        Preconditions.checkArgument(commitTo <= this.lastIndex(),
+        checkArgument(commitTo <= this.lastIndex(),
                 "try commit to %s but last index in log is %s", commitTo, this.lastIndex());
         if (commitTo > this.getCommitIndex()) {
             this.commitIndex = commitTo;
