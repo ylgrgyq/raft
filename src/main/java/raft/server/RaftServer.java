@@ -17,10 +17,7 @@ import raft.server.rpc.*;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -74,7 +71,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.selfId = builder.selfId;
         this.remoteServer = new NettyRemoteServer(builder.bossGroup, builder.workerGroup, builder.port);
         this.remoteClient = new NettyRemoteClient(builder.workerGroup, builder.clientReconnectDelayMs);
-        this.raftLog = new RaftLog(null);
+        this.raftLog = new RaftLog();
         this.tickIntervalMs = builder.tickIntervalMs;
 
         this.state = follower;
@@ -143,7 +140,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
                 // reinitialize nextIndex for every peer node
                 // then send them initial empty AppendEntries RPC (heartbeat)
                 for (RaftPeerNode node : this.peerNodes.values()) {
-                    node.reset(this.raftLog.lastIndex() + 1);
+                    node.reset(this.raftLog.getLastIndex() + 1);
                     node.sendAppend(RaftServer.maxMsgSize);
                 }
                 return true;
@@ -274,7 +271,10 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         try {
             if (this.getState() == State.LEADER) {
                 try {
-                    this.raftLog.append(this.getTerm(), entry);
+                    entry.setTerm(this.getTerm());
+                    ArrayList<LogEntry> entries = new ArrayList<>();
+                    entries.add(entry);
+                    this.raftLog.append(entries);
                     this.broadcastAppendEntries();
                     return true;
                 } catch (Throwable t) {
@@ -292,15 +292,14 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         return this.raftLog.getEntry(index);
     }
 
-    public boolean appendLogsOnFollower(int leaderCommitId, String leaderId, List<LogEntry> entries) {
+    public boolean appendLogsOnFollower(int prevIndex, int prevTerm, int leaderCommitId, String leaderId, List<LogEntry> entries) {
         this.stateLock.tryLock();
         try {
             State state = this.getState();
             if (state == State.FOLLOWER) {
                 try {
                     this.setLeaderId(leaderId);
-                    raftLog.appendEntries(entries);
-                    raftLog.tryCommitTo(leaderCommitId);
+                    raftLog.tryAppendEntries(prevIndex, prevTerm, leaderCommitId, entries);
                     return true;
                 } catch (Exception ex) {
                     logger.error("append entries failed, leaderCommitId={}, leaderId, entries",
@@ -318,7 +317,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
 
     private void broadcastAppendEntries() {
         if (peerNodes.isEmpty()) {
-            this.raftLog.tryCommitTo(this.raftLog.lastIndex());
+            this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
         } else {
             for (final RaftPeerNode peer : peerNodes.values()) {
                 peer.sendAppend(RaftServer.maxMsgSize);
@@ -463,13 +462,12 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             } else {
                 final AtomicInteger votesGot = new AtomicInteger();
                 RequestVoteCommand vote = new RequestVoteCommand(candidateTerm, RaftServer.this.getId());
-                Optional<LogEntry> lastEntry = RaftServer.this.raftLog.getEntry(RaftServer.this.raftLog.lastIndex());
+                Optional<LogEntry> lastEntry = RaftServer.this.raftLog.getEntry(RaftServer.this.raftLog.getLastIndex());
                 assert lastEntry.isPresent();
 
-                lastEntry.ifPresent((e) -> {
-                    vote.setLastLogIndex(e.getIndex());
-                    vote.setLastLogTerm(e.getTerm());
-                });
+                LogEntry e = lastEntry.get();
+                vote.setLastLogIndex(e.getIndex());
+                vote.setLastLogTerm(e.getTerm());
 
                 logger.debug("start election candidateTerm={}, votesToWin={}, server={}, voteCmd={}",
                         candidateTerm, votesToWin, RaftServer.this);

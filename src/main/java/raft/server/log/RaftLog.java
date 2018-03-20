@@ -37,7 +37,12 @@ public class RaftLog {
             return this.getLastIndex();
         }
 
-        this.logs.addAll(entries);
+        int i = this.getLastIndex();
+        for (LogEntry e : entries) {
+            ++i;
+            e.setIndex(i);
+            this.logs.add(e);
+        }
 
         return this.getLastIndex();
     }
