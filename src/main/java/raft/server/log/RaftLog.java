@@ -1,66 +1,111 @@
 package raft.server.log;
 
-import static com.google.common.base.Preconditions.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import raft.server.LogEntry;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * Author: ylgrgyq
  * Date: 18/1/8
  */
 public class RaftLog {
+    private static final Logger logger = LoggerFactory.getLogger(RaftLog.class.getName());
+
     private static final LogEntry sentinel = new LogEntry();
     private int commitIndex = 0;
-    private int lastApplied = 0;
     private int offset;
-    private Storage storage;
 
     // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
-    private ArrayList<LogEntry> logs = new ArrayList<>();
+    private List<LogEntry> logs = new ArrayList<>();
 
-    public RaftLog(Storage storage) {
-        checkNotNull(storage);
+    public RaftLog() {
+        this.offset = this.getFirstIndex();
 
-//        int firstIndex = storage.getFirstIndex();
-        int lastIndex = storage.getLastIndex();
-
-        this.offset = lastIndex + 1;
-
-        //TODO etcd set commitIndex and lastApplied to firstIndex
-        this.commitIndex = this.offset;
-        this.lastApplied = this.offset;
-
-        this.storage = storage;
+        this.commitIndex = this.offset - 1;
 
         this.logs.add(sentinel);
     }
 
-    public synchronized void append(int term, LogEntry entry) {
-        int lastIndex = this.lastIndex();
-        entry.setIndex(lastIndex);
-        entry.setTerm(term);
-        this.logs.add(entry);
+    public synchronized int append(List<LogEntry> entries) {
+        if (entries.size() == 0) {
+            return this.getLastIndex();
+        }
+
+        this.logs.addAll(entries);
+
+        return this.getLastIndex();
     }
 
-    public synchronized void appendEntries(List<LogEntry> entries) {
-//        If an existing entry conflicts with a new one (same index
-//        but different terms), delete the existing entry and all that
-//        follow it (§5.3)
+    public synchronized Optional<Integer> tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
+        if (this.commitIndex > prevIndex) {
+            if (this.commitIndex >= prevIndex + entries.size()){
+                return Optional.of(this.commitIndex);
+            } else {
+                int from = commitIndex - prevIndex;
+                entries = entries.subList(from, entries.size());
+                prevIndex = commitIndex;
+                prevTerm = entries.get(from - 1).getTerm();
+            }
+        }
 
-//        Append any new entries not already in the log
+        if (this.match(prevTerm, prevIndex)) {
+            int conflictIndex = this.searchConflict(entries);
+            if (conflictIndex != 0) {
+                assert conflictIndex > this.commitIndex;
+
+                for (LogEntry e : entries.subList(conflictIndex - prevIndex - 1, entries.size())) {
+                    int index = e.getIndex() - this.offset;
+                    this.logs.set(index, e);
+                }
+                int lastIndex = prevIndex + entries.size();
+                this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex));
+                return Optional.of(lastIndex);
+            }
+        }
+
+        return Optional.empty();
     }
 
-    public int getTerm(int index) {
+    private int searchConflict(List<LogEntry> entries) {
+        for (LogEntry entry : entries) {
+            if (! this.match(entry.getTerm(), entry.getIndex())) {
+                if (entry.getIndex() <= this.getLastIndex()) {
+                    logger.warn("found conflict entry at index %s, existing term: %s, conflicting term: %s",
+                            entry.getIndex(), this.getTerm(entry.getIndex()), entry.getTerm());
+                }
+                return entry.getIndex();
+            }
+        }
 
-        return this.storage.getFirstIndex();
-    }
-
-    int getFirstIndex(){
-//        this.
         return 0;
+    }
+
+    private boolean match(int term, int index) {
+        Optional<Integer> storedTerm = this.getTerm(index);
+
+        return storedTerm.isPresent() && term == storedTerm.get();
+    }
+
+    public Optional<Integer> getTerm(int index) {
+        if (index < this.getFirstIndex() - 1 || index > this.getLastIndex()) {
+            return Optional.empty();
+        }
+
+        if (index > this.offset) {
+            return Optional.of(this.logs.get(index - this.offset).getTerm());
+        }
+
+        return Optional.empty();
+    }
+
+    private int getFirstIndex(){
+        return this.logs.get(0).getIndex();
     }
 
     public synchronized Optional<LogEntry> getEntry(int index){
@@ -79,12 +124,12 @@ public class RaftLog {
         return this.logs.subList(start, Math.min(end, this.logs.size()));
     }
 
-    public int lastIndex() {
+    public int getLastIndex() {
         return this.logs.size() - 1;
     }
 
     public synchronized boolean isUpToDate(int term, int index) {
-        LogEntry lastEntryOnServer = this.getEntry(this.lastIndex()).orElse(null);
+        LogEntry lastEntryOnServer = this.getEntry(this.getLastIndex()).orElse(null);
         assert lastEntryOnServer != null;
 
         return term > lastEntryOnServer.getTerm() ||
@@ -97,8 +142,8 @@ public class RaftLog {
     }
 
     public synchronized boolean tryCommitTo(int commitTo) {
-        checkArgument(commitTo <= this.lastIndex(),
-                "try commit to %s but last index in log is %s", commitTo, this.lastIndex());
+        checkArgument(commitTo <= this.getLastIndex(),
+                "try commit to %s but last index in log is %s", commitTo, this.getLastIndex());
         if (commitTo > this.getCommitIndex()) {
             this.commitIndex = commitTo;
             return true;
