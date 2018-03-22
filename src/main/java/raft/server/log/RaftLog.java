@@ -16,8 +16,8 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class RaftLog {
     private static final Logger logger = LoggerFactory.getLogger(RaftLog.class.getName());
+    static final LogEntry sentinel = new LogEntry();
 
-    private static final LogEntry sentinel = new LogEntry();
     private int commitIndex = 0;
     private int offset;
 
@@ -25,11 +25,52 @@ public class RaftLog {
     private List<LogEntry> logs = new ArrayList<>();
 
     public RaftLog() {
-        this.offset = this.getFirstIndex();
-
-        this.commitIndex = this.offset - 1;
-
         this.logs.add(sentinel);
+        this.offset = this.getFirstIndex();
+        this.commitIndex = this.offset - 1;
+    }
+
+    public int getLastIndex() {
+        return this.offset + this.logs.size() - 1;
+    }
+
+    public Optional<Integer> getTerm(int index) {
+        if (index < this.offset || index > this.getLastIndex()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(this.logs.get(index - this.offset).getTerm());
+    }
+
+    private int getFirstIndex(){
+        return this.logs.get(0).getIndex();
+    }
+
+    synchronized int truncate() {
+        Optional<LogEntry> lastEntryOpt = this.getEntry(this.getLastIndex());
+        assert lastEntryOpt.isPresent();
+        this.logs = new ArrayList<>();
+        this.logs.add(lastEntryOpt.get());
+        this.offset = this.getFirstIndex();
+        return this.getLastIndex();
+    }
+
+    public synchronized Optional<LogEntry> getEntry(int index){
+        List<LogEntry> entries = getEntries(index, index + 1);
+
+        if (entries.isEmpty()) {
+            return Optional.empty();
+        } else {
+            return Optional.of(entries.get(0));
+        }
+    }
+
+    public synchronized List<LogEntry> getEntries(int start, int end) {
+        checkArgument(start >= this.offset && start < end, "invalid start and end: %d %d", start, end);
+
+        start = start - this.offset;
+        end = end - this.offset;
+        return this.logs.subList(start, Math.min(end, this.logs.size()));
     }
 
     public synchronized int append(List<LogEntry> entries) {
@@ -97,46 +138,11 @@ public class RaftLog {
         return storedTerm.isPresent() && term == storedTerm.get();
     }
 
-    public Optional<Integer> getTerm(int index) {
-        if (index < this.getFirstIndex() - 1 || index > this.getLastIndex()) {
-            return Optional.empty();
-        }
-
-        if (index > this.offset) {
-            return Optional.of(this.logs.get(index - this.offset).getTerm());
-        }
-
-        return Optional.empty();
-    }
-
-    private int getFirstIndex(){
-        return this.logs.get(0).getIndex();
-    }
-
-    public synchronized Optional<LogEntry> getEntry(int index){
-        List<LogEntry> entries = getEntries(index, index + 1);
-
-        if (entries.isEmpty()) {
-            return Optional.empty();
-        } else {
-            return Optional.of(entries.get(0));
-        }
-    }
-
-    public synchronized List<LogEntry> getEntries(int start, int end) {
-        checkArgument(start >= 0 && end >= 1 && start < end, "invalid start and end: %d %d", start, end);
-
-        return this.logs.subList(start, Math.min(end, this.logs.size()));
-    }
-
-    public int getLastIndex() {
-        return this.logs.size() - 1;
-    }
-
     public synchronized boolean isUpToDate(int term, int index) {
-        LogEntry lastEntryOnServer = this.getEntry(this.getLastIndex()).orElse(null);
-        assert lastEntryOnServer != null;
+        Optional<LogEntry> lastEntryOnServerOpt = this.getEntry(this.getLastIndex());
+        assert lastEntryOnServerOpt.isPresent();
 
+        LogEntry lastEntryOnServer = lastEntryOnServerOpt.get();
         return term > lastEntryOnServer.getTerm() ||
                 (term == lastEntryOnServer.getTerm() &&
                         index >= lastEntryOnServer.getIndex());
