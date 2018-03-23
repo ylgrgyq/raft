@@ -110,8 +110,11 @@ public class RaftLog {
                     this.logs.set(index, e);
                 }
                 int lastIndex = prevIndex + entries.size();
-                this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex));
-                return Optional.of(lastIndex);
+                if (! this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex))){
+                    logger.warn("try commit to %s failed with current commitIndex: %s and lastIndex: %s",
+                            Math.min(leaderCommitIndex, lastIndex), this.commitIndex, this.getLastIndex());
+                }
+                return Optional.of(this.commitIndex);
             }
         }
 

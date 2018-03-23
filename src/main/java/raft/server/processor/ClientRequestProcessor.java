@@ -2,6 +2,7 @@ package raft.server.processor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.Pair;
 import raft.server.LogEntry;
 import raft.server.RaftServer;
 import raft.server.State;
@@ -28,9 +29,9 @@ public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand>
     protected RemotingCommand doProcess(RaftClientCommand req) {
         logger.debug("receive client command, request={}, server={}", req, this.getServer());
         RaftClientCommand res = new RaftClientCommand();
-        res.setLeaderId(this.getServer().getLeaderId());
-        boolean success = this.getServer().appendLogOnLeader(req.getEntry());
-        res.setSuccess(success);
+        Pair<Boolean, String> ret = this.getServer().appendFromClient(req.getEntry());
+        res.setSuccess(ret.getLeft());
+        res.setLeaderId(ret.getRight());
 
         logger.debug("respond client command, response={}, server={}", res, this.getServer());
         return RemotingCommand.createResponseCommand(res);

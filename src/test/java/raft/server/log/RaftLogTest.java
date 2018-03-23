@@ -102,4 +102,9 @@ public class RaftLogTest {
             assertEquals(moreEntries.get(i), currentEntries.get(i + 1));
         }
     }
+
+    @Test
+    public void testTryAppendEntries() throws Exception {
+
+    }
 }

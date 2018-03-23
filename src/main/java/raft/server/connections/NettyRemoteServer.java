@@ -36,7 +36,7 @@ public class NettyRemoteServer {
     }
 
     public void registerProcessor(CommandCode code, Processor processor, ExecutorService service) {
-        this.processorTable.put(code, new Pair<>(processor, service));
+        this.processorTable.put(code, Pair.of(processor, service));
     }
 
     public ChannelFuture startLocalServer() throws InterruptedException {

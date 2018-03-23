@@ -5,6 +5,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.Pair;
 import raft.ThreadFactoryImpl;
 import raft.server.connections.NettyRemoteClient;
 import raft.server.connections.NettyRemoteServer;
@@ -262,11 +263,11 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         return this.raftLog;
     }
 
-    public String getLeaderId() {
+    private String getLeaderId() {
         return this.leaderId;
     }
 
-    public boolean appendLogOnLeader(LogEntry entry) {
+    private boolean appendLogOnLeader(LogEntry entry) {
         this.stateLock.tryLock();
         try {
             if (this.getState() == State.LEADER) {
@@ -286,6 +287,14 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         }
 
         return false;
+    }
+
+    public Pair<Boolean, String> appendFromClient(LogEntry entry) {
+        if (this.getState() == State.LEADER) {
+            return Pair.of(this.appendLogOnLeader(entry), this.getLeaderId());
+        } else {
+            return Pair.of(false, this.getLeaderId());
+        }
     }
 
     public Optional<LogEntry> getEntry(int index){
