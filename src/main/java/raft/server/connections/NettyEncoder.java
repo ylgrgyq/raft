@@ -26,7 +26,7 @@ public class NettyEncoder extends MessageToByteEncoder<RemotingCommand> {
             out.writeInt(len);
             out.writeBytes(buf);
         } catch (Exception e) {
-            logger.error("encode exception from {}", Util.parseChannelRemoteAddr(ctx.channel()), e);
+            logger.error("encode exception from {}", Util.parseChannelRemoteAddrToString(ctx.channel()), e);
 
             Util.closeChannel(ctx.channel());
         }

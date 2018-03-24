@@ -1,19 +1,21 @@
 package raft.server.processor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import raft.Pair;
 import raft.server.LogEntry;
 import raft.server.RaftServer;
 import raft.server.State;
 import raft.server.rpc.RaftClientCommand;
 import raft.server.rpc.RemotingCommand;
 
-import java.util.Collections;
-import java.util.List;
-
 /**
  * Author: ylgrgyq
  * Date: 17/12/26
  */
 public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand> {
+    private static final Logger logger = LoggerFactory.getLogger(ClientRequestProcessor.class.getName());
+
     public ClientRequestProcessor(RaftServer server) {
         super(server);
     }
@@ -24,19 +26,14 @@ public class ClientRequestProcessor extends AbstractProcessor<RaftClientCommand>
     }
 
     @Override
-    protected RemotingCommand doProcess(RaftClientCommand cmd) {
+    protected RemotingCommand doProcess(RaftClientCommand req) {
+        logger.debug("receive client command, request={}, server={}", req, this.getServer());
         RaftClientCommand res = new RaftClientCommand();
-        res.setLeaderId(this.getServer().getLeaderId());
-        if (this.getServer().getState() == State.LEADER) {
-            LogEntry body = cmd.getEntry();
-            // TODO Handle append log failed
-            this.getServer().appendLog(body);
+        Pair<Boolean, String> ret = this.getServer().appendFromClient(req.getEntry());
+        res.setSuccess(ret.getLeft());
+        res.setLeaderId(ret.getRight());
 
-            res.setSuccess(true);
-        } else {
-            res.setSuccess(false);
-        }
-
+        logger.debug("respond client command, response={}, server={}", res, this.getServer());
         return RemotingCommand.createResponseCommand(res);
     }
 }

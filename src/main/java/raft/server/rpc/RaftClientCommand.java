@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
  * Date: 17/12/26
  */
 public class RaftClientCommand extends RaftCommand {
+    // Todo support multi log entries in one RaftClientCommand
     private LogEntry entry = LogEntry.emptyEntry;
     private String leaderId = "";
     private boolean success = false;
@@ -20,7 +21,7 @@ public class RaftClientCommand extends RaftCommand {
     }
 
     public RaftClientCommand() {
-        super(CommandCode.REQUEST_VOTE);
+        super(CommandCode.CLIENT_REQUEST);
     }
 
     @Override

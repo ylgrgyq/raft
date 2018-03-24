@@ -2,7 +2,7 @@ package raft.server.processor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.RaftLog;
+import raft.server.log.RaftLog;
 import raft.server.RaftServer;
 import raft.server.rpc.RemotingCommand;
 import raft.server.rpc.RequestVoteCommand;
@@ -25,7 +25,7 @@ public class RequestVoteProcessor extends AbstractServerCmdProcessor<RequestVote
 
     @Override
     protected RemotingCommand process0(RequestVoteCommand vote) {
-        logger.debug("receive request vote command, cmd={}, server={}", vote, this.getServer());
+        logger.debug("receive request vote command, request={}, server={}", vote, this.getServer());
         final int termInVote = vote.getTerm();
         final RaftServer server = this.getServer();
         final int termInServer = server.getTerm();

@@ -8,8 +8,8 @@ import java.nio.charset.StandardCharsets;
  * Date: 17/11/22
  */
 public class RequestVoteCommand extends RaftServerCommand {
-    private int lastLogIndex = -1;
-    private int lastLogTerm = -1;
+    private int lastLogIndex = 0;
+    private int lastLogTerm = 0;
     private boolean voteGranted = false;
 
     public RequestVoteCommand(byte[] body){

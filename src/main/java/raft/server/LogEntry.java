@@ -1,6 +1,7 @@
 package raft.server;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Base64;
 
 /**
@@ -66,6 +67,26 @@ public class LogEntry {
 
     public int getSize() {
         return Integer.BYTES + Integer.BYTES + Integer.BYTES + data.length;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof LogEntry)) return false;
+
+        LogEntry entry = (LogEntry) o;
+
+        if (getIndex() != entry.getIndex()) return false;
+        if (getTerm() != entry.getTerm()) return false;
+        return Arrays.equals(getData(), entry.getData());
+    }
+
+    @Override
+    public int hashCode() {
+        int result = getIndex();
+        result = 31 * result + getTerm();
+        result = 31 * result + Arrays.hashCode(getData());
+        return result;
     }
 
     @Override

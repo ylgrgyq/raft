@@ -6,6 +6,8 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -13,7 +15,6 @@ import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 /**
@@ -21,6 +22,8 @@ import java.util.stream.Collectors;
  * Date: 17/11/29
  */
 public class RaftServerStartup {
+    private static final Logger logger = LoggerFactory.getLogger(RaftServerStartup.class.getName());
+
     public static void main(String[] args) throws Exception {
         Options options = new Options();
         options.addOption("p", "port", true, "server port");
@@ -48,13 +51,13 @@ public class RaftServerStartup {
             }
         }
 
-        List<InetSocketAddress> clientAddrs = Arrays.stream(prop.getProperty("client.addrs")
+        List<String> clientAddrs = Arrays.stream(prop.getProperty("client.addrs")
                 .split(","))
                 .map(addrs -> addrs.split(":"))
                 .filter(addrs -> !("" + serverPort).equals(addrs[1]))
                 .map(addrs -> {
                     int p = Integer.parseInt(addrs[1]);
-                    return new InetSocketAddress(addrs[0], p);
+                    return addrs[0] + ":" + p;
                 }).collect(Collectors.toList());
 
         RaftServer.RaftServerBuilder serverBuilder = new RaftServer.RaftServerBuilder();
@@ -65,14 +68,18 @@ public class RaftServerStartup {
         serverBuilder.withWorkerGroup(workerGroup);
         serverBuilder.withServerPort(serverPort);
 
-        if (cmd.hasOption("state")) {
-            serverBuilder.withRole(cmd.getOptionValue("state"));
+        if (cmd.hasOption("leader")) {
+            serverBuilder.withLeaderState();
         }
 
         RaftServer server = serverBuilder.build();
 
-        server.start(clientAddrs);
-
-        Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
+        try {
+            server.start(clientAddrs);
+            Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
+        } catch (Exception ex) {
+            logger.error("start raft server failed", ex);
+            server.shutdown();
+        }
     }
 }
