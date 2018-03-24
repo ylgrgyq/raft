@@ -263,7 +263,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         return this.raftLog;
     }
 
-    private String getLeaderId() {
+    public String getLeaderId() {
         return this.leaderId;
     }
 
@@ -308,8 +308,7 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             if (state == State.FOLLOWER) {
                 try {
                     this.setLeaderId(leaderId);
-                    raftLog.tryAppendEntries(prevIndex, prevTerm, leaderCommitId, entries);
-                    return true;
+                    return raftLog.tryAppendEntries(prevIndex, prevTerm, leaderCommitId, entries);
                 } catch (Exception ex) {
                     logger.error("append entries failed, leaderCommitId={}, leaderId, entries",
                             leaderCommitId, leaderId, entries, ex);

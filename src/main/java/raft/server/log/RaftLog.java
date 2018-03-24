@@ -42,20 +42,26 @@ public class RaftLog {
         return Optional.of(this.logs.get(index - this.offset).getTerm());
     }
 
-    private int getFirstIndex(){
+    private int getFirstIndex() {
         return this.logs.get(0).getIndex();
     }
 
-    synchronized int truncate() {
-        Optional<LogEntry> lastEntryOpt = this.getEntry(this.getLastIndex());
-        assert lastEntryOpt.isPresent();
+    synchronized int truncate(int fromIndex) {
+        checkArgument(fromIndex >= this.offset && fromIndex <= this.getCommitIndex(),
+                "invalid truncate from: %s, current offset: %s, current commit index: %s",
+                fromIndex, this.offset, this.getCommitIndex());
+
+        logger.info("try truncating logs from {}, offset: {}, commitIndex: {}", fromIndex, this.offset, this.commitIndex);
+
+        List<LogEntry> remainLogs = this.getEntries(fromIndex, this.getLastIndex() + 1);
         this.logs = new ArrayList<>();
-        this.logs.add(lastEntryOpt.get());
+        this.logs.addAll(remainLogs);
+        assert !logs.isEmpty();
         this.offset = this.getFirstIndex();
         return this.getLastIndex();
     }
 
-    public synchronized Optional<LogEntry> getEntry(int index){
+    public synchronized Optional<LogEntry> getEntry(int index) {
         List<LogEntry> entries = getEntries(index, index + 1);
 
         if (entries.isEmpty()) {
@@ -66,11 +72,11 @@ public class RaftLog {
     }
 
     public synchronized List<LogEntry> getEntries(int start, int end) {
-        checkArgument(start >= this.offset && start < end, "invalid start and end: %d %d", start, end);
+        checkArgument(start >= this.offset && start < end, "invalid start and end: %s %s", start, end);
 
         start = start - this.offset;
         end = end - this.offset;
-        return this.logs.subList(start, Math.min(end, this.logs.size()));
+        return new ArrayList<>(this.logs.subList(start, Math.min(end, this.logs.size())));
     }
 
     public synchronized int append(List<LogEntry> entries) {
@@ -88,44 +94,58 @@ public class RaftLog {
         return this.getLastIndex();
     }
 
-    public synchronized Optional<Integer> tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
-        if (this.commitIndex > prevIndex) {
-            if (this.commitIndex >= prevIndex + entries.size()){
-                return Optional.of(this.commitIndex);
-            } else {
-                int from = commitIndex - prevIndex;
-                entries = entries.subList(from, entries.size());
-                prevIndex = commitIndex;
-                prevTerm = entries.get(from - 1).getTerm();
-            }
+    public synchronized boolean tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
+        checkArgument(!entries.isEmpty(),
+                "try append empty entries with prevIndex: %s, prevTerm: %s, leaderCommitIndex: %s",
+                prevIndex, prevTerm, leaderCommitIndex);
+
+        if (prevIndex < this.offset) {
+            logger.warn("try append entries with truncated prevIndex: {}. " +
+                            "prevTerm: {}, leaderCommitIndex: {}, current offset: {}",
+                    prevIndex, prevTerm, leaderCommitIndex, this.offset);
+            return false;
+        } else if (prevIndex > this.getLastIndex()) {
+            logger.warn("try append entries with out of range prevIndex: {}. " +
+                            "prevTerm: {}, leaderCommitIndex: {}, current lastIndex: {}",
+                    prevIndex, prevTerm, leaderCommitIndex, this.getLastIndex());
+            return false;
         }
 
         if (this.match(prevTerm, prevIndex)) {
             int conflictIndex = this.searchConflict(entries);
             if (conflictIndex != 0) {
-                assert conflictIndex > this.commitIndex;
+                if (conflictIndex <= this.commitIndex) {
+                    logger.error("try append entries conflict with committed entry on index: {}, " +
+                                    "new entry: {}, committed entry: {}",
+                            conflictIndex, entries.get(conflictIndex - prevIndex - 1), this.getEntry(conflictIndex));
+                    throw new RuntimeException();
+                }
 
                 for (LogEntry e : entries.subList(conflictIndex - prevIndex - 1, entries.size())) {
                     int index = e.getIndex() - this.offset;
-                    this.logs.set(index, e);
+                    if (index >= this.logs.size()) {
+                        this.logs.add(e);
+                    } else {
+                        this.logs.set(index, e);
+                    }
                 }
                 int lastIndex = prevIndex + entries.size();
-                if (! this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex))){
-                    logger.warn("try commit to %s failed with current commitIndex: %s and lastIndex: %s",
+                if (!this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex))) {
+                    logger.warn("try commit to {} failed with current commitIndex: {} and lastIndex: {}",
                             Math.min(leaderCommitIndex, lastIndex), this.commitIndex, this.getLastIndex());
                 }
-                return Optional.of(this.commitIndex);
             }
+            return true;
         }
 
-        return Optional.empty();
+        return false;
     }
 
     private int searchConflict(List<LogEntry> entries) {
         for (LogEntry entry : entries) {
-            if (! this.match(entry.getTerm(), entry.getIndex())) {
+            if (!this.match(entry.getTerm(), entry.getIndex())) {
                 if (entry.getIndex() <= this.getLastIndex()) {
-                    logger.warn("found conflict entry at index %s, existing term: %s, conflicting term: %s",
+                    logger.warn("found conflict entry at index {}, existing term: {}, conflicting term: {}",
                             entry.getIndex(), this.getTerm(entry.getIndex()), entry.getTerm());
                 }
                 return entry.getIndex();

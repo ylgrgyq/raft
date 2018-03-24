@@ -36,14 +36,8 @@ public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEnt
         response.setSuccess(false);
 
         if (termInEntry >= termInServer) {
-            Optional<LogEntry> prevLogEntryOpt = server.getEntry(req.getPrevLogIndex());
-            if (prevLogEntryOpt.isPresent()) {
-                LogEntry prevEntry = prevLogEntryOpt.get();
-                if (prevEntry.getTerm() == req.getPrevLogTerm()) {
-                    boolean success = server.appendLogsOnFollower(req.getPrevLogIndex(), req.getPrevLogTerm(), req.getLeaderCommit(), req.getFrom(), req.getEntries());
-                    response.setSuccess(success);
-                }
-            }
+            boolean success = server.appendLogsOnFollower(req.getPrevLogIndex(), req.getPrevLogTerm(), req.getLeaderCommit(), req.getFrom(), req.getEntries());
+            response.setSuccess(success);
         }
 
         logger.debug("respond append entries command, response={}, server={}", response, this.getServer());
