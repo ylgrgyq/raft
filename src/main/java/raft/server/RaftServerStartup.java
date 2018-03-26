@@ -28,7 +28,6 @@ public class RaftServerStartup {
         Options options = new Options();
         options.addOption("p", "port", true, "server port");
         options.addOption("c", "config-file", true, "config properties file path");
-        options.addOption("s", "state", true, "raft server state");
 
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = parser.parse(options, args);
@@ -67,10 +66,6 @@ public class RaftServerStartup {
         serverBuilder.withBossGroup(bossGroup);
         serverBuilder.withWorkerGroup(workerGroup);
         serverBuilder.withServerPort(serverPort);
-
-        if (cmd.hasOption("leader")) {
-            serverBuilder.withLeaderState();
-        }
 
         RaftServer server = serverBuilder.build();
 

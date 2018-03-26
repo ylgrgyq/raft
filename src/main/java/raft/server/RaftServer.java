@@ -74,30 +74,15 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.remoteClient = new NettyRemoteClient(builder.workerGroup, builder.clientReconnectDelayMs);
         this.raftLog = new RaftLog();
         this.tickIntervalMs = builder.tickIntervalMs;
+        this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
 
         this.state = follower;
-        if (builder.state != null) {
-            switch (builder.state) {
-                case CANDIDATE:
-                    this.state = candidate;
-                    break;
-                case FOLLOWER:
-                    this.state = follower;
-                    this.leaderId = builder.leaderId;
-                    break;
-                case LEADER:
-                    this.state = leader;
-                    this.leaderId = this.selfId;
-                    break;
-            }
-        }
         this.reset();
     }
 
     private void reset() {
         this.voteFor = null;
         this.tickCount.set(0);
-        this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
     }
 
     private void transitState(RaftState nextState) {
@@ -295,10 +280,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         } else {
             return Pair.of(false, this.getLeaderId());
         }
-    }
-
-    public Optional<LogEntry> getEntry(int index){
-        return this.raftLog.getEntry(index);
     }
 
     public boolean appendLogsOnFollower(int prevIndex, int prevTerm, int leaderCommitId, String leaderId, List<LogEntry> entries) {
@@ -520,7 +501,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         private EventLoopGroup bossGroup;
         private EventLoopGroup workerGroup;
         private int port;
-        private State state;
         private String selfId;
         private String leaderId;
 
@@ -538,22 +518,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
 
         RaftServerBuilder withServerPort(int port) {
             this.port = port;
-            return this;
-        }
-
-        RaftServerBuilder withLeaderState() {
-            this.state = State.LEADER;
-            return this;
-        }
-
-        RaftServerBuilder withFollowerState(String leaderId) {
-            this.state = State.FOLLOWER;
-            this.leaderId = leaderId;
-            return this;
-        }
-
-        RaftServerBuilder withCandidateState() {
-            this.state = State.CANDIDATE;
             return this;
         }
 
