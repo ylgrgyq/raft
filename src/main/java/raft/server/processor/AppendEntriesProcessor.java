@@ -2,12 +2,9 @@ package raft.server.processor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.LogEntry;
 import raft.server.RaftServer;
 import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.RemotingCommand;
-
-import java.util.Optional;
 
 /**
  * Author: ylgrgyq
@@ -36,7 +33,7 @@ public class AppendEntriesProcessor extends AbstractServerCmdProcessor<AppendEnt
         response.setSuccess(false);
 
         if (termInEntry >= termInServer) {
-            boolean success = server.appendLogsOnFollower(req.getPrevLogIndex(), req.getPrevLogTerm(), req.getLeaderCommit(), req.getFrom(), req.getEntries());
+            boolean success = server.replicateLogsOnFollower(req.getPrevLogIndex(), req.getPrevLogTerm(), req.getLeaderCommit(), req.getFrom(), req.getEntries());
             response.setSuccess(success);
         }
 

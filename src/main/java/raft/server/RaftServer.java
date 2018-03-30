@@ -80,6 +80,10 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         this.reset();
     }
 
+    public static RaftServerBuilder builder(){
+        return new RaftServerBuilder();
+    }
+
     private void reset() {
         this.voteFor = null;
         this.tickCount.set(0);
@@ -227,6 +231,10 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         }
     }
 
+    public boolean isLeader(){
+        return this.getState() == State.LEADER;
+    }
+
     private long generateElectionTimeoutTicks() {
         return RaftServer.suggestElectionTimeoutTicks +
                 ThreadLocalRandom.current().nextLong(RaftServer.suggestElectionTimeoutTicks);
@@ -274,15 +282,16 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         return false;
     }
 
-    public Pair<Boolean, String> appendFromClient(LogEntry entry) {
+    public AppendResponse appendFromClient(LogEntry entry) {
+        String leaderId = this.getLeaderId();
         if (this.getState() == State.LEADER) {
-            return Pair.of(this.appendLogOnLeader(entry), this.getLeaderId());
+            return new AppendResponse(leaderId, this.appendLogOnLeader(entry));
         } else {
-            return Pair.of(false, this.getLeaderId());
+            return new AppendResponse(leaderId, false);
         }
     }
 
-    public boolean appendLogsOnFollower(int prevIndex, int prevTerm, int leaderCommitId, String leaderId, List<LogEntry> entries) {
+    public boolean replicateLogsOnFollower(int prevIndex, int prevTerm, int leaderCommitId, String leaderId, List<LogEntry> entries) {
         this.stateLock.tryLock();
         try {
             State state = this.getState();
