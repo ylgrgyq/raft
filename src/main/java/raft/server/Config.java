@@ -11,8 +11,12 @@ public class Config {
     String selfId;
 
     long tickIntervalMs;
+    long pingIntervalTicks;
+    long suggestElectionTimeoutTicks;
 
     List<String> peers = Collections.emptyList();
 
     StateMachine stateMachine;
+
+    int maxMsgSize;
 }

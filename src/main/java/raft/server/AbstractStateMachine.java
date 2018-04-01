@@ -25,6 +25,6 @@ public abstract class AbstractStateMachine implements StateMachine{
 
     @Override
     public void onReceiveCommand(RaftCommand cmd) {
-
+        raftServer.processReceivedCommand(cmd);
     }
 }
