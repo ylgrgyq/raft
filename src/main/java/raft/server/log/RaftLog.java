@@ -5,9 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -20,6 +18,7 @@ public class RaftLog {
     static final LogEntry sentinel = LogEntry.newBuilder().setTerm(0).setIndex(0).setData(ByteString.EMPTY).build();
 
     private int commitIndex = 0;
+    private int appliedIndex = 0;
     private int offset;
 
     // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
@@ -28,7 +27,8 @@ public class RaftLog {
     public RaftLog() {
         this.logs.add(sentinel);
         this.offset = this.getFirstIndex();
-        this.commitIndex = this.offset - 1;
+        this.commitIndex = this.offset;
+        this.appliedIndex = this.offset;
     }
 
     public int getLastIndex() {
@@ -135,7 +135,7 @@ public class RaftLog {
                     }
                 }
                 int lastIndex = prevIndex + entries.size();
-                if (!this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex))) {
+                if (this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex)).isEmpty()) {
                     logger.warn("try commit to {} failed with current commitIndex: {} and lastIndex: {}",
                             Math.min(leaderCommitIndex, lastIndex), this.commitIndex, this.getLastIndex());
                 }
@@ -177,17 +177,32 @@ public class RaftLog {
     }
 
     public int getCommitIndex() {
-        return commitIndex;
+        return this.commitIndex;
     }
 
-    public synchronized boolean tryCommitTo(int commitTo) {
+    public int getAppliedIndex() {
+        return this.appliedIndex;
+    }
+
+    public synchronized List<LogEntry> tryCommitTo(int commitTo) {
         checkArgument(commitTo <= this.getLastIndex(),
                 "try commit to %s but last index in log is %s", commitTo, this.getLastIndex());
         if (commitTo > this.getCommitIndex()) {
             this.commitIndex = commitTo;
-            return true;
+            return this.getEntries(this.appliedIndex + 1, this.getCommitIndex() + 1);
         }
 
-        return false;
+        return Collections.emptyList();
+    }
+
+    public synchronized void appliedTo(int appliedTo) {
+        int commitIndex = this.commitIndex;
+        int appliedIndex = this.appliedIndex;
+        checkArgument(appliedTo <= this.commitIndex,
+                "try applied log to %s but commit index in log is %s", appliedTo, commitIndex);
+        checkArgument(appliedTo >= appliedIndex,
+                "try applied log to %s but applied index in log is %s", appliedTo, appliedIndex);
+
+        this.appliedIndex = appliedTo;
     }
 }

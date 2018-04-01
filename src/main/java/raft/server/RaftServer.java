@@ -16,9 +16,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-
 /**
  * Author: ylgrgyq
  * Date: 17/11/21
@@ -58,18 +55,20 @@ public class RaftServer {
     private long electionTimeoutTicks;
     private StateMachine stateMachine;
 
-    public RaftServer(Config c) {
+    public RaftServer(Config c, StateMachine stateMachine) {
         this.term = new AtomicInteger(0);
         this.selfId = c.selfId;
         this.raftLog = new RaftLog();
         this.tickIntervalMs = c.tickIntervalMs;
-        this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
-        this.stateMachine = c.stateMachine;
-        this.maxMsgSize = c.maxMsgSize;
-        this.pingIntervalTicks = c.pingIntervalTicks;
         this.suggestElectionTimeoutTicks = c.suggestElectionTimeoutTicks;
+        this.pingIntervalTicks = c.pingIntervalTicks;
+        this.stateMachine = stateMachine;
+        this.maxMsgSize = c.maxMsgSize;
 
+        this.peerNodeIds = Collections.unmodifiableList(c.peers);
         this.state = follower;
+
+        this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
         this.reset();
     }
 
@@ -89,7 +88,7 @@ public class RaftServer {
         }
     }
 
-    public boolean tryBecomeFollower(int term, String leaderId) {
+    private boolean tryBecomeFollower(int term, String leaderId) {
         this.stateLock.lock();
         try {
             if (term > this.term.get()) {
@@ -131,12 +130,7 @@ public class RaftServer {
         }
     }
 
-    void start(List<String> clientAddrs) throws InterruptedException, ExecutionException, TimeoutException {
-        checkNotNull(clientAddrs);
-        checkArgument((clientAddrs.size() & 0x1) != 0, "need odd number of raft servers in a raft cluster");
-
-        this.peerNodeIds = Collections.unmodifiableList(clientAddrs);
-
+    void start() {
         this.state.start();
 
         this.tickGenerator.scheduleWithFixedDelay(() -> {
@@ -164,19 +158,6 @@ public class RaftServer {
 
     public int getTerm() {
         return this.term.get();
-    }
-
-    public String getId() {
-        return this.selfId;
-    }
-
-    public String getVotedFor() {
-        this.stateLock.lock();
-        try {
-            return votedFor;
-        } finally {
-            this.stateLock.unlock();
-        }
     }
 
     public void setVotedFor(String votedFor) {
@@ -217,19 +198,32 @@ public class RaftServer {
     }
 
     private int getQuorum() {
-        return Math.max(2, this.peerNodeIds.size() / 2 + 1);
+        return this.peerNodeIds.size() / 2 + 1;
     }
 
     private State getState() {
         return this.state.getState();
     }
 
-    public RaftLog getRaftLog() {
-        return this.raftLog;
-    }
-
     public String getLeaderId() {
         return this.leaderId;
+    }
+
+    public RaftStatus getStatus() {
+        RaftStatus status = new RaftStatus();
+        status.setTerm(this.getTerm());
+        status.setCommitIndex(this.raftLog.getCommitIndex());
+        status.setAppliedIndex(this.raftLog.getAppliedIndex());
+        status.setId(this.selfId);
+        status.setLeaderId(this.leaderId);
+        status.setVotedFor(this.votedFor);
+        status.setState(this.getState());
+
+        return status;
+    }
+
+    void appliedTo(int appliedTo) {
+        this.raftLog.appliedTo(appliedTo);
     }
 
     ProposeResponse propose(List<byte[]> entries) {
@@ -283,7 +277,8 @@ public class RaftServer {
 
     private void broadcastAppendEntries() {
         if (peerNodes.isEmpty()) {
-            this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
+            List<LogEntry> appliedLogs = this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
+            stateMachine.onProposalApplied(appliedLogs);
         } else {
             for (final RaftPeerNode peer : peerNodes.values()) {
                 if (!peer.getPeerId().equals(this.selfId)) {
@@ -300,11 +295,12 @@ public class RaftServer {
                 .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
         int kthMatchedIndexes = matchedIndexes.get(k);
         Optional<LogEntry> kthLog = this.raftLog.getEntry(kthMatchedIndexes);
-        kthLog.ifPresent(e -> {
+        if (kthLog.isPresent()) {
+            LogEntry e = kthLog.get();
             if (e.getTerm() == this.getTerm()) {
                 this.raftLog.tryCommitTo(kthMatchedIndexes);
             }
-        });
+        }
     }
 
     void processReceivedCommand(RaftCommand cmd) {
@@ -483,7 +479,7 @@ public class RaftServer {
                     if (!node.getPeerId().equals(RaftServer.this.selfId)) {
                         RaftCommand vote = RaftCommand.newBuilder()
                                 .setTerm(candidateTerm)
-                                .setFrom(RaftServer.this.getId())
+                                .setFrom(RaftServer.this.selfId)
                                 .setLastLogIndex(e.getIndex())
                                 .setLastLogTerm(e.getTerm())
                                 .setTo(node.getPeerId())

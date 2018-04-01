@@ -1,108 +1,90 @@
 package raft.server;
 
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import raft.server.connections.NettyRemoteClient;
-import raft.server.rpc.PendingRequest;
-import raft.server.rpc.RemotingCommand;
+import raft.server.proto.LogEntry;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+
+import static org.junit.Assert.*;
 
 /**
  * Author: ylgrgyq
  * Date: 18/1/24
  */
 public class RaftServerTest {
-    private static final Logger logger = LoggerFactory.getLogger(RaftServerTest.class.getName());
-    private EventLoopGroup workerGroup = new NioEventLoopGroup();
-
-//    @Before
-//    public void setUp() throws Exception {
-//        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
-//
-//        List<Integer> serverPorts = new ArrayList<>();
-//        serverPorts.add(6666);
-//        serverPorts.add(6667);
-//        serverPorts.add(6668);
-//
-//        List<String> clientAddrs = serverPorts.stream().map(port -> "127.0.0.1:" + port).collect(Collectors.toList());
-//
-//        serverPorts.stream().map(port -> {
-//            RaftServer.RaftServerBuilder serverBuilder = new RaftServer.RaftServerBuilder();
-//            serverBuilder.withBossGroup(bossGroup);
-//            serverBuilder.withWorkerGroup(this.workerGroup);
-//            serverBuilder.withServerPort(port);
-//            if (port == 6666) {
-//                serverBuilder.withLeaderState();
-//            }
-//            try {
-//                return serverBuilder.build();
-//            } catch (Exception ex) {
-//                logger.error("build test raft server failed", port, ex);
-//                throw new RuntimeException();
-//            }
-//        }).forEach(server -> {
-//            try {
-//                server.start(clientAddrs);
-//            } catch (Exception ex) {
-//                logger.error("start raft server failed", ex);
-//                server.shutdown();
-//                throw new RuntimeException();
-//            }
-//        });
-//    }
-
-    @Test
-    public void testSingleNode() throws Exception {
-//        RaftServer server = RaftServer.builder().withServerPort(6666).build();
-//        server.start(Collections.emptyList());
-//        while (! server.isLeader()) {
-//            Thread.sleep(1000);
-//        }
-//
-//        LogEntry log = new LogEntry();
-//        log.setData(new byte[]{0});
-//        server.propose(log);
+    private static List<byte[]> newDataList(int count) {
+        List<byte[]> dataList = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            byte[] data = new byte[5];
+            ThreadLocalRandom.current().nextBytes(data);
+            dataList.add(data);
+        }
+        return dataList;
     }
 
     @Test
-    public void testSelectLeader() throws Exception {
-//        Thread.sleep(5000);
+    public void testInitSingleNode() throws Exception {
+        String selfId = "raft node 001";
+        List<String> peers = new ArrayList<>();
+        peers.add(selfId);
 
-//        NettyRemoteClient client = new NettyRemoteClient();
-//
-//        LogEntry entry = new LogEntry();
-//        entry.setData(new byte[]{0, 1, 2, 3, 4, 5});
-//        final RaftClientCommand clientReq = new RaftClientCommand();
-//        clientReq.setEntry(entry);
-//
-//        for (int i = 0; i < 50; i++) {
-//            Thread.sleep(1000);
-//            client.send("127.0.0.1:6668", RemotingCommand.createRequestCommand(clientReq), (PendingRequest req, RemotingCommand res) -> {
-//                if (res.getBody().isPresent()) {
-//                    RaftClientCommand clientRes = new RaftClientCommand(res.getBody().get());
-//                    logger.info("receive response {}", clientRes);
-//                } else {
-//                    logger.error("no valid response returned for directAppend cmd: {}. maybe request timeout", res.toString());
-//                }
-//            });
-//        }
-//
-//        Thread.sleep(2000);
+        TestingRaftCluster cluster = new TestingRaftCluster(peers);
+        StateMachine leader = cluster.waitLeaderElected(1000);
+
+        RaftStatus status = leader.getStatus();
+        assertEquals(selfId, status.getId());
+        assertEquals(State.LEADER, status.getState());
+        assertEquals(0, status.getCommitIndex());
+        assertEquals(0, status.getAppliedIndex());
+        assertEquals(1, status.getTerm());
+        assertEquals(selfId, status.getLeaderId());
+        assertNull(status.getVotedFor());
+
+        cluster.shutdown();
     }
 
     @Test
-    public void setLeaderId() throws Exception {
+    public void testProposeOnSingleNode() throws Exception {
+        String selfId = "raft node 001";
+        List<String> peers = new ArrayList<>();
+        peers.add(selfId);
 
+        TestingRaftCluster cluster = new TestingRaftCluster(peers);
+        StateMachine leader = cluster.waitLeaderElected(1000);
+
+        // propose some logs
+        int logCount = ThreadLocalRandom.current().nextInt(10, 100);
+        List<byte[]> dataList = RaftServerTest.newDataList(logCount);
+        ProposeResponse resp = leader.propose(dataList);
+        assertEquals(selfId, resp.getLeaderId());
+        assertTrue(resp.isSuccess());
+        assertNull(resp.getError());
+
+        // check raft status after propose logs
+        RaftStatus status = leader.getStatus();
+        assertEquals(selfId, status.getId());
+        assertEquals(State.LEADER, status.getState());
+        assertEquals(logCount, status.getCommitIndex());
+        assertEquals(0, status.getAppliedIndex());
+        assertEquals(1, status.getTerm());
+        assertEquals(selfId, status.getLeaderId());
+        assertNull(status.getVotedFor());
+
+        // this is single node raft so proposed logs will be applied immediately so we can get applied logs from StateMachine
+        List<LogEntry> applied = new ArrayList<>(((TestingRaftCluster.TestingStateMachine)leader).getApplied());
+        for (LogEntry e : applied) {
+            assertEquals(status.getTerm(), e.getTerm());
+            assertArrayEquals(dataList.get(e.getIndex() - 1), e.getData().toByteArray());
+        }
+
+        // check new raft status
+        leader.appliedTo(logCount);
+        RaftStatus newStatus = leader.getStatus();
+        assertEquals(logCount, newStatus.getAppliedIndex());
+
+        cluster.shutdown();
     }
-
-    @Test
-    public void shutdown() throws Exception {
-
-    }
-
 
 }

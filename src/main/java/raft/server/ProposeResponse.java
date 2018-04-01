@@ -24,4 +24,8 @@ public class ProposeResponse {
     public boolean isSuccess() {
         return error == null;
     }
+
+    public ErrorMsg getError() {
+        return error;
+    }
 }
