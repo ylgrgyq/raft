@@ -1,0 +1,33 @@
+syntax = "proto3";
+package raft.server.proto;
+option java_multiple_files = true;
+
+message LogEntry {
+    int32 index = 1;
+    int32 term = 2;
+    bytes data = 3;
+}
+
+message RaftCommand {
+    enum CmdType {
+        NONE = 0;
+        REQUEST_VOTE = 1;
+        REQUEST_VOTE_RESP = 2;
+        APPEND_ENTRIES = 3;
+        APPEND_ENTRIES_RESP = 4;
+    }
+
+    CmdType type = 1;
+    string from = 2;
+    string to = 3;
+    int32 term = 4;
+    int32 prev_log_index = 5;
+    int32 prev_log_term = 6;
+    int32 leader_commit = 7;
+    bool success = 8;
+    repeated LogEntry entries = 9;
+    string leader_id = 10;
+    int32 last_log_index = 11;
+    int32 last_log_term = 12;
+    bool vote_granted = 13;
+}

@@ -1,25 +1,12 @@
 package raft.server;
 
-import java.util.ArrayList;
-import java.util.List;
+import raft.server.proto.RaftCommand;
 
 /**
  * Author: ylgrgyq
- * Date: 18/3/30
+ * Date: 18/4/1
  */
-public abstract class StateMachine {
-
-    private RaftServer raftServer;
-    public StateMachine(Config c) {
-        List<String> peers = c.peers;
-        this.raftServer = new RaftServer(c);
-    }
-
-    void propose(byte[] data) {
-        ArrayList<LogEntry> entries = new ArrayList<>();
-        LogEntry entry = new LogEntry();
-        entry.setData(data);
-        entries.add(entry);
-        raftServer.propose(entries);
-    }
+public interface StateMachine {
+    void onWriteCommand(RaftCommand cmd);
+    void onReceiveCommand(RaftCommand cmd);
 }

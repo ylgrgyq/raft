@@ -13,4 +13,6 @@ public class Config {
     long tickIntervalMs;
 
     List<String> peers = Collections.emptyList();
+
+    StateMachine stateMachine;
 }

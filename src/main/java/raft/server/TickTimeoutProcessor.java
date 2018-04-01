@@ -7,5 +7,5 @@ package raft.server;
 interface TickTimeoutProcessor {
     boolean isTickTimeout(long currentTick);
 
-    void processTickTimeout();
+    void onTickTimeout();
 }
