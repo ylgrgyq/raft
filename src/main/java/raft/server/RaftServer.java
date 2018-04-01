@@ -5,10 +5,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.Pair;
 import raft.ThreadFactoryImpl;
-import raft.server.connections.NettyRemoteClient;
-import raft.server.connections.NettyRemoteServer;
 import raft.server.log.RaftLog;
 import raft.server.processor.AppendEntriesProcessor;
 import raft.server.processor.ClientRequestProcessor;
@@ -50,8 +47,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private final AtomicLong tickCount = new AtomicLong();
 
     private final String selfId;
-    private final NettyRemoteServer remoteServer;
-    private final NettyRemoteClient remoteClient;
     private final RaftLog raftLog;
     private final long tickIntervalMs;
 
@@ -67,13 +62,11 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
     private long matchIndex;
     private long electionTimeoutTicks;
 
-    private RaftServer(RaftServerBuilder builder) {
+    public RaftServer(Config c) {
         this.term = new AtomicInteger(0);
-        this.selfId = builder.selfId;
-        this.remoteServer = new NettyRemoteServer(builder.bossGroup, builder.workerGroup, builder.port);
-        this.remoteClient = new NettyRemoteClient(builder.workerGroup, builder.clientReconnectDelayMs);
+        this.selfId = c.selfId;
         this.raftLog = new RaftLog();
-        this.tickIntervalMs = builder.tickIntervalMs;
+        this.tickIntervalMs = c.tickIntervalMs;
         this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
 
         this.state = follower;
@@ -282,13 +275,29 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         return false;
     }
 
-    public AppendResponse appendFromClient(LogEntry entry) {
+    public ProposeResponse propose(List<LogEntry> entries) {
         String leaderId = this.getLeaderId();
-        if (this.getState() == State.LEADER) {
-            return new AppendResponse(leaderId, this.appendLogOnLeader(entry));
-        } else {
-            return new AppendResponse(leaderId, false);
+        ErrorMsg error = null;
+        this.stateLock.tryLock();
+        try {
+            if (this.getState() == State.LEADER) {
+                int term = this.getTerm();
+                for (LogEntry e : entries) {
+                    e.setTerm(term);
+                }
+                this.raftLog.append(entries);
+                this.broadcastAppendEntries();
+            } else {
+                error = ErrorMsg.NOT_LEADER_NODE;
+            }
+        } catch (Throwable t) {
+            logger.error("append log failed {}", entries, t);
+            error = ErrorMsg.INTERNAL_ERROR;
+        } finally {
+            this.stateLock.unlock();
         }
+
+        return new ProposeResponse(leaderId, error);
     }
 
     public boolean replicateLogsOnFollower(int prevIndex, int prevTerm, int leaderCommitId, String leaderId, List<LogEntry> entries) {
@@ -318,7 +327,9 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
             this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
         } else {
             for (final RaftPeerNode peer : peerNodes.values()) {
-                peer.sendAppend(RaftServer.maxMsgSize);
+                if (! peer.getPeerId().equals(this.selfId)) {
+                    peer.sendAppend(RaftServer.maxMsgSize);
+                }
             }
         }
     }

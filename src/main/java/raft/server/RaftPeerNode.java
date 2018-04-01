@@ -97,6 +97,10 @@ class RaftPeerNode {
         return matchIndex;
     }
 
+    public String getPeerId() {
+        return peerId;
+    }
+
     @Override
     public String toString() {
         return "RaftPeerNode{" +
