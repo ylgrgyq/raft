@@ -12,31 +12,38 @@ import java.util.concurrent.TimeUnit;
  * Date: 18/3/30
  */
 public class Config {
-    long tickIntervalMs;
-    long pingIntervalTicks;
-    long suggestElectionTimeoutTicks;
-    int maxMsgSize;
+    final long tickIntervalMs;
+    final long pingIntervalTicks;
+    final long suggestElectionTimeoutTicks;
+    final int maxMsgSize;
 
-    List<String> peers;
-    String selfId;
+    final List<String> peers;
+    final String selfId;
 
-    private Config() {}
+    private Config(ConfigBuilder builder) {
+        this.tickIntervalMs = builder.tickIntervalMs;
+        this.pingIntervalTicks = builder.pingIntervalTicks;
+        this.suggestElectionTimeoutTicks = builder.suggestElectionTimeoutTicks;
+        this.maxMsgSize = builder.maxMsgSize;
+        this.peers = builder.peers;
+        this.selfId = builder.selfId;
+    }
 
     public static ConfigBuilder newBuilder() {
         return new ConfigBuilder();
     }
 
     public static class ConfigBuilder {
-        long tickIntervalMs = 10;
-        long pingIntervalTicks = 20;
-        long suggestElectionTimeoutTicks = 40;
-        int maxMsgSize = 16;
+        private long tickIntervalMs = 10;
+        private long pingIntervalTicks = 20;
+        private long suggestElectionTimeoutTicks = 40;
+        private int maxMsgSize = 16;
 
-        List<String> peers = Collections.emptyList();
-        String selfId;
+        private List<String> peers = Collections.emptyList();
+        private String selfId;
 
-        public ConfigBuilder withSelfID(String selfID) {
-            this.selfId = selfID;
+        public ConfigBuilder withSelfID(String selfId) {
+            this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
             return this;
         }
 
@@ -64,15 +71,8 @@ public class Config {
         }
 
         public Config build() {
-            Config c = new Config();
-            c.selfId = Objects.requireNonNull(selfId, "Must provide self Id");
-            c.tickIntervalMs = tickIntervalMs;
-            c.pingIntervalTicks = pingIntervalTicks;
-            c.suggestElectionTimeoutTicks = suggestElectionTimeoutTicks;
-            c.maxMsgSize = maxMsgSize;
-            c.peers = peers;
-
-            return c;
+            Preconditions.checkNotNull(selfId, "Must provide self Id");
+            return new Config(this);
         }
     }
 
