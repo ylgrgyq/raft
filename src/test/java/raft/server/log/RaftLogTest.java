@@ -1,12 +1,14 @@
 package raft.server.log;
 
+import com.google.protobuf.ByteString;
 import org.junit.Test;
-import raft.server.LogEntry;
+import raft.server.proto.LogEntry;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -18,12 +20,20 @@ public class RaftLogTest {
     private static int initTerm = 12345;
     private static byte[] data = new byte[]{0, 1, 2, 3, 4};
 
+    private static List<byte[]> newDataList(int count) {
+        List<byte[]> dataList = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            dataList.add(data);
+        }
+        return dataList;
+    }
+
     private static LogEntry newLogEntry(int index, int term) {
-        LogEntry e = new LogEntry();
-        e.setTerm(term);
-        e.setData(data);
-        e.setIndex(index);
-        return e;
+        return LogEntry.newBuilder()
+                .setData(ByteString.copyFrom(data))
+                .setTerm(term)
+                .setIndex(index)
+                .build();
     }
 
     private static List<LogEntry> newLogEntryList(int count) {
@@ -64,22 +74,22 @@ public class RaftLogTest {
     public void testPlainAppend() throws Exception {
         RaftLog log = new RaftLog();
 
-        // append some logs
+        // directAppend some logs
         int logsCount = ThreadLocalRandom.current().nextInt(1, 100);
-        List<LogEntry> entries = RaftLogTest.newLogEntryList(logsCount);
-        log.append(entries);
+        List<byte[]> entries = RaftLogTest.newDataList(logsCount);
+        log.directAppend(initTerm, entries);
         assertEquals(logsCount, log.getLastIndex());
 
         // check appended logs
         for (int i = 1; i < logsCount + 1; i++) {
             LogEntry e = log.getEntry(i).get();
             assertEquals(i, e.getIndex());
-            assertEquals(entries.get(i - 1), e);
+            assertArrayEquals(entries.get(i - 1), e.getData().toByteArray());
         }
 
         List<LogEntry> currentEntries = log.getEntries(1, logsCount + 1);
         for (int i = 1; i < logsCount + 1; i++) {
-            assertEquals(entries.get(i - 1), currentEntries.get(i - 1));
+            assertArrayEquals(entries.get(i - 1), currentEntries.get(i - 1).getData().toByteArray());
         }
     }
 
@@ -87,32 +97,32 @@ public class RaftLogTest {
     public void testTruncate() throws Exception {
         RaftLog log = new RaftLog();
 
-        // append some logs
+        // directAppend some logs
         int logsCount = ThreadLocalRandom.current().nextInt(1, 100);
-        List<LogEntry> entries = RaftLogTest.newLogEntryList(logsCount);
-        log.append(entries);
+        List<byte[]> entries = RaftLogTest.newDataList(logsCount);
+        log.directAppend(initTerm, entries);
         assertEquals(logsCount, log.getLastIndex());
         log.tryCommitTo(logsCount);
 
         log.truncate(logsCount);
 
-        // append more logs
+        // directAppend more logs
         int moreLogsCount = ThreadLocalRandom.current().nextInt(1, 100);
-        List<LogEntry> moreEntries = RaftLogTest.newLogEntryList(moreLogsCount);
-        log.append(moreEntries);
+        List<byte[]> moreEntries = RaftLogTest.newDataList(moreLogsCount);
+        log.directAppend(initTerm, moreEntries);
         assertEquals(logsCount + moreLogsCount, log.getLastIndex());
 
         // check appended logs
         for (int i = logsCount + 1; i < logsCount + moreLogsCount; i++) {
             LogEntry e = log.getEntry(i).get();
             assertEquals(i, e.getIndex());
-            assertEquals(moreEntries.get(i - logsCount - 1), e);
+            assertArrayEquals(moreEntries.get(i - logsCount - 1), e.getData().toByteArray());
         }
 
         List<LogEntry> currentEntries = log.getEntries(logsCount, logsCount + moreLogsCount + 1);
-        assertEquals(entries.get(entries.size() - 1), currentEntries.get(0));
+        assertArrayEquals(entries.get(entries.size() - 1), currentEntries.get(0).getData().toByteArray());
         for (int i = 0; i < moreLogsCount; i++) {
-            assertEquals(moreEntries.get(i), currentEntries.get(i + 1));
+            assertArrayEquals(moreEntries.get(i), currentEntries.get(i + 1).getData().toByteArray());
         }
     }
 
@@ -120,8 +130,8 @@ public class RaftLogTest {
         RaftLog log = new RaftLog();
 
         // append some logs
-        List<LogEntry> entries = RaftLogTest.newLogEntryList(logsCount);
-        log.append(entries);
+        List<byte[]> entries = RaftLogTest.newDataList(logsCount);
+        log.directAppend(initTerm, entries);
         assertEquals(logsCount, log.getLastIndex());
 
         log.tryCommitTo(commitTo);
@@ -133,7 +143,11 @@ public class RaftLogTest {
     private void assertLogEntriesEquals(List<LogEntry> expect, List<LogEntry> actual) {
         assertEquals(expect.size(), actual.size());
         for (int i = 0; i < expect.size(); ++i) {
-            assertEquals(expect.get(i), actual.get(i));
+            LogEntry e = expect.get(i);
+            LogEntry a = actual.get(i);
+            assertEquals(e.getTerm(), a.getTerm());
+            assertEquals(e.getIndex(), a.getIndex());
+            assertArrayEquals(e.getData().toByteArray(), a.getData().toByteArray());
         }
     }
 

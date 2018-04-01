@@ -59,22 +59,22 @@ public class RaftServerStartup {
                     return addrs[0] + ":" + p;
                 }).collect(Collectors.toList());
 
-        RaftServer.RaftServerBuilder serverBuilder = new RaftServer.RaftServerBuilder();
+//        RaftServer.RaftServerBuilder serverBuilder = new RaftServer.RaftServerBuilder();
+//
+//        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
+//        EventLoopGroup workerGroup = new NioEventLoopGroup();
+//        serverBuilder.withBossGroup(bossGroup);
+//        serverBuilder.withWorkerGroup(workerGroup);
+//        serverBuilder.withServerPort(serverPort);
+//
+//        RaftServer server = serverBuilder.build();
 
-        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
-        EventLoopGroup workerGroup = new NioEventLoopGroup();
-        serverBuilder.withBossGroup(bossGroup);
-        serverBuilder.withWorkerGroup(workerGroup);
-        serverBuilder.withServerPort(serverPort);
-
-        RaftServer server = serverBuilder.build();
-
-        try {
-            server.start(clientAddrs);
-            Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
-        } catch (Exception ex) {
-            logger.error("start raft server failed", ex);
-            server.shutdown();
-        }
+//        try {
+//            server.start(clientAddrs);
+//            Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
+//        } catch (Exception ex) {
+//            logger.error("start raft server failed", ex);
+//            server.shutdown();
+//        }
     }
 }

@@ -2,21 +2,14 @@ package raft.server;
 
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.connections.NettyRemoteClient;
-import raft.server.rpc.AppendEntriesCommand;
 import raft.server.rpc.PendingRequest;
-import raft.server.rpc.RaftClientCommand;
 import raft.server.rpc.RemotingCommand;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import static org.junit.Assert.*;
+import java.util.Collections;
 
 /**
  * Author: ylgrgyq
@@ -63,29 +56,42 @@ public class RaftServerTest {
 //    }
 
     @Test
+    public void testSingleNode() throws Exception {
+//        RaftServer server = RaftServer.builder().withServerPort(6666).build();
+//        server.start(Collections.emptyList());
+//        while (! server.isLeader()) {
+//            Thread.sleep(1000);
+//        }
+//
+//        LogEntry log = new LogEntry();
+//        log.setData(new byte[]{0});
+//        server.propose(log);
+    }
+
+    @Test
     public void testSelectLeader() throws Exception {
 //        Thread.sleep(5000);
 
-        NettyRemoteClient client = new NettyRemoteClient();
-
-        LogEntry entry = new LogEntry();
-        entry.setData(new byte[]{0, 1, 2, 3, 4, 5});
-        final RaftClientCommand clientReq = new RaftClientCommand();
-        clientReq.setEntry(entry);
-
-        for (int i = 0; i < 50; i++) {
-            Thread.sleep(1000);
-            client.send("127.0.0.1:6668", RemotingCommand.createRequestCommand(clientReq), (PendingRequest req, RemotingCommand res) -> {
-                if (res.getBody().isPresent()) {
-                    RaftClientCommand clientRes = new RaftClientCommand(res.getBody().get());
-                    logger.info("receive response {}", clientRes);
-                } else {
-                    logger.error("no valid response returned for append cmd: {}. maybe request timeout", res.toString());
-                }
-            });
-        }
-
-        Thread.sleep(2000);
+//        NettyRemoteClient client = new NettyRemoteClient();
+//
+//        LogEntry entry = new LogEntry();
+//        entry.setData(new byte[]{0, 1, 2, 3, 4, 5});
+//        final RaftClientCommand clientReq = new RaftClientCommand();
+//        clientReq.setEntry(entry);
+//
+//        for (int i = 0; i < 50; i++) {
+//            Thread.sleep(1000);
+//            client.send("127.0.0.1:6668", RemotingCommand.createRequestCommand(clientReq), (PendingRequest req, RemotingCommand res) -> {
+//                if (res.getBody().isPresent()) {
+//                    RaftClientCommand clientRes = new RaftClientCommand(res.getBody().get());
+//                    logger.info("receive response {}", clientRes);
+//                } else {
+//                    logger.error("no valid response returned for directAppend cmd: {}. maybe request timeout", res.toString());
+//                }
+//            });
+//        }
+//
+//        Thread.sleep(2000);
     }
 
     @Test

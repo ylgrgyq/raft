@@ -1,29 +1,26 @@
 package raft.server;
 
-import static com.google.common.base.Preconditions.*;
-
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
-import raft.server.processor.AppendEntriesProcessor;
-import raft.server.processor.ClientRequestProcessor;
 import raft.server.processor.RaftCommandListener;
-import raft.server.processor.RequestVoteProcessor;
+import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
-import raft.server.rpc.*;
+import raft.server.rpc.RaftServerCommand;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Author: ylgrgyq
@@ -76,10 +73,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
 
         this.state = follower;
         this.reset();
-    }
-
-    public static RaftServerBuilder builder() {
-        return new RaftServerBuilder();
     }
 
     private void reset() {
@@ -257,45 +250,20 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         return this.leaderId;
     }
 
-    private boolean appendLogOnLeader(LogEntry entry) {
-        this.stateLock.tryLock();
-        try {
-            if (this.getState() == State.LEADER) {
-                try {
-                    entry.setTerm(this.getTerm());
-                    ArrayList<LogEntry> entries = new ArrayList<>();
-                    entries.add(entry);
-                    this.raftLog.append(entries);
-                    this.broadcastAppendEntries();
-                    return true;
-                } catch (Throwable t) {
-                    logger.error("append log failed {}", entry, t);
-                }
-            }
-        } finally {
-            this.stateLock.unlock();
-        }
-
-        return false;
-    }
-
-    public ProposeResponse propose(List<LogEntry> entries) {
+    public ProposeResponse propose(List<byte[]> entries) {
         String leaderId = this.getLeaderId();
         ErrorMsg error = null;
         this.stateLock.tryLock();
         try {
             if (this.getState() == State.LEADER) {
                 int term = this.getTerm();
-                for (LogEntry e : entries) {
-                    e.setTerm(term);
-                }
-                this.raftLog.append(entries);
+                this.raftLog.directAppend(term, entries);
                 this.broadcastAppendEntries();
             } else {
                 error = ErrorMsg.NOT_LEADER_NODE;
             }
         } catch (Throwable t) {
-            logger.error("append log failed {}", entries, t);
+            logger.error("directAppend log failed {}", entries, t);
             error = ErrorMsg.INTERNAL_ERROR;
         } finally {
             this.stateLock.unlock();
@@ -318,11 +286,11 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
                     this.setLeaderId(leaderId);
                     return raftLog.tryAppendEntries(prevIndex, prevTerm, leaderCommitId, entries);
                 } catch (Exception ex) {
-                    logger.error("append entries failed, leaderCommitId={}, leaderId, entries",
+                    logger.error("directAppend entries failed, leaderCommitId={}, leaderId, entries",
                             leaderCommitId, leaderId, entries, ex);
                 }
             } else {
-                logger.error("append logs failed due to invalid state: {}", state);
+                logger.error("directAppend logs failed due to invalid state: {}", state);
             }
         } finally {
             this.stateLock.unlock();
@@ -554,61 +522,6 @@ public class RaftServer implements RaftCommandListener<RaftServerCommand> {
         @Override
         public void onTickTimeout() {
             this.startElection();
-        }
-    }
-
-    @SuppressWarnings("unused")
-    static class RaftServerBuilder {
-        private long clientReconnectDelayMs = 1000;
-        private long tickIntervalMs = 100;
-
-        private EventLoopGroup bossGroup;
-        private EventLoopGroup workerGroup;
-        private int port;
-        private String selfId;
-        private String leaderId;
-
-        RaftServerBuilder withBossGroup(EventLoopGroup group) {
-            checkNotNull(group);
-            this.bossGroup = group;
-            return this;
-        }
-
-        RaftServerBuilder withWorkerGroup(EventLoopGroup group) {
-            checkNotNull(group);
-            this.workerGroup = group;
-            return this;
-        }
-
-        RaftServerBuilder withServerPort(int port) {
-            this.port = port;
-            return this;
-        }
-
-        RaftServerBuilder withTickInterval(long tickInterval, TimeUnit unit) {
-            this.tickIntervalMs = unit.toMillis(tickInterval);
-            checkArgument(this.tickIntervalMs >= 100,
-                    "raft server tick interval should >= 100ms");
-            return this;
-        }
-
-        RaftServerBuilder withClientReconnectDelay(long delay, TimeUnit timeUnit) {
-            checkArgument(delay > 0);
-            this.clientReconnectDelayMs = timeUnit.toMillis(delay);
-            return this;
-        }
-
-        RaftServer build() throws UnknownHostException {
-            if (this.bossGroup == null) {
-                this.bossGroup = new NioEventLoopGroup(1);
-            }
-
-            if (this.workerGroup == null) {
-                this.workerGroup = new NioEventLoopGroup();
-            }
-
-            this.selfId = InetAddress.getLocalHost().getHostAddress() + ":" + this.port;
-            return new RaftServer(this);
         }
     }
 }

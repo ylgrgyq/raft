@@ -18,10 +18,8 @@ public abstract class AbstractStateMachine implements StateMachine{
     }
 
     void propose(byte[] data) {
-        ArrayList<LogEntry> entries = new ArrayList<>();
-        LogEntry entry = new LogEntry();
-        entry.setData(data);
-        entries.add(entry);
+        ArrayList<byte[]> entries = new ArrayList<>();
+        entries.add(data);
         raftServer.propose(entries);
     }
 

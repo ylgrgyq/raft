@@ -39,49 +39,49 @@ class RaftPeerNode {
     }
 
     synchronized void sendAppend(int maxMsgSize) {
-        final int startIndex = this.nextIndex;
-        final List<LogEntry> entries = serverLog.getEntries(startIndex - 1, startIndex + maxMsgSize);
-
-        // entries must not empty even for heartbeat
-        // TODO use a dedicated heartbeat command? so we do not need to send prev log/term in heartbeat
-        assert !entries.isEmpty();
-
-        final AppendEntriesCommand appendReq = new AppendEntriesCommand(this.server.getTerm(), this.server.getLeaderId());
-        appendReq.setLeaderCommit(serverLog.getCommitIndex());
-
-        final LogEntry prev = entries.get(0);
-        appendReq.setPrevLogTerm(prev.getTerm());
-        appendReq.setPrevLogIndex(prev.getIndex());
-        appendReq.setEntries(entries.subList(1, entries.size()));
-
-        logger.debug("send append {}", appendReq);
-        this.send(RemotingCommand.createRequestCommand(appendReq),
-                (PendingRequest req, RemotingCommand res) -> {
-                    if (res.getBody().isPresent()) {
-                        final AppendEntriesCommand appendRes = new AppendEntriesCommand(res.getBody().get());
-                        if (appendRes.getTerm() > this.server.getTerm()) {
-                            this.server.tryBecomeFollower(appendRes.getTerm(), appendRes.getFrom());
-                        } else {
-                            synchronized (RaftPeerNode.this) {
-                                if (appendRes.isSuccess()) {
-                                    this.matchIndex = entries.get(entries.size() - 1).getIndex();
-                                    this.nextIndex = this.matchIndex + 1;
-                                    this.server.updateCommit();
-                                } else {
-                                    this.nextIndex--;
-                                    if (this.nextIndex < 1) {
-                                        logger.warn("nextIndex for {} decreased to 1", this.toString());
-                                        this.nextIndex = 1;
-                                    }
-                                    assert this.nextIndex > this.matchIndex;
-                                    this.sendAppend(maxMsgSize);
-                                }
-                            }
-                        }
-                    } else {
-                        logger.error("no valid response returned for append cmd: {}. maybe request timeout", appendReq.toString());
-                    }
-                });
+//        final int startIndex = this.nextIndex;
+//        final List<LogEntry> entries = serverLog.getEntries(startIndex - 1, startIndex + maxMsgSize);
+//
+//        // entries must not empty even for heartbeat
+//        // TODO use a dedicated heartbeat command? so we do not need to send prev log/term in heartbeat
+//        assert !entries.isEmpty();
+//
+//        final AppendEntriesCommand appendReq = new AppendEntriesCommand(this.server.getTerm(), this.server.getLeaderId());
+//        appendReq.setLeaderCommit(serverLog.getCommitIndex());
+//
+//        final LogEntry prev = entries.get(0);
+//        appendReq.setPrevLogTerm(prev.getTerm());
+//        appendReq.setPrevLogIndex(prev.getIndex());
+//        appendReq.setEntries(entries.subList(1, entries.size()));
+//
+//        logger.debug("send directAppend {}", appendReq);
+//        this.send(RemotingCommand.createRequestCommand(appendReq),
+//                (PendingRequest req, RemotingCommand res) -> {
+//                    if (res.getBody().isPresent()) {
+//                        final AppendEntriesCommand appendRes = new AppendEntriesCommand(res.getBody().get());
+//                        if (appendRes.getTerm() > this.server.getTerm()) {
+//                            this.server.tryBecomeFollower(appendRes.getTerm(), appendRes.getFrom());
+//                        } else {
+//                            synchronized (RaftPeerNode.this) {
+//                                if (appendRes.isSuccess()) {
+//                                    this.matchIndex = entries.get(entries.size() - 1).getIndex();
+//                                    this.nextIndex = this.matchIndex + 1;
+//                                    this.server.updateCommit();
+//                                } else {
+//                                    this.nextIndex--;
+//                                    if (this.nextIndex < 1) {
+//                                        logger.warn("nextIndex for {} decreased to 1", this.toString());
+//                                        this.nextIndex = 1;
+//                                    }
+//                                    assert this.nextIndex > this.matchIndex;
+//                                    this.sendAppend(maxMsgSize);
+//                                }
+//                            }
+//                        }
+//                    } else {
+//                        logger.error("no valid response returned for directAppend cmd: {}. maybe request timeout", appendReq.toString());
+//                    }
+//                });
     }
 
     Future<Void> send(RemotingCommand cmd, PendingRequestCallback callback) {

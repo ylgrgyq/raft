@@ -1,8 +1,9 @@
 package raft.server.log;
 
+import com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.LogEntry;
+import raft.server.proto.LogEntry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +17,7 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class RaftLog {
     private static final Logger logger = LoggerFactory.getLogger(RaftLog.class.getName());
-    static final LogEntry sentinel = new LogEntry();
+    static final LogEntry sentinel = LogEntry.newBuilder().setTerm(0).setIndex(0).setData(ByteString.EMPTY).build();
 
     private int commitIndex = 0;
     private int offset;
@@ -79,15 +80,19 @@ public class RaftLog {
         return new ArrayList<>(this.logs.subList(start, Math.min(end, this.logs.size())));
     }
 
-    public synchronized int append(List<LogEntry> entries) {
+    public synchronized int directAppend(int term, List<byte[]> entries) {
         if (entries.size() == 0) {
             return this.getLastIndex();
         }
 
         int i = this.getLastIndex();
-        for (LogEntry e : entries) {
+        for (byte[] data : entries) {
             ++i;
-            e.setIndex(i);
+            LogEntry e = LogEntry.newBuilder()
+                    .setData(ByteString.copyFrom(data))
+                    .setIndex(i)
+                    .setTerm(term)
+                    .build();
             this.logs.add(e);
         }
 
@@ -96,16 +101,16 @@ public class RaftLog {
 
     public synchronized boolean tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
         checkArgument(!entries.isEmpty(),
-                "try append empty entries with prevIndex: %s, prevTerm: %s, leaderCommitIndex: %s",
+                "try directAppend empty entries with prevIndex: %s, prevTerm: %s, leaderCommitIndex: %s",
                 prevIndex, prevTerm, leaderCommitIndex);
 
         if (prevIndex < this.offset) {
-            logger.warn("try append entries with truncated prevIndex: {}. " +
+            logger.warn("try directAppend entries with truncated prevIndex: {}. " +
                             "prevTerm: {}, leaderCommitIndex: {}, current offset: {}",
                     prevIndex, prevTerm, leaderCommitIndex, this.offset);
             return false;
         } else if (prevIndex > this.getLastIndex()) {
-            logger.warn("try append entries with out of range prevIndex: {}. " +
+            logger.warn("try directAppend entries with out of range prevIndex: {}. " +
                             "prevTerm: {}, leaderCommitIndex: {}, current lastIndex: {}",
                     prevIndex, prevTerm, leaderCommitIndex, this.getLastIndex());
             return false;
@@ -115,7 +120,7 @@ public class RaftLog {
             int conflictIndex = this.searchConflict(entries);
             if (conflictIndex != 0) {
                 if (conflictIndex <= this.commitIndex) {
-                    logger.error("try append entries conflict with committed entry on index: {}, " +
+                    logger.error("try directAppend entries conflict with committed entry on index: {}, " +
                                     "new entry: {}, committed entry: {}",
                             conflictIndex, entries.get(conflictIndex - prevIndex - 1), this.getEntry(conflictIndex));
                     throw new RuntimeException();
