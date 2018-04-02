@@ -1,10 +1,12 @@
 package raft.server;
 
+import raft.server.proto.RaftCommand;
+
 /**
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-abstract class RaftState implements LifeCycle, TickTimeoutProcessor {
+abstract class RaftState implements TickTimeoutProcessor, LifeCycle {
     private final State state;
 
     RaftState(State state){
@@ -14,4 +16,6 @@ abstract class RaftState implements LifeCycle, TickTimeoutProcessor {
     State getState() {
         return state;
     }
+
+    abstract void process(RaftCommand cmd);
 }

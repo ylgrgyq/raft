@@ -4,7 +4,7 @@ import raft.server.rpc.RemotingCommand;
 
 /**
  * Author: ylgrgyq
- * Date: 17/12/2
+ * Date: 18/4/1
  */
 public interface Processor {
     RemotingCommand processRequest(RemotingCommand request);
