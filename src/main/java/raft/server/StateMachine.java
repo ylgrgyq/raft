@@ -11,12 +11,13 @@ import java.util.List;
  */
 public interface StateMachine extends LifeCycle{
     void onWriteCommand(RaftCommand cmd);
-    void onReceiveCommand(RaftCommand cmd);
     void onProposalApplied(List<LogEntry> msgs);
 
+    void receiveCommand(RaftCommand cmd);
     ProposeResponse propose(List<byte[]> data);
     void appliedTo(int appliedTo);
 
+    String getId();
     boolean isLeader();
     RaftStatus getStatus();
 }

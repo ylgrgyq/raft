@@ -10,10 +10,8 @@ import java.util.List;
  */
 @SuppressWarnings("WeakerAccess")
 public abstract class AbstractStateMachine implements StateMachine{
-
-    private RaftServer raftServer;
+    protected RaftServer raftServer;
     public AbstractStateMachine(Config c) {
-        List<String> peers = c.peers;
         this.raftServer = new RaftServer(c, this);
     }
 
@@ -27,12 +25,16 @@ public abstract class AbstractStateMachine implements StateMachine{
     }
 
     @Override
-    public void onReceiveCommand(RaftCommand cmd) {
+    public void receiveCommand(RaftCommand cmd) {
         raftServer.processReceivedCommand(cmd);
     }
 
     public RaftStatus getStatus() {
         return raftServer.getStatus();
+    }
+
+    public String getId() {
+        return raftServer.getSelfId();
     }
 
     public boolean isLeader() {

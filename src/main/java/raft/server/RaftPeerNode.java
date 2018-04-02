@@ -1,16 +1,8 @@
 package raft.server;
 
-import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.connections.NettyRemoteClient;
 import raft.server.log.RaftLog;
-import raft.server.rpc.AppendEntriesCommand;
-import raft.server.rpc.PendingRequest;
-import raft.server.rpc.PendingRequestCallback;
-import raft.server.rpc.RemotingCommand;
-
-import java.util.List;
 
 /**
  * Author: ylgrgyq
@@ -20,7 +12,6 @@ class RaftPeerNode {
     private static final Logger logger = LoggerFactory.getLogger(RaftPeerNode.class.getName());
 
     private final String peerId;
-    private final NettyRemoteClient remoteClient;
     private final RaftServer server;
     private final RaftLog serverLog;
 
@@ -29,9 +20,8 @@ class RaftPeerNode {
     // index of highest log entry known to be replicated on server (initialized to 0, increases monotonically)
     private int matchIndex;
 
-    RaftPeerNode(String peerId, RaftServer server, RaftLog log, NettyRemoteClient remote, int nextIndex) {
+    RaftPeerNode(String peerId, RaftServer server, RaftLog log, int nextIndex) {
         this.peerId = peerId;
-        this.remoteClient = remote;
         this.nextIndex = nextIndex;
         this.matchIndex = 0;
         this.server = server;
@@ -82,10 +72,6 @@ class RaftPeerNode {
 //                        logger.error("no valid response returned for directAppend cmd: {}. maybe request timeout", appendReq.toString());
 //                    }
 //                });
-    }
-
-    Future<Void> send(RemotingCommand cmd, PendingRequestCallback callback) {
-        return this.remoteClient.send(this.peerId, cmd, callback);
     }
 
     synchronized void reset(int nextIndex) {
