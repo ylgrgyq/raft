@@ -6,9 +6,12 @@ import raft.server.log.RaftLog;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -20,7 +23,7 @@ import java.util.stream.Collectors;
  */
 
 @SuppressWarnings("WeakerAccess")
-public class RaftServer {
+public class RaftServer implements Runnable{
     private static final Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
 
     // TODO better use ThreadPoolExecutor to give every thread pool a name
@@ -32,6 +35,8 @@ public class RaftServer {
     private final ReentrantLock stateLock = new ReentrantLock();
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
     private final AtomicLong tickCount = new AtomicLong();
+    private final AtomicBoolean tickerTimeout = new AtomicBoolean();
+    private final AtomicBoolean wakenUp = new AtomicBoolean();
 
     private final String selfId;
     private final RaftLog raftLog;
@@ -50,11 +55,19 @@ public class RaftServer {
     private long matchIndex;
     private long electionTimeoutTicks;
     private StateMachine stateMachine;
+    private BlockingQueue<Proposal> proposalQueue;
+    private BlockingQueue<RaftCommand> receivedCmdQueue;
+    private Thread worker;
+    private volatile boolean workerRun = true;
 
     public RaftServer(Config c, StateMachine stateMachine) {
+        this.proposalQueue = new LinkedBlockingQueue<>();
+        this.receivedCmdQueue = new LinkedBlockingQueue<>();
+        this.worker = new Thread(this);
         this.term = new AtomicInteger(0);
-        this.selfId = c.selfId;
         this.raftLog = new RaftLog();
+
+        this.selfId = c.selfId;
         this.tickIntervalMs = c.tickIntervalMs;
         this.suggestElectionTimeoutTicks = c.suggestElectionTimeoutTicks;
         this.pingIntervalTicks = c.pingIntervalTicks;
@@ -138,22 +151,19 @@ public class RaftServer {
             if (this.state.isTickTimeout(tick)) {
                 this.tickCount.set(0);
                 try {
-                    this.tickTimeoutExecutors.submit(() -> {
-                        this.stateLock.lock();
-                        try {
-                            this.state.onTickTimeout();
-                        } catch (Throwable t) {
-                            logger.error("process tick timeout failed on tick {} of state {}", tick, this.state.getState(), t);
-                        } finally {
-                            this.stateLock.unlock();
-                        }
-                    });
+                    this.tickTimeoutExecutors.submit(this::markTickerTimeout);
                 } catch (RejectedExecutionException ex) {
                     logger.error("submit process tick timeout job failed", ex);
                 }
             }
 
         }, this.tickIntervalMs, this.tickIntervalMs, TimeUnit.MILLISECONDS);
+
+        this.worker.start();
+    }
+
+    private void markTickerTimeout() {
+        tickerTimeout.compareAndSet(false, true);
     }
 
     public int getTerm() {
@@ -230,26 +240,18 @@ public class RaftServer {
         this.raftLog.appliedTo(appliedTo);
     }
 
-    ProposeResponse propose(List<byte[]> entries) {
+    CompletableFuture<ProposeResponse> propose(List<byte[]> entries) {
         String leaderId = this.getLeaderId();
-        ErrorMsg error = null;
-        this.stateLock.tryLock();
-        try {
-            if (this.getState() == State.LEADER) {
-                int term = this.getTerm();
-                this.raftLog.directAppend(term, entries);
-                this.broadcastAppendEntries();
-            } else {
-                error = ErrorMsg.NOT_LEADER_NODE;
-            }
-        } catch (Throwable t) {
-            logger.error("propose failed on node {}", this, t);
-            error = ErrorMsg.INTERNAL_ERROR;
-        } finally {
-            this.stateLock.unlock();
+        CompletableFuture<ProposeResponse> future;
+        if (this.getState() == State.LEADER) {
+            future = new CompletableFuture<>();
+            Proposal p = new Proposal(entries, future);
+            this.proposalQueue.add(p);
+            wakeUpWorker();
+        } else {
+            future = CompletableFuture.completedFuture(new ProposeResponse(leaderId, ErrorMsg.NOT_LEADER_NODE));
         }
-
-        return new ProposeResponse(leaderId, error);
+        return future;
     }
 
     private boolean replicateLogsOnFollower(RaftCommand cmd) {
@@ -292,7 +294,7 @@ public class RaftServer {
         }
     }
 
-    void updateCommit() {
+    private void updateCommit() {
         // kth biggest number
         int k = this.getQuorum() - 1;
         List<Integer> matchedIndexes = peerNodes.values().stream()
@@ -307,7 +309,25 @@ public class RaftServer {
         }
     }
 
-    void processReceivedCommand(RaftCommand cmd) {
+    private void proposeProposal(Proposal proposal) {
+        ErrorMsg error = null;
+        try {
+            if (this.getState() == State.LEADER) {
+                int term = this.getTerm();
+                this.raftLog.directAppend(term, proposal.entries);
+                this.broadcastAppendEntries();
+            } else {
+                error = ErrorMsg.NOT_LEADER_NODE;
+            }
+        } catch (Throwable t) {
+            logger.error("propose failed on node {}", this, t);
+            error = ErrorMsg.INTERNAL_ERROR;
+        }
+
+        proposal.future.complete(new ProposeResponse(this.leaderId, error));
+    }
+
+    private void processReceivedCommand(RaftCommand cmd) {
         if (cmd.getType() == RaftCommand.CmdType.REQUEST_VOTE) {
             logger.debug("node {} received request vote command, request={}", this, cmd);
             final String candidateId = cmd.getFrom();
@@ -338,9 +358,21 @@ public class RaftServer {
         }
     }
 
+
+    void queueReceivedCommand(RaftCommand cmd) {
+        if (! this.peerNodes.containsKey(cmd.getFrom())) {
+            logger.warn("node {} received cmd {} from unknown peer", this, cmd);
+            return;
+        }
+
+        this.receivedCmdQueue.add(cmd);
+    }
+
     void shutdown() {
         this.tickGenerator.shutdown();
         this.tickTimeoutExecutors.shutdown();
+        this.workerRun = false;
+        wakeUpWorker();
     }
 
     @Override
@@ -353,7 +385,97 @@ public class RaftServer {
                 '}';
     }
 
-    class Leader extends RaftState {
+    private void wakeUpWorker() {
+        if (wakenUp.compareAndSet(false, true)) {
+            worker.interrupt();
+        }
+    }
+
+
+    private void processCommands(List<RaftCommand> cmds){
+        for (RaftCommand cmd : cmds) {
+            try {
+                processReceivedCommand(cmd);
+            } catch (Throwable t) {
+                logger.error("process received command {} on node {} failed", cmd, this);
+            }
+        }
+    }
+
+    private List<RaftCommand> pollReceivedCmd() {
+        List<RaftCommand> cmds = Collections.emptyList();
+        RaftCommand cmd;
+        try {
+            cmd = RaftServer.this.receivedCmdQueue.poll(1, TimeUnit.SECONDS);
+            cmds = new ArrayList<>();
+            cmds.add(cmd);
+        } catch (InterruptedException ex) {
+            // ignored
+        }
+
+        int i = 0;
+        while (i < 1000 && (cmd = RaftServer.this.receivedCmdQueue.poll()) != null){
+            if (cmds == Collections.EMPTY_LIST) {
+                cmds = new ArrayList<>();
+            }
+
+            cmds.add(cmd);
+            ++i;
+        }
+
+        return cmds;
+    }
+
+    @Override
+    public void run() {
+        while (workerRun) {
+            try {
+                if (tickerTimeout.compareAndSet(true, false)) {
+                    try {
+                        this.state.onTickTimeout();
+                    } catch (Throwable t) {
+                        logger.error("process tick timeout failed on node {}", this, t);
+                    }
+                }
+
+                wakenUp.getAndSet(false);
+
+                List<RaftCommand> cmds = pollReceivedCmd();
+                long start = System.nanoTime();
+                processCommands(cmds);
+                long now = System.nanoTime();
+                long processCmdTime = now - start;
+
+                long deadline = now + processCmdTime;
+                long processedProposals = 0;
+                Proposal p;
+                while ((p = RaftServer.this.proposalQueue.poll()) != null) {
+                    proposeProposal(p);
+                    processedProposals++;
+                    if ((processedProposals & 0x3F) == 0) {
+                        if (System.nanoTime() >= deadline) {
+                            break;
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                logger.error("node {} got unexpected exception", this, t);
+            }
+        }
+    }
+
+
+    private static class Proposal {
+        private final List<byte[]> entries;
+        private final CompletableFuture<ProposeResponse> future;
+
+        Proposal(List<byte[]> entries, CompletableFuture<ProposeResponse> future) {
+            this.entries = new ArrayList<>(entries);
+            this.future = future;
+        }
+    }
+
+    private class Leader extends RaftState {
         Leader() {
             super(State.LEADER);
         }
@@ -390,7 +512,7 @@ public class RaftServer {
         }
     }
 
-    class Follower extends RaftState {
+    private class Follower extends RaftState {
         Follower() {
             super(State.FOLLOWER);
         }
@@ -435,7 +557,7 @@ public class RaftServer {
         }
     }
 
-    class Candidate extends RaftState {
+    private class Candidate extends RaftState {
         private volatile ConcurrentHashMap<String, Boolean> votesGot = new ConcurrentHashMap<>();
 
         Candidate() {

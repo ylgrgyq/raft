@@ -69,7 +69,7 @@ class TestingRaftCluster {
         @Override
         public void receiveCommand(RaftCommand cmd) {
             logger.debug("node {} receive command {}", this.getId(), cmd.toString());
-            raftServer.processReceivedCommand(cmd);
+            raftServer.queueReceivedCommand(cmd);
         }
 
         @Override
