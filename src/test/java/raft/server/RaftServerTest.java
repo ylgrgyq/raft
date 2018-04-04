@@ -6,6 +6,7 @@ import raft.server.proto.LogEntry;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeoutException;
 
@@ -108,10 +109,11 @@ public class RaftServerTest {
         // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
         List<byte[]> dataList = RaftServerTest.newDataList(logCount);
-        ProposeResponse resp = leader.propose(dataList);
-        assertEquals(selfId, resp.getLeaderId());
-        assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
+        CompletableFuture<ProposeResponse> resp = leader.propose(dataList);
+        ProposeResponse p = resp.get();
+        assertEquals(selfId, p.getLeaderId());
+        assertTrue(p.isSuccess());
+        assertNull(p.getError());
 
         // check raft status after logs proposed
         RaftStatus status = leader.getStatus();

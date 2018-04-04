@@ -3,6 +3,7 @@ package raft.server;
 import raft.server.proto.RaftCommand;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Author: ylgrgyq
@@ -15,7 +16,7 @@ public abstract class AbstractStateMachine implements StateMachine{
         this.raftServer = new RaftServer(c, this);
     }
 
-    public ProposeResponse propose(List<byte[]> data) {
+    public CompletableFuture<ProposeResponse> propose(List<byte[]> data) {
         return raftServer.propose(data);
     }
 

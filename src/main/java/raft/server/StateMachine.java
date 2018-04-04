@@ -4,6 +4,7 @@ import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Author: ylgrgyq
@@ -14,7 +15,7 @@ public interface StateMachine extends LifeCycle{
     void onProposalApplied(List<LogEntry> msgs);
 
     void receiveCommand(RaftCommand cmd);
-    ProposeResponse propose(List<byte[]> data);
+    CompletableFuture<ProposeResponse> propose(List<byte[]> data);
     void appliedTo(int appliedTo);
 
     String getId();

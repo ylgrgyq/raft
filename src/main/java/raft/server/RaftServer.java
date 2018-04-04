@@ -28,7 +28,7 @@ public class RaftServer implements Runnable{
 
     // TODO better use ThreadPoolExecutor to give every thread pool a name
     private final ScheduledExecutorService tickGenerator = Executors.newSingleThreadScheduledExecutor();
-    private final ExecutorService tickTimeoutExecutors = Executors.newFixedThreadPool(8);
+    private final ExecutorService stateMachineJobExecutors = Executors.newFixedThreadPool(8);
     private final RaftState leader = new Leader();
     private final RaftState candidate = new Candidate();
     private final RaftState follower = new Follower();
@@ -57,13 +57,13 @@ public class RaftServer implements Runnable{
     private StateMachine stateMachine;
     private BlockingQueue<Proposal> proposalQueue;
     private BlockingQueue<RaftCommand> receivedCmdQueue;
-    private Thread worker;
+    private Thread workerThread;
     private volatile boolean workerRun = true;
 
     public RaftServer(Config c, StateMachine stateMachine) {
         this.proposalQueue = new LinkedBlockingQueue<>();
         this.receivedCmdQueue = new LinkedBlockingQueue<>();
-        this.worker = new Thread(this);
+        this.workerThread = new Thread(this);
         this.term = new AtomicInteger(0);
         this.raftLog = new RaftLog();
 
@@ -90,7 +90,7 @@ public class RaftServer implements Runnable{
     }
 
     private void transitState(RaftState nextState) {
-        assert this.stateLock.isLocked();
+        assert Thread.currentThread() == workerThread;
 
         if (this.state != nextState) {
             this.state.finish();
@@ -101,45 +101,39 @@ public class RaftServer implements Runnable{
     }
 
     private boolean tryBecomeFollower(int term, String leaderId) {
-        this.stateLock.lock();
-        try {
-            if (term > this.term.get()) {
-                this.leaderId = leaderId;
-                this.term.set(term);
-                this.reset();
-                this.transitState(follower);
-                return true;
-            } else {
-                logger.warn("node {} transient state to {} failed, term = {}, leaderId = {}",
-                        this, State.FOLLOWER, term, leaderId);
-                return false;
-            }
-        } finally {
-            this.stateLock.unlock();
+        assert Thread.currentThread() == workerThread;
+
+        if (term > this.term.get()) {
+            this.leaderId = leaderId;
+            this.term.set(term);
+            this.reset();
+            this.transitState(follower);
+            return true;
+        } else {
+            logger.warn("node {} transient state to {} failed, term = {}, leaderId = {}",
+                    this, State.FOLLOWER, term, leaderId);
+            return false;
         }
     }
 
     private boolean tryBecomeLeader() {
-        this.stateLock.lock();
-        try {
-            if (this.getState() == State.CANDIDATE) {
-                this.leaderId = this.selfId;
-                this.reset();
-                this.transitState(leader);
+        assert Thread.currentThread() == workerThread;
 
-                // reinitialize nextIndex for every peer node
-                // then send them initial empty AppendEntries RPC (heartbeat)
-                for (RaftPeerNode node : this.peerNodes.values()) {
-                    node.reset(this.raftLog.getLastIndex() + 1);
-                    node.sendAppend(RaftServer.this.maxMsgSize);
-                }
-                return true;
-            } else {
-                logger.warn("node {} transient state to {} failed", this, State.LEADER);
-                return false;
+        if (this.getState() == State.CANDIDATE) {
+            this.leaderId = this.selfId;
+            this.reset();
+            this.transitState(leader);
+
+            // reinitialize nextIndex for every peer node
+            // then send them initial empty AppendEntries RPC (heartbeat)
+            for (RaftPeerNode node : this.peerNodes.values()) {
+                node.reset(this.raftLog.getLastIndex() + 1);
+                node.sendAppend(RaftServer.this.maxMsgSize);
             }
-        } finally {
-            this.stateLock.unlock();
+            return true;
+        } else {
+            logger.warn("node {} transient state to {} failed", this, State.LEADER);
+            return false;
         }
     }
 
@@ -150,16 +144,12 @@ public class RaftServer implements Runnable{
             long tick = this.tickCount.incrementAndGet();
             if (this.state.isTickTimeout(tick)) {
                 this.tickCount.set(0);
-                try {
-                    this.tickTimeoutExecutors.submit(this::markTickerTimeout);
-                } catch (RejectedExecutionException ex) {
-                    logger.error("submit process tick timeout job failed", ex);
-                }
+                markTickerTimeout();
             }
 
         }, this.tickIntervalMs, this.tickIntervalMs, TimeUnit.MILLISECONDS);
 
-        this.worker.start();
+        this.workerThread.start();
     }
 
     private void markTickerTimeout() {
@@ -170,13 +160,10 @@ public class RaftServer implements Runnable{
         return this.term.get();
     }
 
-    public void setVotedFor(String votedFor) {
-        this.stateLock.lock();
-        try {
-            this.votedFor = votedFor;
-        } finally {
-            this.stateLock.unlock();
-        }
+    private void setVotedFor(String votedFor) {
+        assert Thread.currentThread() == workerThread;
+
+        this.votedFor = votedFor;
     }
 
     public void clearTickCount() {
@@ -185,12 +172,9 @@ public class RaftServer implements Runnable{
 
     private void setLeaderId(String leaderId) {
         if (!leaderId.equals(this.leaderId)) {
-            this.stateLock.lock();
-            try {
-                this.leaderId = leaderId;
-            } finally {
-                this.stateLock.unlock();
-            }
+            assert Thread.currentThread() == workerThread;
+
+            this.leaderId = leaderId;
         }
     }
 
@@ -260,22 +244,18 @@ public class RaftServer implements Runnable{
         int leaderCommitId = cmd.getLeaderCommit();
         String leaderId = cmd.getLeaderId();
         List<raft.server.proto.LogEntry> entries = cmd.getEntriesList();
-        this.stateLock.tryLock();
-        try {
-            State state = this.getState();
-            if (state == State.FOLLOWER) {
-                try {
-                    this.setLeaderId(leaderId);
-                    return raftLog.tryAppendEntries(prevIndex, prevTerm, leaderCommitId, entries);
-                } catch (Exception ex) {
-                    logger.error("append entries failed on node {}, leaderCommitId={}, leaderId, entries",
-                            this, leaderCommitId, leaderId, entries, ex);
-                }
-            } else {
-                logger.error("append logs failed on node {} due to invalid state: {}", this, state);
+
+        State state = this.getState();
+        if (state == State.FOLLOWER) {
+            try {
+                this.setLeaderId(leaderId);
+                return raftLog.tryAppendEntries(prevIndex, prevTerm, leaderCommitId, entries);
+            } catch (Exception ex) {
+                logger.error("append entries failed on node {}, leaderCommitId={}, leaderId, entries",
+                        this, leaderCommitId, leaderId, entries, ex);
             }
-        } finally {
-            this.stateLock.unlock();
+        } else {
+            logger.error("append logs failed on node {} due to invalid state: {}", this, state);
         }
 
         return false;
@@ -284,7 +264,11 @@ public class RaftServer implements Runnable{
     private void broadcastAppendEntries() {
         if (peerNodes.isEmpty()) {
             List<LogEntry> appliedLogs = this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
-            stateMachine.onProposalApplied(appliedLogs);
+            try {
+                stateMachineJobExecutors.submit(() -> this.stateMachine.onProposalApplied(appliedLogs));
+            } catch (RejectedExecutionException ex) {
+                logger.error("node {} submit apply proposal job failed", ex);
+            }
         } else {
             for (final RaftPeerNode peer : peerNodes.values()) {
                 if (!peer.getPeerId().equals(this.selfId)) {
@@ -347,7 +331,11 @@ public class RaftServer implements Runnable{
                     .setTo(cmd.getFrom())
                     .setFrom(this.selfId)
                     .build();
-            this.stateMachine.onWriteCommand(resp);
+            try {
+                stateMachineJobExecutors.submit(() -> this.stateMachine.onWriteCommand(resp));
+            } catch (RejectedExecutionException ex) {
+                logger.error("node {} submit write out command job failed", ex);
+            }
         } else {
             // check term
             if (cmd.getTerm() > this.getTerm()) {
@@ -370,7 +358,7 @@ public class RaftServer implements Runnable{
 
     void shutdown() {
         this.tickGenerator.shutdown();
-        this.tickTimeoutExecutors.shutdown();
+        this.stateMachineJobExecutors.shutdown();
         this.workerRun = false;
         wakeUpWorker();
     }
@@ -387,7 +375,7 @@ public class RaftServer implements Runnable{
 
     private void wakeUpWorker() {
         if (wakenUp.compareAndSet(false, true)) {
-            worker.interrupt();
+            workerThread.interrupt();
         }
     }
 
@@ -538,8 +526,6 @@ public class RaftServer implements Runnable{
 
         @Override
         public void onTickTimeout() {
-            assert RaftServer.this.stateLock.isLocked();
-
             logger.info("election timeout, node {} become candidate", RaftServer.this);
 
             this.becomeCandidate();
