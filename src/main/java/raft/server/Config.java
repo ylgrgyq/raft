@@ -36,7 +36,7 @@ public class Config {
     public static class ConfigBuilder {
         private long tickIntervalMs = 10;
         private long pingIntervalTicks = 20;
-        private long suggestElectionTimeoutTicks = 40;
+        private long suggestElectionTimeoutTicks = 60;
         private int maxMsgSize = 16;
 
         private List<String> peers = Collections.emptyList();

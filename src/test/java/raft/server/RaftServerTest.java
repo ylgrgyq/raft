@@ -67,7 +67,7 @@ public class RaftServerTest {
         peerIdSet.add("raft node 003");
 
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        StateMachine leader = cluster.waitLeaderElected(2000);
+        StateMachine leader = cluster.waitLeaderElected(3000);
 
         String leaderId = leader.getId();
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
@@ -83,15 +83,16 @@ public class RaftServerTest {
         assertNull(leaderStatus.getVotedFor());
 
         for (String id : followerIds) {
-            StateMachine follower = cluster.getNodeById(id);
+            TestingRaftCluster.TestingStateMachine follower = (TestingRaftCluster.TestingStateMachine)cluster.getNodeById(id);
+            follower.waitBecomeFollower(2000);
+
             RaftStatus status = follower.getStatus();
-            assertEquals(leaderId, status.getId());
             assertEquals(State.FOLLOWER, status.getState());
             assertEquals(0, status.getCommitIndex());
             assertEquals(0, status.getAppliedIndex());
             assertEquals(leaderStatus.getTerm(), status.getTerm());
             assertEquals(leaderId, status.getLeaderId());
-            assertNull(status.getVotedFor());
+            assertEquals(leaderId, status.getVotedFor());
         }
 
         cluster.shutdown();

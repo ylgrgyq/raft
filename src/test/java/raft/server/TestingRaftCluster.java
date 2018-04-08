@@ -89,6 +89,20 @@ class TestingRaftCluster {
             return this.applied;
         }
 
+        void waitBecomeFollower(long timeoutMs) throws TimeoutException, InterruptedException{
+            long start = System.currentTimeMillis();
+            while (true) {
+                if (raftServer.getState() == State.FOLLOWER) {
+                    return;
+                }
+
+                if (System.currentTimeMillis() - start > timeoutMs) {
+                    throw new TimeoutException();
+                } else {
+                    Thread.sleep(200);
+                }
+            }
+        }
 
     }
 }
