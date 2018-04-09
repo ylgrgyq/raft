@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 import raft.server.log.RaftLog;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
-import raft.server.proto.RaftCommandOrBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,7 +14,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -33,7 +31,6 @@ public class RaftServer implements Runnable {
     private final RaftState leader = new Leader();
     private final RaftState candidate = new Candidate();
     private final RaftState follower = new Follower();
-    private final ReentrantLock stateLock = new ReentrantLock();
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
     private final AtomicLong tickCount = new AtomicLong();
     private final AtomicBoolean tickerTimeout = new AtomicBoolean();
@@ -81,8 +78,6 @@ public class RaftServer implements Runnable {
 
         this.state = follower;
 
-        this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
-        System.out.println(this + " election timeout " + this.electionTimeoutTicks);
         this.reset(0);
     }
 
@@ -93,23 +88,24 @@ public class RaftServer implements Runnable {
         this.leaderId = null;
         this.tickCount.set(0);
         this.tickerTimeout.getAndSet(false);
+
+        // we need to reset election timeout on every time state changed and every
+        // reelection in candidate state to avoid split vote
+        this.electionTimeoutTicks = this.generateElectionTimeoutTicks();
     }
 
     private void transitState(RaftState nextState) {
         assert Thread.currentThread() == workerThread;
 
-        if (this.state != nextState) {
-            this.state.finish();
-
-            this.state = nextState;
-            nextState.start();
-        }
+        this.state.finish();
+        this.state = nextState;
+        nextState.start();
     }
 
     private boolean tryBecomeFollower(int term, String leaderId) {
         assert Thread.currentThread() == workerThread;
 
-        if (term > this.term.get()) {
+        if (term >= this.term.get()) {
             this.reset(term);
             this.leaderId = leaderId;
             this.transitState(follower);
@@ -164,6 +160,11 @@ public class RaftServer implements Runnable {
         }, this.tickIntervalMs, this.tickIntervalMs, TimeUnit.MILLISECONDS);
 
         this.workerThread.start();
+
+        logger.info("node {} started with electionTimeout={}, tickIntervalMs={}, pingIntervalTicks={}, " +
+                        "suggectElectionTimeoutTicks={}, raftLog={}",
+                this, this.electionTimeoutTicks, this.tickIntervalMs, this.pingIntervalTicks, this.suggestElectionTimeoutTicks,
+                this.raftLog);
     }
 
     private void markTickerTimeout() {
@@ -339,9 +340,8 @@ public class RaftServer implements Runnable {
             final String candidateId = cmd.getFrom();
             boolean isGranted = false;
 
-            System.out.println("haha1" + (cmd.getTerm() > this.getTerm()));
-            System.out.println("haha2" + (cmd.getTerm() == this.getTerm() && (this.votedFor == null || this.votedFor.equals(candidateId))));
-            System.out.println("haha3" + (this.raftLog.isUpToDate(cmd.getLastLogTerm(), cmd.getLastLogIndex())));
+            // each server will vote for at most one candidate in a given term, on a first-come-first-served basis
+            // so we only need to check votedFor when term in this command equals to the term of this raft server
             if ((cmd.getTerm() > this.getTerm() || (cmd.getTerm() == this.getTerm() && (this.votedFor == null || this.votedFor.equals(candidateId))))
                     && this.raftLog.isUpToDate(cmd.getLastLogTerm(), cmd.getLastLogIndex())) {
                 isGranted = true;
@@ -589,10 +589,12 @@ public class RaftServer implements Runnable {
                     RaftServer.this.leaderId = cmd.getFrom();
                     raftLog.tryCommitTo(cmd.getLeaderCommit());
                     RaftCommand.Builder pong = RaftCommand.newBuilder()
+                            .setType(RaftCommand.CmdType.PONG)
                             .setTo(cmd.getFrom())
                             .setSuccess(true)
                             .setTerm(getTerm());
                     writeOutCommand(pong);
+                    break;
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
             }
@@ -683,6 +685,7 @@ public class RaftServer implements Runnable {
                                 .setTerm(getTerm());
                         writeOutCommand(pong);
                     }
+                    break;
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
             }
@@ -695,7 +698,7 @@ public class RaftServer implements Runnable {
 
         @Override
         public void onTickTimeout() {
-            this.startElection();
+            RaftServer.this.tryBecomeCandidate();
         }
     }
 }

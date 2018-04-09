@@ -205,4 +205,13 @@ public class RaftLog {
 
         this.appliedIndex = appliedTo;
     }
+
+    @Override
+    public String toString() {
+        return "{" +
+                "commitIndex=" + commitIndex +
+                ", appliedIndex=" + appliedIndex +
+                ", offset=" + offset +
+                '}';
+    }
 }

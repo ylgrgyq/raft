@@ -67,7 +67,7 @@ public class RaftServerTest {
         peerIdSet.add("raft node 003");
 
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        StateMachine leader = cluster.waitLeaderElected(3000);
+        StateMachine leader = cluster.waitLeaderElected(5000);
 
         String leaderId = leader.getId();
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
@@ -92,7 +92,11 @@ public class RaftServerTest {
             assertEquals(0, status.getAppliedIndex());
             assertEquals(leaderStatus.getTerm(), status.getTerm());
             assertEquals(leaderId, status.getLeaderId());
-            assertEquals(leaderId, status.getVotedFor());
+
+            // if follower is convert from follower the votedFor is leaderId
+            // if follower is convert from candidate by receiving ping from leader, the votedFort could be it self
+            assertTrue((leaderId.equals(status.getVotedFor()))
+                        || (status.getId().equals(status.getVotedFor())));
         }
 
         cluster.shutdown();
