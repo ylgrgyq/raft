@@ -222,6 +222,7 @@ public class RaftServer implements Runnable {
         return selfId;
     }
 
+    // FIXME state may change during getting status
     public RaftStatus getStatus() {
         RaftStatus status = new RaftStatus();
         status.setTerm(this.getTerm());
@@ -544,7 +545,7 @@ public class RaftServer implements Runnable {
                     }
                     break;
                 case PONG:
-
+                case REQUEST_VOTE_RESP:
                     break;
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
@@ -676,15 +677,16 @@ public class RaftServer implements Runnable {
                     }
                     break;
                 case PING:
+                    RaftCommand.Builder pong = RaftCommand.newBuilder()
+                            .setTo(cmd.getFrom())
+                            .setSuccess(false)
+                            .setTerm(getTerm());
                     if (cmd.getTerm() >= RaftServer.this.getTerm()) {
                         RaftServer.this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
                         raftLog.tryCommitTo(cmd.getLeaderCommit());
-                        RaftCommand.Builder pong = RaftCommand.newBuilder()
-                                .setTo(cmd.getFrom())
-                                .setSuccess(true)
-                                .setTerm(getTerm());
-                        writeOutCommand(pong);
+                        pong.setSuccess(true);
                     }
+                    writeOutCommand(pong);
                     break;
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);

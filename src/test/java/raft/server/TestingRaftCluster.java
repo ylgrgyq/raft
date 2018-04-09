@@ -33,6 +33,10 @@ class TestingRaftCluster {
         }
     }
 
+    StateMachine waitLeaderElected() throws TimeoutException, InterruptedException{
+        return this.waitLeaderElected(0);
+    }
+
     StateMachine waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
         long start = System.currentTimeMillis();
         while (true) {
@@ -41,7 +45,7 @@ class TestingRaftCluster {
                     return n;
                 }
             }
-            if (System.currentTimeMillis() - start > timeoutMs) {
+            if (timeoutMs != 0 && (System.currentTimeMillis() - start > timeoutMs)) {
                 throw new TimeoutException();
             } else {
                 Thread.sleep(200);
