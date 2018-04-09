@@ -17,8 +17,8 @@ public class RaftLog {
     private static final Logger logger = LoggerFactory.getLogger(RaftLog.class.getName());
     static final LogEntry sentinel = LogEntry.newBuilder().setTerm(0).setIndex(0).setData(ByteString.EMPTY).build();
 
-    private int commitIndex = 0;
-    private int appliedIndex = 0;
+    private int commitIndex;
+    private int appliedIndex;
     private int offset;
 
     // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
@@ -101,16 +101,16 @@ public class RaftLog {
 
     public synchronized boolean tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
         checkArgument(!entries.isEmpty(),
-                "try directAppend empty entries with prevIndex: %s, prevTerm: %s, leaderCommitIndex: %s",
+                "try append empty entries with prevIndex: %s, prevTerm: %s, leaderCommitIndex: %s",
                 prevIndex, prevTerm, leaderCommitIndex);
 
         if (prevIndex < this.offset) {
-            logger.warn("try directAppend entries with truncated prevIndex: {}. " +
+            logger.warn("try append entries with truncated prevIndex: {}. " +
                             "prevTerm: {}, leaderCommitIndex: {}, current offset: {}",
                     prevIndex, prevTerm, leaderCommitIndex, this.offset);
             return false;
         } else if (prevIndex > this.getLastIndex()) {
-            logger.warn("try directAppend entries with out of range prevIndex: {}. " +
+            logger.warn("try append entries with out of range prevIndex: {}. " +
                             "prevTerm: {}, leaderCommitIndex: {}, current lastIndex: {}",
                     prevIndex, prevTerm, leaderCommitIndex, this.getLastIndex());
             return false;
@@ -120,7 +120,7 @@ public class RaftLog {
             int conflictIndex = this.searchConflict(entries);
             if (conflictIndex != 0) {
                 if (conflictIndex <= this.commitIndex) {
-                    logger.error("try directAppend entries conflict with committed entry on index: {}, " +
+                    logger.error("try append entries conflict with committed entry on index: {}, " +
                                     "new entry: {}, committed entry: {}",
                             conflictIndex, entries.get(conflictIndex - prevIndex - 1), this.getEntry(conflictIndex));
                     throw new RuntimeException();
@@ -204,5 +204,14 @@ public class RaftLog {
                 "try applied log to %s but applied index in log is %s", appliedTo, appliedIndex);
 
         this.appliedIndex = appliedTo;
+    }
+
+    @Override
+    public String toString() {
+        return "{" +
+                "commitIndex=" + commitIndex +
+                ", appliedIndex=" + appliedIndex +
+                ", offset=" + offset +
+                '}';
     }
 }

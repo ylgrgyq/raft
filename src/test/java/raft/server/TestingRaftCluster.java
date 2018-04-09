@@ -33,6 +33,10 @@ class TestingRaftCluster {
         }
     }
 
+    StateMachine waitLeaderElected() throws TimeoutException, InterruptedException{
+        return this.waitLeaderElected(0);
+    }
+
     StateMachine waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
         long start = System.currentTimeMillis();
         while (true) {
@@ -41,7 +45,7 @@ class TestingRaftCluster {
                     return n;
                 }
             }
-            if (System.currentTimeMillis() - start > timeoutMs) {
+            if (timeoutMs != 0 && (System.currentTimeMillis() - start > timeoutMs)) {
                 throw new TimeoutException();
             } else {
                 Thread.sleep(200);
@@ -69,13 +73,13 @@ class TestingRaftCluster {
         @Override
         public void receiveCommand(RaftCommand cmd) {
             logger.debug("node {} receive command {}", this.getId(), cmd.toString());
-            raftServer.processReceivedCommand(cmd);
+            raftServer.queueReceivedCommand(cmd);
         }
 
         @Override
         public void onWriteCommand(RaftCommand cmd) {
             String to = cmd.getTo();
-            logger.debug("node {} write command {} to {}", this.getId(), cmd.toString(), to);
+            logger.debug("node {} write command {}", this.getId(), cmd.toString());
             StateMachine toNode = nodes.get(to);
             toNode.receiveCommand(cmd);
         }
@@ -89,6 +93,20 @@ class TestingRaftCluster {
             return this.applied;
         }
 
+        void waitBecomeFollower(long timeoutMs) throws TimeoutException, InterruptedException{
+            long start = System.currentTimeMillis();
+            while (true) {
+                if (raftServer.getState() == State.FOLLOWER) {
+                    return;
+                }
+
+                if (System.currentTimeMillis() - start > timeoutMs) {
+                    throw new TimeoutException();
+                } else {
+                    Thread.sleep(200);
+                }
+            }
+        }
 
     }
 }

@@ -35,7 +35,7 @@ public final class Commands {
     java.lang.String[] descriptorData = {
       "\n\016commands.proto\022\021raft.server.proto\"5\n\010L" +
       "ogEntry\022\r\n\005index\030\001 \001(\005\022\014\n\004term\030\002 \001(\005\022\014\n\004" +
-      "data\030\003 \001(\014\"\263\003\n\013RaftCommand\0224\n\004type\030\001 \001(\016" +
+      "data\030\003 \001(\014\"\307\003\n\013RaftCommand\0224\n\004type\030\001 \001(\016" +
       "2&.raft.server.proto.RaftCommand.CmdType" +
       "\022\014\n\004from\030\002 \001(\t\022\n\n\002to\030\003 \001(\t\022\014\n\004term\030\004 \001(\005" +
       "\022\026\n\016prev_log_index\030\005 \001(\005\022\025\n\rprev_log_ter" +
@@ -43,10 +43,10 @@ public final class Commands {
       "s\030\010 \001(\010\022,\n\007entries\030\t \003(\0132\033.raft.server.p" +
       "roto.LogEntry\022\021\n\tleader_id\030\n \001(\t\022\026\n\016last" +
       "_log_index\030\013 \001(\005\022\025\n\rlast_log_term\030\014 \001(\005\022" +
-      "\024\n\014vote_granted\030\r \001(\010\"i\n\007CmdType\022\010\n\004NONE" +
+      "\024\n\014vote_granted\030\r \001(\010\"}\n\007CmdType\022\010\n\004NONE" +
       "\020\000\022\020\n\014REQUEST_VOTE\020\001\022\025\n\021REQUEST_VOTE_RES" +
       "P\020\002\022\022\n\016APPEND_ENTRIES\020\003\022\027\n\023APPEND_ENTRIE" +
-      "S_RESP\020\004B\002P\001b\006proto3"
+      "S_RESP\020\004\022\010\n\004PING\020\005\022\010\n\004PONG\020\006B\002P\001b\006proto3"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
         new com.google.protobuf.Descriptors.FileDescriptor.    InternalDescriptorAssigner() {

@@ -187,6 +187,14 @@ private static final long serialVersionUID = 0L;
      * <code>APPEND_ENTRIES_RESP = 4;</code>
      */
     APPEND_ENTRIES_RESP(4),
+    /**
+     * <code>PING = 5;</code>
+     */
+    PING(5),
+    /**
+     * <code>PONG = 6;</code>
+     */
+    PONG(6),
     UNRECOGNIZED(-1),
     ;
 
@@ -210,6 +218,14 @@ private static final long serialVersionUID = 0L;
      * <code>APPEND_ENTRIES_RESP = 4;</code>
      */
     public static final int APPEND_ENTRIES_RESP_VALUE = 4;
+    /**
+     * <code>PING = 5;</code>
+     */
+    public static final int PING_VALUE = 5;
+    /**
+     * <code>PONG = 6;</code>
+     */
+    public static final int PONG_VALUE = 6;
 
 
     public final int getNumber() {
@@ -235,6 +251,8 @@ private static final long serialVersionUID = 0L;
         case 2: return REQUEST_VOTE_RESP;
         case 3: return APPEND_ENTRIES;
         case 4: return APPEND_ENTRIES_RESP;
+        case 5: return PING;
+        case 6: return PONG;
         default: return null;
       }
     }

@@ -6,8 +6,8 @@ import raft.server.proto.LogEntry;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.*;
 
@@ -33,7 +33,7 @@ public class RaftServerTest {
         peers.add(selfId);
 
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
-        StateMachine leader = cluster.waitLeaderElected(1000);
+        StateMachine leader = cluster.waitLeaderElected(2000);
 
         RaftStatus status = leader.getStatus();
         assertEquals(selfId, status.getId());
@@ -47,15 +47,34 @@ public class RaftServerTest {
         cluster.shutdown();
     }
 
-    @Test(expected = TimeoutException.class)
+    @Test
     public void testInitTwoNode() throws Exception {
         List<String> peers = new ArrayList<>();
-        peers.add("raft node 001");
-        peers.add("raft node 002");
+        peers.add("two raft node 001");
+        peers.add("two raft node 002");
 
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
-        cluster.waitLeaderElected(2000);
-        throw new RuntimeException("Can't elect a leader with two nodes");
+        StateMachine leader = cluster.waitLeaderElected();
+
+        RaftStatus leaderStatus = leader.getStatus();
+        assertEquals(State.LEADER, leaderStatus.getState());
+        assertEquals(0, leaderStatus.getCommitIndex());
+        assertEquals(0, leaderStatus.getAppliedIndex());
+        assertTrue(leaderStatus.getTerm() > 0);
+        assertNull(leaderStatus.getVotedFor());
+
+        String followerId = leader.getId().equals(peers.get(0)) ? peers.get(1) : peers.get(0);
+        StateMachine follower = cluster.getNodeById(followerId);
+        ((TestingRaftCluster.TestingStateMachine)follower).waitBecomeFollower(2000);
+
+        RaftStatus status = follower.getStatus();
+        assertEquals(State.FOLLOWER, status.getState());
+        assertEquals(0, status.getCommitIndex());
+        assertEquals(0, status.getAppliedIndex());
+        assertEquals(leaderStatus.getTerm(), status.getTerm());
+        assertEquals(leader.getId(), status.getLeaderId());
+
+        cluster.shutdown();
     }
 
     @Test
@@ -66,7 +85,7 @@ public class RaftServerTest {
         peerIdSet.add("raft node 003");
 
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        StateMachine leader = cluster.waitLeaderElected(2000);
+        StateMachine leader = cluster.waitLeaderElected(5000);
 
         String leaderId = leader.getId();
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
@@ -82,19 +101,28 @@ public class RaftServerTest {
         assertNull(leaderStatus.getVotedFor());
 
         for (String id : followerIds) {
-            StateMachine follower = cluster.getNodeById(id);
+            TestingRaftCluster.TestingStateMachine follower = (TestingRaftCluster.TestingStateMachine)cluster.getNodeById(id);
+            follower.waitBecomeFollower(2000);
+
             RaftStatus status = follower.getStatus();
-            assertEquals(leaderId, status.getId());
             assertEquals(State.FOLLOWER, status.getState());
             assertEquals(0, status.getCommitIndex());
             assertEquals(0, status.getAppliedIndex());
             assertEquals(leaderStatus.getTerm(), status.getTerm());
             assertEquals(leaderId, status.getLeaderId());
-            assertNull(status.getVotedFor());
+
+            // if follower is convert from follower the votedFor is leaderId
+            // if follower is convert from candidate by receiving ping from leader, the votedFort could be it self
+            assertTrue((leaderId.equals(status.getVotedFor()))
+                        || (status.getId().equals(status.getVotedFor())));
         }
 
         cluster.shutdown();
     }
+
+    //TODO test several nodes become candidate simultaneously
+
+
 
     @Test
     public void testProposeOnSingleNode() throws Exception {
@@ -103,15 +131,16 @@ public class RaftServerTest {
         peers.add(selfId);
 
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
-        StateMachine leader = cluster.waitLeaderElected(1000);
+        StateMachine leader = cluster.waitLeaderElected(2000);
 
         // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
         List<byte[]> dataList = RaftServerTest.newDataList(logCount);
-        ProposeResponse resp = leader.propose(dataList);
-        assertEquals(selfId, resp.getLeaderId());
-        assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
+        CompletableFuture<ProposeResponse> resp = leader.propose(dataList);
+        ProposeResponse p = resp.get();
+        assertEquals(selfId, p.getLeaderId());
+        assertTrue(p.isSuccess());
+        assertNull(p.getError());
 
         // check raft status after logs proposed
         RaftStatus status = leader.getStatus();
