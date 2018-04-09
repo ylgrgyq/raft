@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import raft.server.log.RaftLog;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
+import raft.server.proto.RaftCommandOrBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
  */
 
 @SuppressWarnings("WeakerAccess")
-public class RaftServer implements Runnable{
+public class RaftServer implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
 
     // TODO better use ThreadPoolExecutor to give every thread pool a name
@@ -130,10 +131,9 @@ public class RaftServer implements Runnable{
             this.votedFor = null;
 
             // reinitialize nextIndex for every peer node
-            // then send them initial empty AppendEntries RPC (heartbeat)
+            // then send them initial ping on start leader state
             for (RaftPeerNode node : this.peerNodes.values()) {
                 node.reset(this.raftLog.getLastIndex() + 1);
-                node.sendAppend(RaftServer.this.maxMsgSize);
             }
             return true;
         } else {
@@ -292,6 +292,14 @@ public class RaftServer implements Runnable{
         }
     }
 
+    private void broadcastPing() {
+        for (final RaftPeerNode peer : peerNodes.values()) {
+            if (!peer.getPeerId().equals(this.selfId)) {
+                peer.sendPing();
+            }
+        }
+    }
+
     private void updateCommit() {
         // kth biggest number
         int k = this.getQuorum() - 1;
@@ -331,29 +339,22 @@ public class RaftServer implements Runnable{
             final String candidateId = cmd.getFrom();
             boolean isGranted = false;
 
-            System.out.println("haha1" + (this.votedFor == null || this.votedFor.equals(candidateId)));
-            System.out.println("haha2" + (cmd.getTerm() >= this.getTerm()));
+            System.out.println("haha1" + (cmd.getTerm() > this.getTerm()));
+            System.out.println("haha2" + (cmd.getTerm() == this.getTerm() && (this.votedFor == null || this.votedFor.equals(candidateId))));
             System.out.println("haha3" + (this.raftLog.isUpToDate(cmd.getLastLogTerm(), cmd.getLastLogIndex())));
-            if ((this.votedFor == null || this.votedFor.equals(candidateId)) &&
-                    cmd.getTerm() >= this.getTerm() &&
-                    this.raftLog.isUpToDate(cmd.getLastLogTerm(), cmd.getLastLogIndex())) {
+            if ((cmd.getTerm() > this.getTerm() || (cmd.getTerm() == this.getTerm() && (this.votedFor == null || this.votedFor.equals(candidateId))))
+                    && this.raftLog.isUpToDate(cmd.getLastLogTerm(), cmd.getLastLogIndex())) {
                 isGranted = true;
                 this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
                 this.setVotedFor(candidateId);
             }
 
-            RaftCommand resp = RaftCommand.newBuilder()
+            RaftCommand.Builder resp = RaftCommand.newBuilder()
                     .setType(RaftCommand.CmdType.REQUEST_VOTE_RESP)
                     .setVoteGranted(isGranted)
                     .setTo(cmd.getFrom())
-                    .setFrom(this.selfId)
-                    .setTerm(cmd.getTerm())
-                    .build();
-            try {
-                stateMachineJobExecutors.submit(() -> this.stateMachine.onWriteCommand(resp));
-            } catch (RejectedExecutionException ex) {
-                logger.error("node {} submit write out command job failed", ex);
-            }
+                    .setTerm(cmd.getTerm());
+            writeOutCommand(resp);
         } else {
             // check term
             if (cmd.getTerm() > this.getTerm()) {
@@ -364,9 +365,17 @@ public class RaftServer implements Runnable{
         }
     }
 
+    void writeOutCommand(RaftCommand.Builder builder) {
+        builder.setFrom(this.selfId);
+        try {
+            stateMachineJobExecutors.submit(() -> this.stateMachine.onWriteCommand(builder.build()));
+        } catch (RejectedExecutionException ex) {
+            logger.error("node {} submit write out command job failed", ex);
+        }
+    }
 
     void queueReceivedCommand(RaftCommand cmd) {
-        if (! this.peerNodes.containsKey(cmd.getFrom())) {
+        if (!this.peerNodes.containsKey(cmd.getFrom())) {
             logger.warn("node {} received cmd {} from unknown peer", this, cmd);
             return;
         }
@@ -398,7 +407,7 @@ public class RaftServer implements Runnable{
     }
 
 
-    private void processCommands(List<RaftCommand> cmds){
+    private void processCommands(List<RaftCommand> cmds) {
         for (RaftCommand cmd : cmds) {
             try {
                 processReceivedCommand(cmd);
@@ -425,8 +434,8 @@ public class RaftServer implements Runnable{
         }
 
         int i = 0;
-        while (i < 1000 && (cmd = RaftServer.this.receivedCmdQueue.poll()) != null){
-            if (! initialed) {
+        while (i < 1000 && (cmd = RaftServer.this.receivedCmdQueue.poll()) != null) {
+            if (!initialed) {
                 cmds = new ArrayList<>();
             }
 
@@ -493,7 +502,7 @@ public class RaftServer implements Runnable{
 
         public void start() {
             logger.debug("node {} start leader", RaftServer.this);
-            RaftServer.this.broadcastAppendEntries();
+            RaftServer.this.broadcastPing();
         }
 
         public void finish() {
@@ -507,16 +516,35 @@ public class RaftServer implements Runnable{
 
         @Override
         public void onTickTimeout() {
-            RaftServer.this.broadcastAppendEntries();
+            RaftServer.this.broadcastPing();
         }
 
         @Override
         void process(RaftCommand cmd) {
             switch (cmd.getType()) {
                 case APPEND_ENTRIES_RESP:
-                    if (cmd.getTerm() == RaftServer.this.getTerm()) {
+                    if (cmd.getTerm() > RaftServer.this.getTerm()) {
+                        tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
+                    } else if (cmd.getTerm() == RaftServer.this.getTerm()) {
+//                        if (cmd.getSuccess()) {
+//                            this.matchIndex = entries.get(entries.size() - 1).getIndex();
+//                            this.nextIndex = this.matchIndex + 1;
+//                            updateCommit();
+//                        } else {
+//                            this.nextIndex--;
+//                            if (this.nextIndex < 1) {
+//                                logger.warn("nextIndex for {} decreased to 1", this.toString());
+//                                this.nextIndex = 1;
+//                            }
+//                            assert this.nextIndex > this.matchIndex;
+//                            this.sendAppend(maxMsgSize);
+//                        }
+
                         RaftServer.this.replicateLogsOnFollower(cmd);
                     }
+                    break;
+                case PONG:
+
                     break;
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
@@ -556,6 +584,15 @@ public class RaftServer implements Runnable{
                     RaftServer.this.clearTickCount();
                     RaftServer.this.replicateLogsOnFollower(cmd);
                     break;
+                case PING:
+                    RaftServer.this.clearTickCount();
+                    RaftServer.this.leaderId = cmd.getFrom();
+                    raftLog.tryCommitTo(cmd.getLeaderCommit());
+                    RaftCommand.Builder pong = RaftCommand.newBuilder()
+                            .setTo(cmd.getFrom())
+                            .setSuccess(true)
+                            .setTerm(getTerm());
+                    writeOutCommand(pong);
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
             }
@@ -580,6 +617,7 @@ public class RaftServer implements Runnable{
 
         private void startElection() {
             votesGot = new ConcurrentHashMap<>();
+            RaftServer.this.votedFor = RaftServer.this.selfId;
             assert RaftServer.this.getState() == State.CANDIDATE;
 
             final int candidateTerm = RaftServer.this.term.incrementAndGet();
@@ -635,6 +673,16 @@ public class RaftServer implements Runnable{
                         RaftServer.this.replicateLogsOnFollower(cmd);
                     }
                     break;
+                case PING:
+                    if (cmd.getTerm() >= RaftServer.this.getTerm()) {
+                        RaftServer.this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
+                        raftLog.tryCommitTo(cmd.getLeaderCommit());
+                        RaftCommand.Builder pong = RaftCommand.newBuilder()
+                                .setTo(cmd.getFrom())
+                                .setSuccess(true)
+                                .setTerm(getTerm());
+                        writeOutCommand(pong);
+                    }
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
             }

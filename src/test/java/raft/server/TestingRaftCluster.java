@@ -75,7 +75,7 @@ class TestingRaftCluster {
         @Override
         public void onWriteCommand(RaftCommand cmd) {
             String to = cmd.getTo();
-            logger.debug("node {} write command {} to {}", this.getId(), cmd.toString(), to);
+            logger.debug("node {} write command {}", this.getId(), cmd.toString());
             StateMachine toNode = nodes.get(to);
             toNode.receiveCommand(cmd);
         }

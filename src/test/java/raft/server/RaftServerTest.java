@@ -98,6 +98,10 @@ public class RaftServerTest {
         cluster.shutdown();
     }
 
+    //TODO test several nodes become candidate simultaneously
+
+
+
     @Test
     public void testProposeOnSingleNode() throws Exception {
         String selfId = "raft node 001";

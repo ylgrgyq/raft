@@ -15,6 +15,8 @@ message RaftCommand {
         REQUEST_VOTE_RESP = 2;
         APPEND_ENTRIES = 3;
         APPEND_ENTRIES_RESP = 4;
+        PING = 5;
+        PONG = 6;
     }
 
     CmdType type = 1;
