@@ -313,6 +313,28 @@ public class RaftServer implements Runnable {
             writeOutCommand(resp);
         } else {
             // check term
+            if (cmd.getTerm() < this.getTerm()) {
+                RaftCommand.CmdType respType = null;
+                RaftCommand.Builder resp = RaftCommand.newBuilder()
+                        .setTo(cmd.getFrom())
+                        .setSuccess(false)
+                        .setTerm(getTerm());
+
+                if (cmd.getType() == RaftCommand.CmdType.APPEND_ENTRIES) {
+                    respType = RaftCommand.CmdType.APPEND_ENTRIES_RESP;
+                } else if (cmd.getType() == RaftCommand.CmdType.PING) {
+                    respType = RaftCommand.CmdType.PONG;
+                }
+
+                if (respType != null) {
+                    resp.setType(respType);
+                    writeOutCommand(resp);
+                } else {
+                    logger.warn("node {} receive unexpected command {} with term lower than current term", this, cmd);
+                }
+                return;
+            }
+
             if (cmd.getTerm() > this.getTerm()) {
                 this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
             }
@@ -457,6 +479,28 @@ public class RaftServer implements Runnable {
         nextState.start();
     }
 
+    private void processAppendEntries(RaftCommand cmd) {
+        RaftCommand.Builder resp = RaftCommand.newBuilder()
+                .setType(RaftCommand.CmdType.APPEND_ENTRIES_RESP)
+                .setTo(cmd.getFrom())
+                .setTerm(getTerm());
+        boolean isSuccess = RaftServer.this.replicateLogsOnFollower(cmd);
+        resp.setSuccess(isSuccess);
+        resp.setMatchIndex(raftLog.getLastIndex());
+        writeOutCommand(resp);
+    }
+
+    private void processHeartbeat(RaftCommand cmd) {
+        RaftCommand.Builder pong = RaftCommand.newBuilder()
+                .setType(RaftCommand.CmdType.PONG)
+                .setTo(cmd.getFrom())
+                .setSuccess(true)
+                .setTerm(getTerm());
+        raftLog.tryCommitTo(cmd.getLeaderCommit());
+        pong.setSuccess(true);
+        writeOutCommand(pong);
+    }
+
     void shutdown() {
         this.tickGenerator.shutdown();
         this.stateMachineJobExecutors.shutdown();
@@ -513,6 +557,7 @@ public class RaftServer implements Runnable {
             switch (cmd.getType()) {
                 case APPEND_ENTRIES_RESP:
                     if (cmd.getTerm() > RaftServer.this.getTerm()) {
+                        assert !cmd.getSuccess();
                         tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
                     } else if (cmd.getTerm() == RaftServer.this.getTerm()) {
 //                        if (cmd.getSuccess()) {
@@ -533,6 +578,8 @@ public class RaftServer implements Runnable {
                     }
                     break;
                 case PONG:
+                    // resend pending append entries
+                    break;
                 case REQUEST_VOTE_RESP:
                     break;
                 default:
@@ -571,18 +618,13 @@ public class RaftServer implements Runnable {
             switch (cmd.getType()) {
                 case APPEND_ENTRIES:
                     RaftServer.this.clearTickCount();
-                    RaftServer.this.replicateLogsOnFollower(cmd);
+                    RaftServer.this.leaderId = cmd.getLeaderId();
+                    RaftServer.this.processAppendEntries(cmd);
                     break;
                 case PING:
                     RaftServer.this.clearTickCount();
                     RaftServer.this.leaderId = cmd.getFrom();
-                    raftLog.tryCommitTo(cmd.getLeaderCommit());
-                    RaftCommand.Builder pong = RaftCommand.newBuilder()
-                            .setType(RaftCommand.CmdType.PONG)
-                            .setTo(cmd.getFrom())
-                            .setSuccess(true)
-                            .setTerm(getTerm());
-                    writeOutCommand(pong);
+                    RaftServer.this.processHeartbeat(cmd);
                     break;
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
@@ -659,22 +701,12 @@ public class RaftServer implements Runnable {
                     break;
                 case APPEND_ENTRIES:
                     // if term in cmd is greater than current term we are already transferred to follower
-                    if (cmd.getTerm() == RaftServer.this.getTerm()) {
-                        RaftServer.this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
-                        RaftServer.this.replicateLogsOnFollower(cmd);
-                    }
+                    RaftServer.this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
+                    RaftServer.this.processAppendEntries(cmd);
                     break;
                 case PING:
-                    RaftCommand.Builder pong = RaftCommand.newBuilder()
-                            .setTo(cmd.getFrom())
-                            .setSuccess(false)
-                            .setTerm(getTerm());
-                    if (cmd.getTerm() >= RaftServer.this.getTerm()) {
-                        RaftServer.this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
-                        raftLog.tryCommitTo(cmd.getLeaderCommit());
-                        pong.setSuccess(true);
-                    }
-                    writeOutCommand(pong);
+                    RaftServer.this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
+                    RaftServer.this.processHeartbeat(cmd);
                     break;
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);

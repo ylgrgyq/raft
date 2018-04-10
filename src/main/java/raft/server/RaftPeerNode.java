@@ -36,9 +36,8 @@ class RaftPeerNode {
         final int startIndex = this.nextIndex;
         final List<LogEntry> entries = serverLog.getEntries(startIndex - 1, startIndex + maxMsgSize);
 
-        // entries must not empty even for heartbeat
-        // TODO use a dedicated heartbeat command? so we do not need to send prev log/term in heartbeat
-        assert !entries.isEmpty();
+        // at least two entries, one is prev LogEntry, the other is the newly append LogEntry
+        assert entries.size() > 1;
 
         final LogEntry prev = entries.get(0);
 

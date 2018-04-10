@@ -25,11 +25,12 @@ message RaftCommand {
     int32 term = 4;
     int32 prev_log_index = 5;
     int32 prev_log_term = 6;
-    int32 leader_commit = 7;
-    bool success = 8;
-    repeated LogEntry entries = 9;
-    string leader_id = 10;
-    int32 last_log_index = 11;
-    int32 last_log_term = 12;
-    bool vote_granted = 13;
+    int32 match_index = 7;
+    int32 leader_commit = 8;
+    bool success = 9;
+    repeated LogEntry entries = 10;
+    string leader_id = 11;
+    int32 last_log_index = 12;
+    int32 last_log_term = 13;
+    bool vote_granted = 14;
 }

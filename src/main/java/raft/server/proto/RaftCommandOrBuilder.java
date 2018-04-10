@@ -52,61 +52,66 @@ public interface RaftCommandOrBuilder extends
   int getPrevLogTerm();
 
   /**
-   * <code>int32 leader_commit = 7;</code>
+   * <code>int32 match_index = 7;</code>
+   */
+  int getMatchIndex();
+
+  /**
+   * <code>int32 leader_commit = 8;</code>
    */
   int getLeaderCommit();
 
   /**
-   * <code>bool success = 8;</code>
+   * <code>bool success = 9;</code>
    */
   boolean getSuccess();
 
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   java.util.List<raft.server.proto.LogEntry> 
       getEntriesList();
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   raft.server.proto.LogEntry getEntries(int index);
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   int getEntriesCount();
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   java.util.List<? extends raft.server.proto.LogEntryOrBuilder> 
       getEntriesOrBuilderList();
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   raft.server.proto.LogEntryOrBuilder getEntriesOrBuilder(
       int index);
 
   /**
-   * <code>string leader_id = 10;</code>
+   * <code>string leader_id = 11;</code>
    */
   java.lang.String getLeaderId();
   /**
-   * <code>string leader_id = 10;</code>
+   * <code>string leader_id = 11;</code>
    */
   com.google.protobuf.ByteString
       getLeaderIdBytes();
 
   /**
-   * <code>int32 last_log_index = 11;</code>
+   * <code>int32 last_log_index = 12;</code>
    */
   int getLastLogIndex();
 
   /**
-   * <code>int32 last_log_term = 12;</code>
+   * <code>int32 last_log_term = 13;</code>
    */
   int getLastLogTerm();
 
   /**
-   * <code>bool vote_granted = 13;</code>
+   * <code>bool vote_granted = 14;</code>
    */
   boolean getVoteGranted();
 }

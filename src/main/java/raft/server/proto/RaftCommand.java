@@ -22,6 +22,7 @@ private static final long serialVersionUID = 0L;
     term_ = 0;
     prevLogIndex_ = 0;
     prevLogTerm_ = 0;
+    matchIndex_ = 0;
     leaderCommit_ = 0;
     success_ = false;
     entries_ = java.util.Collections.emptyList();
@@ -97,40 +98,45 @@ private static final long serialVersionUID = 0L;
           }
           case 56: {
 
-            leaderCommit_ = input.readInt32();
+            matchIndex_ = input.readInt32();
             break;
           }
           case 64: {
 
+            leaderCommit_ = input.readInt32();
+            break;
+          }
+          case 72: {
+
             success_ = input.readBool();
             break;
           }
-          case 74: {
-            if (!((mutable_bitField0_ & 0x00000100) == 0x00000100)) {
+          case 82: {
+            if (!((mutable_bitField0_ & 0x00000200) == 0x00000200)) {
               entries_ = new java.util.ArrayList<raft.server.proto.LogEntry>();
-              mutable_bitField0_ |= 0x00000100;
+              mutable_bitField0_ |= 0x00000200;
             }
             entries_.add(
                 input.readMessage(raft.server.proto.LogEntry.parser(), extensionRegistry));
             break;
           }
-          case 82: {
+          case 90: {
             java.lang.String s = input.readStringRequireUtf8();
 
             leaderId_ = s;
             break;
           }
-          case 88: {
+          case 96: {
 
             lastLogIndex_ = input.readInt32();
             break;
           }
-          case 96: {
+          case 104: {
 
             lastLogTerm_ = input.readInt32();
             break;
           }
-          case 104: {
+          case 112: {
 
             voteGranted_ = input.readBool();
             break;
@@ -143,7 +149,7 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
-      if (((mutable_bitField0_ & 0x00000100) == 0x00000100)) {
+      if (((mutable_bitField0_ & 0x00000200) == 0x00000200)) {
         entries_ = java.util.Collections.unmodifiableList(entries_);
       }
       this.unknownFields = unknownFields.build();
@@ -417,63 +423,72 @@ private static final long serialVersionUID = 0L;
     return prevLogTerm_;
   }
 
-  public static final int LEADER_COMMIT_FIELD_NUMBER = 7;
+  public static final int MATCH_INDEX_FIELD_NUMBER = 7;
+  private int matchIndex_;
+  /**
+   * <code>int32 match_index = 7;</code>
+   */
+  public int getMatchIndex() {
+    return matchIndex_;
+  }
+
+  public static final int LEADER_COMMIT_FIELD_NUMBER = 8;
   private int leaderCommit_;
   /**
-   * <code>int32 leader_commit = 7;</code>
+   * <code>int32 leader_commit = 8;</code>
    */
   public int getLeaderCommit() {
     return leaderCommit_;
   }
 
-  public static final int SUCCESS_FIELD_NUMBER = 8;
+  public static final int SUCCESS_FIELD_NUMBER = 9;
   private boolean success_;
   /**
-   * <code>bool success = 8;</code>
+   * <code>bool success = 9;</code>
    */
   public boolean getSuccess() {
     return success_;
   }
 
-  public static final int ENTRIES_FIELD_NUMBER = 9;
+  public static final int ENTRIES_FIELD_NUMBER = 10;
   private java.util.List<raft.server.proto.LogEntry> entries_;
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   public java.util.List<raft.server.proto.LogEntry> getEntriesList() {
     return entries_;
   }
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   public java.util.List<? extends raft.server.proto.LogEntryOrBuilder> 
       getEntriesOrBuilderList() {
     return entries_;
   }
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   public int getEntriesCount() {
     return entries_.size();
   }
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   public raft.server.proto.LogEntry getEntries(int index) {
     return entries_.get(index);
   }
   /**
-   * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+   * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
    */
   public raft.server.proto.LogEntryOrBuilder getEntriesOrBuilder(
       int index) {
     return entries_.get(index);
   }
 
-  public static final int LEADER_ID_FIELD_NUMBER = 10;
+  public static final int LEADER_ID_FIELD_NUMBER = 11;
   private volatile java.lang.Object leaderId_;
   /**
-   * <code>string leader_id = 10;</code>
+   * <code>string leader_id = 11;</code>
    */
   public java.lang.String getLeaderId() {
     java.lang.Object ref = leaderId_;
@@ -488,7 +503,7 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
-   * <code>string leader_id = 10;</code>
+   * <code>string leader_id = 11;</code>
    */
   public com.google.protobuf.ByteString
       getLeaderIdBytes() {
@@ -504,28 +519,28 @@ private static final long serialVersionUID = 0L;
     }
   }
 
-  public static final int LAST_LOG_INDEX_FIELD_NUMBER = 11;
+  public static final int LAST_LOG_INDEX_FIELD_NUMBER = 12;
   private int lastLogIndex_;
   /**
-   * <code>int32 last_log_index = 11;</code>
+   * <code>int32 last_log_index = 12;</code>
    */
   public int getLastLogIndex() {
     return lastLogIndex_;
   }
 
-  public static final int LAST_LOG_TERM_FIELD_NUMBER = 12;
+  public static final int LAST_LOG_TERM_FIELD_NUMBER = 13;
   private int lastLogTerm_;
   /**
-   * <code>int32 last_log_term = 12;</code>
+   * <code>int32 last_log_term = 13;</code>
    */
   public int getLastLogTerm() {
     return lastLogTerm_;
   }
 
-  public static final int VOTE_GRANTED_FIELD_NUMBER = 13;
+  public static final int VOTE_GRANTED_FIELD_NUMBER = 14;
   private boolean voteGranted_;
   /**
-   * <code>bool vote_granted = 13;</code>
+   * <code>bool vote_granted = 14;</code>
    */
   public boolean getVoteGranted() {
     return voteGranted_;
@@ -561,26 +576,29 @@ private static final long serialVersionUID = 0L;
     if (prevLogTerm_ != 0) {
       output.writeInt32(6, prevLogTerm_);
     }
+    if (matchIndex_ != 0) {
+      output.writeInt32(7, matchIndex_);
+    }
     if (leaderCommit_ != 0) {
-      output.writeInt32(7, leaderCommit_);
+      output.writeInt32(8, leaderCommit_);
     }
     if (success_ != false) {
-      output.writeBool(8, success_);
+      output.writeBool(9, success_);
     }
     for (int i = 0; i < entries_.size(); i++) {
-      output.writeMessage(9, entries_.get(i));
+      output.writeMessage(10, entries_.get(i));
     }
     if (!getLeaderIdBytes().isEmpty()) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 10, leaderId_);
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 11, leaderId_);
     }
     if (lastLogIndex_ != 0) {
-      output.writeInt32(11, lastLogIndex_);
+      output.writeInt32(12, lastLogIndex_);
     }
     if (lastLogTerm_ != 0) {
-      output.writeInt32(12, lastLogTerm_);
+      output.writeInt32(13, lastLogTerm_);
     }
     if (voteGranted_ != false) {
-      output.writeBool(13, voteGranted_);
+      output.writeBool(14, voteGranted_);
     }
     unknownFields.writeTo(output);
   }
@@ -612,32 +630,36 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(6, prevLogTerm_);
     }
+    if (matchIndex_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(7, matchIndex_);
+    }
     if (leaderCommit_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(7, leaderCommit_);
+        .computeInt32Size(8, leaderCommit_);
     }
     if (success_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(8, success_);
+        .computeBoolSize(9, success_);
     }
     for (int i = 0; i < entries_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(9, entries_.get(i));
+        .computeMessageSize(10, entries_.get(i));
     }
     if (!getLeaderIdBytes().isEmpty()) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(10, leaderId_);
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(11, leaderId_);
     }
     if (lastLogIndex_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(11, lastLogIndex_);
+        .computeInt32Size(12, lastLogIndex_);
     }
     if (lastLogTerm_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(12, lastLogTerm_);
+        .computeInt32Size(13, lastLogTerm_);
     }
     if (voteGranted_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(13, voteGranted_);
+        .computeBoolSize(14, voteGranted_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -666,6 +688,8 @@ private static final long serialVersionUID = 0L;
         == other.getPrevLogIndex());
     result = result && (getPrevLogTerm()
         == other.getPrevLogTerm());
+    result = result && (getMatchIndex()
+        == other.getMatchIndex());
     result = result && (getLeaderCommit()
         == other.getLeaderCommit());
     result = result && (getSuccess()
@@ -703,6 +727,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPrevLogIndex();
     hash = (37 * hash) + PREV_LOG_TERM_FIELD_NUMBER;
     hash = (53 * hash) + getPrevLogTerm();
+    hash = (37 * hash) + MATCH_INDEX_FIELD_NUMBER;
+    hash = (53 * hash) + getMatchIndex();
     hash = (37 * hash) + LEADER_COMMIT_FIELD_NUMBER;
     hash = (53 * hash) + getLeaderCommit();
     hash = (37 * hash) + SUCCESS_FIELD_NUMBER;
@@ -863,13 +889,15 @@ private static final long serialVersionUID = 0L;
 
       prevLogTerm_ = 0;
 
+      matchIndex_ = 0;
+
       leaderCommit_ = 0;
 
       success_ = false;
 
       if (entriesBuilder_ == null) {
         entries_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000100);
+        bitField0_ = (bitField0_ & ~0x00000200);
       } else {
         entriesBuilder_.clear();
       }
@@ -911,12 +939,13 @@ private static final long serialVersionUID = 0L;
       result.term_ = term_;
       result.prevLogIndex_ = prevLogIndex_;
       result.prevLogTerm_ = prevLogTerm_;
+      result.matchIndex_ = matchIndex_;
       result.leaderCommit_ = leaderCommit_;
       result.success_ = success_;
       if (entriesBuilder_ == null) {
-        if (((bitField0_ & 0x00000100) == 0x00000100)) {
+        if (((bitField0_ & 0x00000200) == 0x00000200)) {
           entries_ = java.util.Collections.unmodifiableList(entries_);
-          bitField0_ = (bitField0_ & ~0x00000100);
+          bitField0_ = (bitField0_ & ~0x00000200);
         }
         result.entries_ = entries_;
       } else {
@@ -988,6 +1017,9 @@ private static final long serialVersionUID = 0L;
       if (other.getPrevLogTerm() != 0) {
         setPrevLogTerm(other.getPrevLogTerm());
       }
+      if (other.getMatchIndex() != 0) {
+        setMatchIndex(other.getMatchIndex());
+      }
       if (other.getLeaderCommit() != 0) {
         setLeaderCommit(other.getLeaderCommit());
       }
@@ -998,7 +1030,7 @@ private static final long serialVersionUID = 0L;
         if (!other.entries_.isEmpty()) {
           if (entries_.isEmpty()) {
             entries_ = other.entries_;
-            bitField0_ = (bitField0_ & ~0x00000100);
+            bitField0_ = (bitField0_ & ~0x00000200);
           } else {
             ensureEntriesIsMutable();
             entries_.addAll(other.entries_);
@@ -1011,7 +1043,7 @@ private static final long serialVersionUID = 0L;
             entriesBuilder_.dispose();
             entriesBuilder_ = null;
             entries_ = other.entries_;
-            bitField0_ = (bitField0_ & ~0x00000100);
+            bitField0_ = (bitField0_ & ~0x00000200);
             entriesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getEntriesFieldBuilder() : null;
@@ -1321,15 +1353,41 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private int matchIndex_ ;
+    /**
+     * <code>int32 match_index = 7;</code>
+     */
+    public int getMatchIndex() {
+      return matchIndex_;
+    }
+    /**
+     * <code>int32 match_index = 7;</code>
+     */
+    public Builder setMatchIndex(int value) {
+      
+      matchIndex_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>int32 match_index = 7;</code>
+     */
+    public Builder clearMatchIndex() {
+      
+      matchIndex_ = 0;
+      onChanged();
+      return this;
+    }
+
     private int leaderCommit_ ;
     /**
-     * <code>int32 leader_commit = 7;</code>
+     * <code>int32 leader_commit = 8;</code>
      */
     public int getLeaderCommit() {
       return leaderCommit_;
     }
     /**
-     * <code>int32 leader_commit = 7;</code>
+     * <code>int32 leader_commit = 8;</code>
      */
     public Builder setLeaderCommit(int value) {
       
@@ -1338,7 +1396,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 leader_commit = 7;</code>
+     * <code>int32 leader_commit = 8;</code>
      */
     public Builder clearLeaderCommit() {
       
@@ -1349,13 +1407,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean success_ ;
     /**
-     * <code>bool success = 8;</code>
+     * <code>bool success = 9;</code>
      */
     public boolean getSuccess() {
       return success_;
     }
     /**
-     * <code>bool success = 8;</code>
+     * <code>bool success = 9;</code>
      */
     public Builder setSuccess(boolean value) {
       
@@ -1364,7 +1422,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>bool success = 8;</code>
+     * <code>bool success = 9;</code>
      */
     public Builder clearSuccess() {
       
@@ -1376,9 +1434,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<raft.server.proto.LogEntry> entries_ =
       java.util.Collections.emptyList();
     private void ensureEntriesIsMutable() {
-      if (!((bitField0_ & 0x00000100) == 0x00000100)) {
+      if (!((bitField0_ & 0x00000200) == 0x00000200)) {
         entries_ = new java.util.ArrayList<raft.server.proto.LogEntry>(entries_);
-        bitField0_ |= 0x00000100;
+        bitField0_ |= 0x00000200;
        }
     }
 
@@ -1386,7 +1444,7 @@ private static final long serialVersionUID = 0L;
         raft.server.proto.LogEntry, raft.server.proto.LogEntry.Builder, raft.server.proto.LogEntryOrBuilder> entriesBuilder_;
 
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public java.util.List<raft.server.proto.LogEntry> getEntriesList() {
       if (entriesBuilder_ == null) {
@@ -1396,7 +1454,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public int getEntriesCount() {
       if (entriesBuilder_ == null) {
@@ -1406,7 +1464,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public raft.server.proto.LogEntry getEntries(int index) {
       if (entriesBuilder_ == null) {
@@ -1416,7 +1474,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public Builder setEntries(
         int index, raft.server.proto.LogEntry value) {
@@ -1433,7 +1491,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public Builder setEntries(
         int index, raft.server.proto.LogEntry.Builder builderForValue) {
@@ -1447,7 +1505,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public Builder addEntries(raft.server.proto.LogEntry value) {
       if (entriesBuilder_ == null) {
@@ -1463,7 +1521,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public Builder addEntries(
         int index, raft.server.proto.LogEntry value) {
@@ -1480,7 +1538,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public Builder addEntries(
         raft.server.proto.LogEntry.Builder builderForValue) {
@@ -1494,7 +1552,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public Builder addEntries(
         int index, raft.server.proto.LogEntry.Builder builderForValue) {
@@ -1508,7 +1566,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public Builder addAllEntries(
         java.lang.Iterable<? extends raft.server.proto.LogEntry> values) {
@@ -1523,12 +1581,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public Builder clearEntries() {
       if (entriesBuilder_ == null) {
         entries_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000100);
+        bitField0_ = (bitField0_ & ~0x00000200);
         onChanged();
       } else {
         entriesBuilder_.clear();
@@ -1536,7 +1594,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public Builder removeEntries(int index) {
       if (entriesBuilder_ == null) {
@@ -1549,14 +1607,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public raft.server.proto.LogEntry.Builder getEntriesBuilder(
         int index) {
       return getEntriesFieldBuilder().getBuilder(index);
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public raft.server.proto.LogEntryOrBuilder getEntriesOrBuilder(
         int index) {
@@ -1566,7 +1624,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public java.util.List<? extends raft.server.proto.LogEntryOrBuilder> 
          getEntriesOrBuilderList() {
@@ -1577,14 +1635,14 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public raft.server.proto.LogEntry.Builder addEntriesBuilder() {
       return getEntriesFieldBuilder().addBuilder(
           raft.server.proto.LogEntry.getDefaultInstance());
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public raft.server.proto.LogEntry.Builder addEntriesBuilder(
         int index) {
@@ -1592,7 +1650,7 @@ private static final long serialVersionUID = 0L;
           index, raft.server.proto.LogEntry.getDefaultInstance());
     }
     /**
-     * <code>repeated .raft.server.proto.LogEntry entries = 9;</code>
+     * <code>repeated .raft.server.proto.LogEntry entries = 10;</code>
      */
     public java.util.List<raft.server.proto.LogEntry.Builder> 
          getEntriesBuilderList() {
@@ -1605,7 +1663,7 @@ private static final long serialVersionUID = 0L;
         entriesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             raft.server.proto.LogEntry, raft.server.proto.LogEntry.Builder, raft.server.proto.LogEntryOrBuilder>(
                 entries_,
-                ((bitField0_ & 0x00000100) == 0x00000100),
+                ((bitField0_ & 0x00000200) == 0x00000200),
                 getParentForChildren(),
                 isClean());
         entries_ = null;
@@ -1615,7 +1673,7 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object leaderId_ = "";
     /**
-     * <code>string leader_id = 10;</code>
+     * <code>string leader_id = 11;</code>
      */
     public java.lang.String getLeaderId() {
       java.lang.Object ref = leaderId_;
@@ -1630,7 +1688,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string leader_id = 10;</code>
+     * <code>string leader_id = 11;</code>
      */
     public com.google.protobuf.ByteString
         getLeaderIdBytes() {
@@ -1646,7 +1704,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string leader_id = 10;</code>
+     * <code>string leader_id = 11;</code>
      */
     public Builder setLeaderId(
         java.lang.String value) {
@@ -1659,7 +1717,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string leader_id = 10;</code>
+     * <code>string leader_id = 11;</code>
      */
     public Builder clearLeaderId() {
       
@@ -1668,7 +1726,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string leader_id = 10;</code>
+     * <code>string leader_id = 11;</code>
      */
     public Builder setLeaderIdBytes(
         com.google.protobuf.ByteString value) {
@@ -1684,13 +1742,13 @@ private static final long serialVersionUID = 0L;
 
     private int lastLogIndex_ ;
     /**
-     * <code>int32 last_log_index = 11;</code>
+     * <code>int32 last_log_index = 12;</code>
      */
     public int getLastLogIndex() {
       return lastLogIndex_;
     }
     /**
-     * <code>int32 last_log_index = 11;</code>
+     * <code>int32 last_log_index = 12;</code>
      */
     public Builder setLastLogIndex(int value) {
       
@@ -1699,7 +1757,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 last_log_index = 11;</code>
+     * <code>int32 last_log_index = 12;</code>
      */
     public Builder clearLastLogIndex() {
       
@@ -1710,13 +1768,13 @@ private static final long serialVersionUID = 0L;
 
     private int lastLogTerm_ ;
     /**
-     * <code>int32 last_log_term = 12;</code>
+     * <code>int32 last_log_term = 13;</code>
      */
     public int getLastLogTerm() {
       return lastLogTerm_;
     }
     /**
-     * <code>int32 last_log_term = 12;</code>
+     * <code>int32 last_log_term = 13;</code>
      */
     public Builder setLastLogTerm(int value) {
       
@@ -1725,7 +1783,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 last_log_term = 12;</code>
+     * <code>int32 last_log_term = 13;</code>
      */
     public Builder clearLastLogTerm() {
       
@@ -1736,13 +1794,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean voteGranted_ ;
     /**
-     * <code>bool vote_granted = 13;</code>
+     * <code>bool vote_granted = 14;</code>
      */
     public boolean getVoteGranted() {
       return voteGranted_;
     }
     /**
-     * <code>bool vote_granted = 13;</code>
+     * <code>bool vote_granted = 14;</code>
      */
     public Builder setVoteGranted(boolean value) {
       
@@ -1751,7 +1809,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>bool vote_granted = 13;</code>
+     * <code>bool vote_granted = 14;</code>
      */
     public Builder clearVoteGranted() {
       
