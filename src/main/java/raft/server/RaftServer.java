@@ -31,8 +31,8 @@ public class RaftServer implements Runnable {
     private final AtomicLong tickCount = new AtomicLong();
     private final AtomicBoolean tickerTimeout = new AtomicBoolean();
     private final AtomicBoolean wakenUp = new AtomicBoolean();
-    private BlockingQueue<Proposal> proposalQueue = new LinkedBlockingQueue<>();
-    private BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>();
+    private BlockingQueue<Proposal> proposalQueue = new LinkedBlockingQueue<>(1000);
+    private BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>(1000);
 
     private final ScheduledExecutorService tickGenerator;
     private final ExecutorService stateMachineJobExecutors;
@@ -159,13 +159,18 @@ public class RaftServer implements Runnable {
         CompletableFuture<ProposeResponse> future;
         if (this.getState() == State.LEADER) {
             future = new CompletableFuture<>();
-            Proposal p = new Proposal(entries, future);
-            this.proposalQueue.add(p);
+            this.proposalQueue.add(new Proposal(entries, future));
             wakeUpWorker();
         } else {
             future = CompletableFuture.completedFuture(new ProposeResponse(leaderId, ErrorMsg.NOT_LEADER_NODE));
         }
         return future;
+    }
+
+    private void wakeUpWorker() {
+        if (wakenUp.compareAndSet(false, true)) {
+            workerThread.interrupt();
+        }
     }
 
     void writeOutCommand(RaftCommand.Builder builder) {
@@ -186,12 +191,6 @@ public class RaftServer implements Runnable {
         this.receivedCmdQueue.add(cmd);
     }
 
-    private void wakeUpWorker() {
-        if (wakenUp.compareAndSet(false, true)) {
-            workerThread.interrupt();
-        }
-    }
-
     @Override
     public void run() {
         // init state
@@ -207,8 +206,6 @@ public class RaftServer implements Runnable {
                     }
                 }
 
-                wakenUp.getAndSet(false);
-
                 List<RaftCommand> cmds = pollReceivedCmd();
                 long start = System.nanoTime();
                 processCommands(cmds);
@@ -221,6 +218,9 @@ public class RaftServer implements Runnable {
                 while ((p = RaftServer.this.proposalQueue.poll()) != null) {
                     processProposal(p);
                     processedProposals++;
+                    // check weather we have passed the deadline every 64 proposals
+                    // so we can reduce the calling times of System.nanoTime and
+                    // avoid the impact of narrow deadline
                     if ((processedProposals & 0x3F) == 0) {
                         if (System.nanoTime() >= deadline) {
                             break;
@@ -239,6 +239,9 @@ public class RaftServer implements Runnable {
         boolean initialed = false;
         RaftCommand cmd;
         try {
+            wakenUp.getAndSet(false);
+            // if wakenUp is set to true here between set wakenUp to false and poll the queue,
+            // the poll will throw InterruptedException
             cmd = RaftServer.this.receivedCmdQueue.poll(1, TimeUnit.SECONDS);
             if (cmd != null) {
                 cmds = new ArrayList<>();
@@ -364,29 +367,6 @@ public class RaftServer implements Runnable {
         }
     }
 
-    private int replicateLogsOnFollower(RaftCommand cmd) {
-        int prevIndex = cmd.getPrevLogIndex();
-        int prevTerm = cmd.getPrevLogTerm();
-        int leaderCommitId = cmd.getLeaderCommit();
-        String leaderId = cmd.getLeaderId();
-        List<raft.server.proto.LogEntry> entries = cmd.getEntriesList();
-
-        State state = this.getState();
-        if (state == State.FOLLOWER) {
-            try {
-                this.leaderId = leaderId;
-                return raftLog.tryAppendEntries(prevIndex, prevTerm, leaderCommitId, entries);
-            } catch (Exception ex) {
-                logger.error("append entries failed on node {}, leaderCommitId={}, leaderId, entries",
-                        this, leaderCommitId, leaderId, entries, ex);
-            }
-        } else {
-            logger.error("append logs failed on node {} due to invalid state: {}", this, state);
-        }
-
-        return 0;
-    }
-
     private void broadcastPing() {
         for (final RaftPeerNode peer : peerNodes.values()) {
             if (!peer.getPeerId().equals(this.selfId)) {
@@ -404,7 +384,7 @@ public class RaftServer implements Runnable {
             this.transitState(follower);
             return true;
         } else {
-            logger.warn("node {} transient state to {} failed, term = {}, leaderId = {}",
+            logger.error("node {} transient state to {} failed, term = {}, leaderId = {}",
                     this, State.FOLLOWER, term, leaderId);
             return false;
         }
@@ -426,7 +406,7 @@ public class RaftServer implements Runnable {
             }
             return true;
         } else {
-            logger.warn("node {} transient state to {} failed", this, State.LEADER);
+            logger.error("node {} transient state to {} failed", this, State.LEADER);
             return false;
         }
     }
@@ -465,24 +445,6 @@ public class RaftServer implements Runnable {
         nextState.start();
     }
 
-    private boolean updateCommit() {
-        // kth biggest number
-        int k = this.getQuorum() - 1;
-        List<Integer> matchedIndexes = peerNodes.values().stream()
-                .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
-        int kthMatchedIndexes = matchedIndexes.get(k);
-        Optional<LogEntry> kthLog = this.raftLog.getEntry(kthMatchedIndexes);
-        if (kthLog.isPresent()) {
-            LogEntry e = kthLog.get();
-            if (e.getTerm() == this.getTerm()) {
-                List<LogEntry> committedLogs = this.raftLog.tryCommitTo(kthMatchedIndexes);
-                writeOutCommitedLogs(committedLogs);
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void processAppendEntries(RaftCommand cmd) {
         RaftCommand.Builder resp = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.APPEND_ENTRIES_RESP)
@@ -499,6 +461,29 @@ public class RaftServer implements Runnable {
             }
         }
         writeOutCommand(resp);
+    }
+
+    private int replicateLogsOnFollower(RaftCommand cmd) {
+        int prevIndex = cmd.getPrevLogIndex();
+        int prevTerm = cmd.getPrevLogTerm();
+        int leaderCommitId = cmd.getLeaderCommit();
+        String leaderId = cmd.getLeaderId();
+        List<raft.server.proto.LogEntry> entries = cmd.getEntriesList();
+
+        State state = this.getState();
+        if (state == State.FOLLOWER) {
+            try {
+                this.leaderId = leaderId;
+                return raftLog.tryAppendEntries(prevIndex, prevTerm, leaderCommitId, entries);
+            } catch (Exception ex) {
+                logger.error("append entries failed on node {}, leaderCommitId={}, leaderId, entries",
+                        this, leaderCommitId, leaderId, entries, ex);
+            }
+        } else {
+            logger.error("append logs failed on node {} due to invalid state: {}", this, state);
+        }
+
+        return 0;
     }
 
     private void processHeartbeat(RaftCommand cmd) {
@@ -572,28 +557,52 @@ public class RaftServer implements Runnable {
                         tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
                     } else if (cmd.getTerm() == RaftServer.this.getTerm()) {
                         RaftPeerNode node = peerNodes.get(cmd.getFrom());
-                        if (node == null) {
-                            logger.warn("node {} received AppendEntriesResp msg {} from unknown peer", this, cmd);
-                        } else {
-                            if (cmd.getSuccess()) {
-                                if (node.updateIndexes(cmd.getMatchIndex()) && updateCommit()) {
-                                    broadcastAppendEntries();
-                                }
-                            } else {
-                                node.decreaseIndexAndResendAppend();
+
+                        assert node != null;
+
+                        if (cmd.getSuccess()) {
+                            if (node.updateIndexes(cmd.getMatchIndex()) && updateCommit()) {
+                                broadcastAppendEntries();
                             }
+                        } else {
+                            node.decreaseIndexAndResendAppend();
                         }
-                        RaftServer.this.replicateLogsOnFollower(cmd);
                     }
                     break;
                 case PONG:
                     // resend pending append entries
+                    RaftPeerNode node = peerNodes.get(cmd.getFrom());
+                    if (node.getMatchIndex() < RaftServer.this.raftLog.getLastIndex()) {
+                        node.sendAppend();
+                    }
                     break;
                 case REQUEST_VOTE_RESP:
                     break;
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
             }
+        }
+
+        private boolean updateCommit() {
+            // kth biggest number
+            int k = RaftServer.this.getQuorum() - 1;
+            List<Integer> matchedIndexes = peerNodes.values().stream()
+                    .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
+            int kthMatchedIndexes = matchedIndexes.get(k);
+            Optional<LogEntry> kthLog = RaftServer.this.raftLog.getEntry(kthMatchedIndexes);
+            if (kthLog.isPresent()) {
+                LogEntry e = kthLog.get();
+                // this is a key point. Raft never commits log entries from previous terms by counting replicas
+                // Only log entries from the leader’s current term are committed by counting replicas; once an entry
+                // from the current term has been committed in this way, then all prior entries are committed
+                // indirectly because of the Log Matching Property
+                if (e.getTerm() == RaftServer.this.getTerm()) {
+                    List<LogEntry> committedLogs = RaftServer.this.raftLog.tryCommitTo(kthMatchedIndexes);
+                    writeOutCommitedLogs(committedLogs);
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
