@@ -10,22 +10,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Author: ylgrgyq
- * Date: 18/1/24
+ * Date: 18/4/11
  */
-public class RaftServerTest {
-    private static List<byte[]> newDataList(int count) {
-        List<byte[]> dataList = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            byte[] data = new byte[5];
-            ThreadLocalRandom.current().nextBytes(data);
-            dataList.add(data);
-        }
-        return dataList;
-    }
-
+public class ElectLeaderTest {
     @Test
     public void testInitSingleNode() throws Exception {
         String selfId = "single raft node 001";
@@ -114,7 +105,7 @@ public class RaftServerTest {
             // if follower is convert from follower the votedFor is leaderId
             // if follower is convert from candidate by receiving ping from leader, the votedFort could be it self
             assertTrue((leaderId.equals(status.getVotedFor()))
-                        || (status.getId().equals(status.getVotedFor())));
+                    || (status.getId().equals(status.getVotedFor())));
         }
 
         cluster.shutdown();
@@ -131,7 +122,7 @@ public class RaftServerTest {
 
         // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
-        List<byte[]> dataList = RaftServerTest.newDataList(logCount);
+        List<byte[]> dataList = TestUtil.newDataList(logCount);
         CompletableFuture<ProposeResponse> resp = leader.propose(dataList);
         ProposeResponse p = resp.get();
         assertEquals(selfId, p.getLeaderId());
