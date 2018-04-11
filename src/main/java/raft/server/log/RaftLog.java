@@ -99,7 +99,7 @@ public class RaftLog {
         return this.getLastIndex();
     }
 
-    public synchronized boolean tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
+    public synchronized int tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
         checkArgument(!entries.isEmpty(),
                 "try append empty entries with prevIndex: %s, prevTerm: %s, leaderCommitIndex: %s",
                 prevIndex, prevTerm, leaderCommitIndex);
@@ -108,22 +108,23 @@ public class RaftLog {
             logger.warn("try append entries with truncated prevIndex: {}. " +
                             "prevTerm: {}, leaderCommitIndex: {}, current offset: {}",
                     prevIndex, prevTerm, leaderCommitIndex, this.offset);
-            return false;
+            return 0;
         } else if (prevIndex > this.getLastIndex()) {
             logger.warn("try append entries with out of range prevIndex: {}. " +
                             "prevTerm: {}, leaderCommitIndex: {}, current lastIndex: {}",
                     prevIndex, prevTerm, leaderCommitIndex, this.getLastIndex());
-            return false;
+            return 0;
         }
 
         if (this.match(prevTerm, prevIndex)) {
             int conflictIndex = this.searchConflict(entries);
+            int lastIndex = prevIndex + entries.size();
             if (conflictIndex != 0) {
                 if (conflictIndex <= this.commitIndex) {
                     logger.error("try append entries conflict with committed entry on index: {}, " +
                                     "new entry: {}, committed entry: {}",
                             conflictIndex, entries.get(conflictIndex - prevIndex - 1), this.getEntry(conflictIndex));
-                    throw new RuntimeException();
+                    throw new IllegalStateException();
                 }
 
                 for (LogEntry e : entries.subList(conflictIndex - prevIndex - 1, entries.size())) {
@@ -134,16 +135,15 @@ public class RaftLog {
                         this.logs.set(index, e);
                     }
                 }
-                int lastIndex = prevIndex + entries.size();
                 if (this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex)).isEmpty()) {
                     logger.warn("try commit to {} failed with current commitIndex: {} and lastIndex: {}",
                             Math.min(leaderCommitIndex, lastIndex), this.commitIndex, this.getLastIndex());
                 }
             }
-            return true;
+            return lastIndex;
         }
 
-        return false;
+        return 0;
     }
 
     private int searchConflict(List<LogEntry> entries) {

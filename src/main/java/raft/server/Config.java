@@ -15,7 +15,7 @@ public class Config {
     final long tickIntervalMs;
     final long pingIntervalTicks;
     final long suggestElectionTimeoutTicks;
-    final int maxMsgSize;
+    final int maxEntriesPerAppend;
 
     final List<String> peers;
     final String selfId;
@@ -24,7 +24,7 @@ public class Config {
         this.tickIntervalMs = builder.tickIntervalMs;
         this.pingIntervalTicks = builder.pingIntervalTicks;
         this.suggestElectionTimeoutTicks = builder.suggestElectionTimeoutTicks;
-        this.maxMsgSize = builder.maxMsgSize;
+        this.maxEntriesPerAppend = builder.maxEntriesPerAppend;
         this.peers = builder.peers;
         this.selfId = builder.selfId;
     }
@@ -37,7 +37,7 @@ public class Config {
         private long tickIntervalMs = 10;
         private long pingIntervalTicks = 20;
         private long suggestElectionTimeoutTicks = 60;
-        private int maxMsgSize = 16;
+        private int maxEntriesPerAppend = 16;
 
         private List<String> peers = Collections.emptyList();
         private String selfId;

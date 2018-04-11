@@ -85,7 +85,7 @@ class TestingRaftCluster {
         }
 
         @Override
-        public void onProposalApplied(List<LogEntry> msgs) {
+        public void onProposalCommited(List<LogEntry> msgs) {
             applied.addAll(msgs);
         }
 

@@ -23,18 +23,20 @@ class RaftPeerNode {
     private int nextIndex;
     // index of highest log entry known to be replicated on server (initialized to 0, increases monotonically)
     private int matchIndex;
+    private int maxEntriesPerAppend;
 
-    RaftPeerNode(String peerId, RaftServer server, RaftLog log, int nextIndex) {
+    RaftPeerNode(String peerId, RaftServer server, RaftLog log, int nextIndex, int maxEntriesPerAppend) {
         this.peerId = peerId;
         this.nextIndex = nextIndex;
         this.matchIndex = 0;
         this.server = server;
         this.serverLog = log;
+        this.maxEntriesPerAppend = maxEntriesPerAppend;
     }
 
-    void sendAppend(int maxMsgSize) {
+    void sendAppend() {
         final int startIndex = this.nextIndex;
-        final List<LogEntry> entries = serverLog.getEntries(startIndex - 1, startIndex + maxMsgSize);
+        final List<LogEntry> entries = serverLog.getEntries(startIndex - 1, startIndex + this.maxEntriesPerAppend);
 
         // at least two entries, one is prev LogEntry, the other is the newly append LogEntry
         assert entries.size() > 1;
@@ -63,7 +65,31 @@ class RaftPeerNode {
         server.writeOutCommand(msg);
     }
 
-    synchronized void reset(int nextIndex) {
+    boolean updateIndexes(int matchIndex) {
+        boolean updated = false;
+        if (this.matchIndex < matchIndex) {
+            this.matchIndex = matchIndex;
+            updated = true;
+        }
+
+        if (this.nextIndex < matchIndex + 1) {
+            this.nextIndex = matchIndex + 1;
+        }
+
+        return updated;
+    }
+
+    void decreaseIndexAndResendAppend() {
+        this.nextIndex--;
+        if (this.nextIndex < 1) {
+            logger.warn("nextIndex for {} decreased to 1", this.toString());
+            this.nextIndex = 1;
+        }
+        assert this.nextIndex > this.matchIndex;
+        this.sendAppend();
+    }
+
+    void reset(int nextIndex) {
         this.nextIndex = nextIndex;
         this.matchIndex = 0;
     }
@@ -72,7 +98,7 @@ class RaftPeerNode {
         return matchIndex;
     }
 
-    public String getPeerId() {
+    String getPeerId() {
         return peerId;
     }
 

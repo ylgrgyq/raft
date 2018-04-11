@@ -21,8 +21,6 @@ import java.util.stream.Collectors;
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-
-@SuppressWarnings("WeakerAccess")
 public class RaftServer implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(RaftServer.class.getName());
 
@@ -41,7 +39,7 @@ public class RaftServer implements Runnable {
     private final String selfId;
     private final RaftLog raftLog;
     private final long tickIntervalMs;
-    private final int maxMsgSize;
+    private final int maxEntriesPerAppend;
     private final long pingIntervalTicks;
 
     private final long suggestElectionTimeoutTicks;
@@ -52,13 +50,12 @@ public class RaftServer implements Runnable {
     private AtomicInteger term;
     private String leaderId;
     private RaftState state;
-    private long matchIndex;
     private long electionTimeoutTicks;
     private StateMachine stateMachine;
     private Thread workerThread;
     private volatile boolean workerRun = true;
 
-    public RaftServer(Config c, StateMachine stateMachine) {
+    RaftServer(Config c, StateMachine stateMachine) {
         this.workerThread = new Thread(this);
         this.term = new AtomicInteger(0);
         this.raftLog = new RaftLog();
@@ -70,10 +67,10 @@ public class RaftServer implements Runnable {
         this.suggestElectionTimeoutTicks = c.suggestElectionTimeoutTicks;
         this.pingIntervalTicks = c.pingIntervalTicks;
         this.stateMachine = stateMachine;
-        this.maxMsgSize = c.maxMsgSize;
+        this.maxEntriesPerAppend = c.maxEntriesPerAppend;
 
         for (String peerId : c.peers) {
-            this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1));
+            this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, RaftServer.this.maxEntriesPerAppend));
         }
 
         this.state = follower;
@@ -169,21 +166,6 @@ public class RaftServer implements Runnable {
             future = CompletableFuture.completedFuture(new ProposeResponse(leaderId, ErrorMsg.NOT_LEADER_NODE));
         }
         return future;
-    }
-
-    private void updateCommit() {
-        // kth biggest number
-        int k = this.getQuorum() - 1;
-        List<Integer> matchedIndexes = peerNodes.values().stream()
-                .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
-        int kthMatchedIndexes = matchedIndexes.get(k);
-        Optional<LogEntry> kthLog = this.raftLog.getEntry(kthMatchedIndexes);
-        if (kthLog.isPresent()) {
-            LogEntry e = kthLog.get();
-            if (e.getTerm() == this.getTerm()) {
-                this.raftLog.tryCommitTo(kthMatchedIndexes);
-            }
-        }
     }
 
     void writeOutCommand(RaftCommand.Builder builder) {
@@ -363,22 +345,26 @@ public class RaftServer implements Runnable {
 
     private void broadcastAppendEntries() {
         if (peerNodes.size() == 1) {
-            List<LogEntry> appliedLogs = this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
-            try {
-                stateMachineJobExecutors.submit(() -> this.stateMachine.onProposalApplied(appliedLogs));
-            } catch (RejectedExecutionException ex) {
-                logger.error("node {} submit apply proposal job failed", ex);
-            }
+            List<LogEntry> committedLogs = this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
+            writeOutCommitedLogs(committedLogs);
         } else {
             for (final RaftPeerNode peer : peerNodes.values()) {
                 if (!peer.getPeerId().equals(this.selfId)) {
-                    peer.sendAppend(RaftServer.this.maxMsgSize);
+                    peer.sendAppend();
                 }
             }
         }
     }
 
-    private boolean replicateLogsOnFollower(RaftCommand cmd) {
+    private void writeOutCommitedLogs(List<LogEntry> commitedLogs) {
+        try {
+            stateMachineJobExecutors.submit(() -> this.stateMachine.onProposalCommited(commitedLogs));
+        } catch (RejectedExecutionException ex) {
+            logger.error("node {} submit apply proposal job failed", ex);
+        }
+    }
+
+    private int replicateLogsOnFollower(RaftCommand cmd) {
         int prevIndex = cmd.getPrevLogIndex();
         int prevTerm = cmd.getPrevLogTerm();
         int leaderCommitId = cmd.getLeaderCommit();
@@ -398,7 +384,7 @@ public class RaftServer implements Runnable {
             logger.error("append logs failed on node {} due to invalid state: {}", this, state);
         }
 
-        return false;
+        return 0;
     }
 
     private void broadcastPing() {
@@ -479,14 +465,39 @@ public class RaftServer implements Runnable {
         nextState.start();
     }
 
+    private boolean updateCommit() {
+        // kth biggest number
+        int k = this.getQuorum() - 1;
+        List<Integer> matchedIndexes = peerNodes.values().stream()
+                .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
+        int kthMatchedIndexes = matchedIndexes.get(k);
+        Optional<LogEntry> kthLog = this.raftLog.getEntry(kthMatchedIndexes);
+        if (kthLog.isPresent()) {
+            LogEntry e = kthLog.get();
+            if (e.getTerm() == this.getTerm()) {
+                List<LogEntry> committedLogs = this.raftLog.tryCommitTo(kthMatchedIndexes);
+                writeOutCommitedLogs(committedLogs);
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void processAppendEntries(RaftCommand cmd) {
         RaftCommand.Builder resp = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.APPEND_ENTRIES_RESP)
                 .setTo(cmd.getFrom())
-                .setTerm(getTerm());
-        boolean isSuccess = RaftServer.this.replicateLogsOnFollower(cmd);
-        resp.setSuccess(isSuccess);
-        resp.setMatchIndex(raftLog.getLastIndex());
+                .setTerm(getTerm())
+                .setSuccess(false);
+        if (cmd.getPrevLogIndex() < raftLog.getCommitIndex()) {
+            resp.setMatchIndex(raftLog.getCommitIndex());
+        } else {
+            int matchIndex = RaftServer.this.replicateLogsOnFollower(cmd);
+            if (matchIndex != 0) {
+                resp.setSuccess(true);
+                resp.setMatchIndex(matchIndex);
+            }
+        }
         writeOutCommand(resp);
     }
 
@@ -560,20 +571,18 @@ public class RaftServer implements Runnable {
                         assert !cmd.getSuccess();
                         tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
                     } else if (cmd.getTerm() == RaftServer.this.getTerm()) {
-//                        if (cmd.getSuccess()) {
-//                            this.matchIndex = entries.get(entries.size() - 1).getIndex();
-//                            this.nextIndex = this.matchIndex + 1;
-//                            updateCommit();
-//                        } else {
-//                            this.nextIndex--;
-//                            if (this.nextIndex < 1) {
-//                                logger.warn("nextIndex for {} decreased to 1", this.toString());
-//                                this.nextIndex = 1;
-//                            }
-//                            assert this.nextIndex > this.matchIndex;
-//                            this.sendAppend(maxMsgSize);
-//                        }
-
+                        RaftPeerNode node = peerNodes.get(cmd.getFrom());
+                        if (node == null) {
+                            logger.warn("node {} received AppendEntriesResp msg {} from unknown peer", this, cmd);
+                        } else {
+                            if (cmd.getSuccess()) {
+                                if (node.updateIndexes(cmd.getMatchIndex()) && updateCommit()) {
+                                    broadcastAppendEntries();
+                                }
+                            } else {
+                                node.decreaseIndexAndResendAppend();
+                            }
+                        }
                         RaftServer.this.replicateLogsOnFollower(cmd);
                     }
                     break;

@@ -12,7 +12,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface StateMachine extends LifeCycle{
     void onWriteCommand(RaftCommand cmd);
-    void onProposalApplied(List<LogEntry> msgs);
+    void onProposalCommited(List<LogEntry> msgs);
 
     void receiveCommand(RaftCommand cmd);
     CompletableFuture<ProposeResponse> propose(List<byte[]> data);
