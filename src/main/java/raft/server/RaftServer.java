@@ -396,7 +396,6 @@ public class RaftServer implements Runnable {
         if (this.getState() == State.CANDIDATE) {
             this.reset(this.getTerm());
             this.leaderId = this.selfId;
-            this.votedFor = null;
             this.transitState(leader);
 
             // reinitialize nextIndex for every peer node
@@ -421,6 +420,9 @@ public class RaftServer implements Runnable {
     }
 
     private void reset(int term) {
+        // reset votedFor only when term changed
+        // so when a candidate transit to leader it can keep votedFor to itself then when it receives
+        // a request vote with the same term, it can reject that request
         if (this.term.getAndSet(term) != term) {
             this.votedFor = null;
         }

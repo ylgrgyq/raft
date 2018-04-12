@@ -100,9 +100,7 @@ public class RaftLog {
     }
 
     public synchronized int tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
-        checkArgument(!entries.isEmpty(),
-                "try append empty entries with prevIndex: %s, prevTerm: %s, leaderCommitIndex: %s",
-                prevIndex, prevTerm, leaderCommitIndex);
+        // entries can be empty when leader just want to update follower's commit index
 
         if (prevIndex < this.offset) {
             logger.warn("try append entries with truncated prevIndex: {}. " +
@@ -135,10 +133,14 @@ public class RaftLog {
                         this.logs.set(index, e);
                     }
                 }
-                if (this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex)).isEmpty()) {
-                    logger.warn("try commit to {} failed with current commitIndex: {} and lastIndex: {}",
+
+                if (logger.isDebugEnabled()) {
+                    logger.info("try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
                             Math.min(leaderCommitIndex, lastIndex), this.commitIndex, this.getLastIndex());
                 }
+
+                //TODO apply these commited logs
+                this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex));
             }
             return lastIndex;
         }

@@ -60,7 +60,7 @@ public class LogReplicationTest {
         cluster.shutdown();
     }
 
-        @Test
+    @Test
     public void testProposeOnTripleNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
         peerIdSet.add("propose triple raft node 001");
@@ -74,8 +74,9 @@ public class LogReplicationTest {
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
         followerIds.remove(leaderId);
 
+
         // propose some logs
-        int logCount = ThreadLocalRandom.current().nextInt(10, 100);
+        int logCount = ThreadLocalRandom.current().nextInt(1, 10);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
         CompletableFuture<ProposeResponse> resp = leader.propose(dataList);
         ProposeResponse p = resp.get();
@@ -85,6 +86,10 @@ public class LogReplicationTest {
 
         // check raft status after logs proposed
         RaftStatus status = leader.getStatus();
+        while (status.getCommitIndex() < logCount) {
+            Thread.sleep(200);
+            status = leader.getStatus();
+        }
         assertEquals(logCount, status.getCommitIndex());
         assertEquals(0, status.getAppliedIndex());
 
@@ -100,6 +105,9 @@ public class LogReplicationTest {
         RaftStatus newStatus = leader.getStatus();
         assertEquals(logCount, newStatus.getAppliedIndex());
 
+        Thread.sleep(2000);
         cluster.shutdown();
     }
+
+    // TODO test follower reject append entries
 }
