@@ -139,7 +139,6 @@ public class RaftLog {
                             Math.min(leaderCommitIndex, lastIndex), this.commitIndex, this.getLastIndex());
                 }
 
-                //TODO apply these commited logs
                 this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex));
             }
             return lastIndex;
@@ -186,15 +185,28 @@ public class RaftLog {
         return this.appliedIndex;
     }
 
-    public synchronized List<LogEntry> tryCommitTo(int commitTo) {
+    public synchronized boolean tryCommitTo(int commitTo) {
         checkArgument(commitTo <= this.getLastIndex(),
                 "try commit to %s but last index in log is %s", commitTo, this.getLastIndex());
         if (commitTo > this.getCommitIndex()) {
             this.commitIndex = commitTo;
-            return this.getEntries(this.appliedIndex + 1, this.getCommitIndex() + 1);
+            return true;
         }
 
-        return Collections.emptyList();
+        return false;
+    }
+
+    public synchronized List<LogEntry> getEntriesNeedToApply() {
+        int start = this.appliedIndex + 1;
+        int end = this.getCommitIndex() + 1;
+
+        assert start <= end : "start " + start + " end " + end;
+
+        if (start == end) {
+            return Collections.emptyList();
+        } else {
+            return this.getEntries(this.appliedIndex + 1, this.getCommitIndex() + 1);
+        }
     }
 
     public synchronized void appliedTo(int appliedTo) {

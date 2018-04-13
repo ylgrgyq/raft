@@ -19,7 +19,7 @@ import static org.junit.Assert.assertEquals;
 public class LogReplicationTest {
     @Test
     public void testProposeOnSingleNode() throws Exception {
-        String selfId = "propose single raft node 001";
+        String selfId = "single node 001";
         List<String> peers = new ArrayList<>();
         peers.add(selfId);
 
@@ -43,7 +43,7 @@ public class LogReplicationTest {
         assertEquals(0, status.getAppliedIndex());
         assertEquals(1, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
-        assertNull(status.getVotedFor());
+        assertEquals(selfId, status.getVotedFor());
 
         // this is a single node raft so proposed logs will be applied immediately so we can get applied logs from StateMachine
         List<LogEntry> applied = new ArrayList<>(((TestingRaftCluster.TestingStateMachine)leader).getApplied());
@@ -63,9 +63,9 @@ public class LogReplicationTest {
     @Test
     public void testProposeOnTripleNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("propose triple raft node 001");
-        peerIdSet.add("propose triple raft node 002");
-        peerIdSet.add("propose triple raft node 003");
+        peerIdSet.add("triple node 001");
+        peerIdSet.add("triple node 002");
+        peerIdSet.add("triple node 003");
 
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
         StateMachine leader = cluster.waitLeaderElected(5000);

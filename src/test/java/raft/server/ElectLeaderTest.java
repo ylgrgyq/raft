@@ -15,7 +15,7 @@ import static org.junit.Assert.*;
 public class ElectLeaderTest {
     @Test
     public void testInitSingleNode() throws Exception {
-        String selfId = "single raft node 001";
+        String selfId = "single node 001";
         List<String> peers = new ArrayList<>();
         peers.add(selfId);
 
@@ -29,7 +29,7 @@ public class ElectLeaderTest {
         assertEquals(0, status.getAppliedIndex());
         assertEquals(1, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
-        assertNull(status.getVotedFor());
+        assertEquals(selfId, status.getVotedFor());
 
         cluster.shutdown();
     }
@@ -37,8 +37,8 @@ public class ElectLeaderTest {
     @Test
     public void testInitTwoNode() throws Exception {
         List<String> peers = new ArrayList<>();
-        peers.add("two raft node 001");
-        peers.add("two raft node 002");
+        peers.add("double node 001");
+        peers.add("double node 002");
 
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
         StateMachine leader = cluster.waitLeaderElected();
@@ -48,7 +48,7 @@ public class ElectLeaderTest {
         assertEquals(0, leaderStatus.getCommitIndex());
         assertEquals(0, leaderStatus.getAppliedIndex());
         assertTrue(leaderStatus.getTerm() > 0);
-        assertNull(leaderStatus.getVotedFor());
+        assertEquals(leader.getId(), leaderStatus.getVotedFor());
 
         String followerId = leader.getId().equals(peers.get(0)) ? peers.get(1) : peers.get(0);
         StateMachine follower = cluster.getNodeById(followerId);
@@ -67,9 +67,9 @@ public class ElectLeaderTest {
     @Test
     public void testInitTripleNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple raft node 001");
-        peerIdSet.add("triple raft node 002");
-        peerIdSet.add("triple raft node 003");
+        peerIdSet.add("triple node 001");
+        peerIdSet.add("triple node 002");
+        peerIdSet.add("triple node 003");
 
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
         StateMachine leader = cluster.waitLeaderElected(5000);
@@ -85,7 +85,7 @@ public class ElectLeaderTest {
         assertEquals(0, leaderStatus.getAppliedIndex());
         assertTrue(leaderStatus.getTerm() > 0);
         assertEquals(leaderId, leaderStatus.getLeaderId());
-        assertNull(leaderStatus.getVotedFor());
+        assertEquals(leaderId, leaderStatus.getVotedFor());
 
         for (String id : followerIds) {
             TestingRaftCluster.TestingStateMachine follower = (TestingRaftCluster.TestingStateMachine)cluster.getNodeById(id);

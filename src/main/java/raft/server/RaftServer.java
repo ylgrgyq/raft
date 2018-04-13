@@ -69,6 +69,7 @@ public class RaftServer implements Runnable {
         this.stateMachine = stateMachine;
         this.maxEntriesPerAppend = c.maxEntriesPerAppend;
 
+        //TODO consider do not include selfId into peerNodes ?
         for (String peerId : c.peers) {
             this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, RaftServer.this.maxEntriesPerAppend));
         }
@@ -348,7 +349,8 @@ public class RaftServer implements Runnable {
 
     private void broadcastAppendEntries() {
         if (peerNodes.size() == 1) {
-            List<LogEntry> committedLogs = this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
+            this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
+            List<LogEntry> committedLogs = this.raftLog.getEntriesNeedToApply();
             writeOutCommitedLogs(committedLogs);
         } else {
             for (final RaftPeerNode peer : peerNodes.values()) {
@@ -460,6 +462,7 @@ public class RaftServer implements Runnable {
             if (matchIndex != 0) {
                 resp.setSuccess(true);
                 resp.setMatchIndex(matchIndex);
+                writeOutCommitedLogs(raftLog.getEntriesNeedToApply());
             }
         }
         writeOutCommand(resp);
@@ -497,6 +500,7 @@ public class RaftServer implements Runnable {
         raftLog.tryCommitTo(cmd.getLeaderCommit());
         pong.setSuccess(true);
         writeOutCommand(pong);
+        writeOutCommitedLogs(raftLog.getEntriesNeedToApply());
     }
 
     void shutdown() {
@@ -599,8 +603,8 @@ public class RaftServer implements Runnable {
                 // from the current term has been committed in this way, then all prior entries are committed
                 // indirectly because of the Log Matching Property
                 if (e.getTerm() == RaftServer.this.getTerm()) {
-                    List<LogEntry> committedLogs = RaftServer.this.raftLog.tryCommitTo(kthMatchedIndexes);
-                    writeOutCommitedLogs(committedLogs);
+                    RaftServer.this.raftLog.tryCommitTo(kthMatchedIndexes);
+                    writeOutCommitedLogs(RaftServer.this.raftLog.getEntriesNeedToApply());
                     return true;
                 }
             }
