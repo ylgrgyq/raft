@@ -1,6 +1,8 @@
 package raft.server;
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
 
 import java.util.ArrayList;
@@ -17,9 +19,11 @@ import static org.junit.Assert.assertEquals;
  * Date: 18/4/11
  */
 public class LogReplicationTest {
+    private static final Logger logger = LoggerFactory.getLogger(LogReplicationTest.class.getName());
+
     @Test
     public void testProposeOnSingleNode() throws Exception {
-        String selfId = "propose single raft node 001";
+        String selfId = "single node 001";
         List<String> peers = new ArrayList<>();
         peers.add(selfId);
 
@@ -43,10 +47,10 @@ public class LogReplicationTest {
         assertEquals(0, status.getAppliedIndex());
         assertEquals(1, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
-        assertNull(status.getVotedFor());
+        assertEquals(selfId, status.getVotedFor());
 
         // this is a single node raft so proposed logs will be applied immediately so we can get applied logs from StateMachine
-        List<LogEntry> applied = new ArrayList<>(((TestingRaftCluster.TestingStateMachine)leader).getApplied());
+        List<LogEntry> applied = ((TestingRaftCluster.TestingStateMachine)leader).drainAvailableApplied();
         for (LogEntry e : applied) {
             assertEquals(status.getTerm(), e.getTerm());
             assertArrayEquals(dataList.get(e.getIndex() - 1), e.getData().toByteArray());
@@ -60,12 +64,31 @@ public class LogReplicationTest {
         cluster.shutdown();
     }
 
-        @Test
+    private static void checkAppliedLogs(TestingRaftCluster.TestingStateMachine node, int logCount, List<byte[]> sourceDataList) {
+        List<LogEntry> applied = node.waitApplied(logCount, 5000);
+
+        // check node status after logs proposed
+        RaftStatus status = node.getStatus();
+        assertEquals(logCount, status.getCommitIndex());
+        assertEquals(0, status.getAppliedIndex());
+
+        for (LogEntry e : applied) {
+            assertEquals(status.getTerm(), e.getTerm());
+            assertArrayEquals(sourceDataList.get(e.getIndex() - 1), e.getData().toByteArray());
+        }
+
+        node.appliedTo(logCount);
+        // check node status after applied
+        RaftStatus newStatus = node.getStatus();
+        assertEquals(logCount, newStatus.getAppliedIndex());
+    }
+
+    @Test
     public void testProposeOnTripleNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("propose triple raft node 001");
-        peerIdSet.add("propose triple raft node 002");
-        peerIdSet.add("propose triple raft node 003");
+        peerIdSet.add("triple node 001");
+        peerIdSet.add("triple node 002");
+        peerIdSet.add("triple node 003");
 
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
         StateMachine leader = cluster.waitLeaderElected(5000);
@@ -75,7 +98,7 @@ public class LogReplicationTest {
         followerIds.remove(leaderId);
 
         // propose some logs
-        int logCount = ThreadLocalRandom.current().nextInt(10, 100);
+        int logCount = ThreadLocalRandom.current().nextInt(1, 10);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
         CompletableFuture<ProposeResponse> resp = leader.propose(dataList);
         ProposeResponse p = resp.get();
@@ -83,23 +106,14 @@ public class LogReplicationTest {
         assertTrue(p.isSuccess());
         assertNull(p.getError());
 
-        // check raft status after logs proposed
-        RaftStatus status = leader.getStatus();
-        assertEquals(logCount, status.getCommitIndex());
-        assertEquals(0, status.getAppliedIndex());
-
-        // this is a single node raft so proposed logs will be applied immediately so we can get applied logs from StateMachine
-        List<LogEntry> applied = new ArrayList<>(((TestingRaftCluster.TestingStateMachine)leader).getApplied());
-        for (LogEntry e : applied) {
-            assertEquals(status.getTerm(), e.getTerm());
-            assertArrayEquals(dataList.get(e.getIndex() - 1), e.getData().toByteArray());
+        checkAppliedLogs((TestingRaftCluster.TestingStateMachine)leader, logCount, dataList);
+        for (String id : followerIds) {
+            StateMachine node = cluster.getNodeById(id);
+            checkAppliedLogs((TestingRaftCluster.TestingStateMachine)node, logCount, dataList);
         }
-
-        // check new raft status
-        leader.appliedTo(logCount);
-        RaftStatus newStatus = leader.getStatus();
-        assertEquals(logCount, newStatus.getAppliedIndex());
 
         cluster.shutdown();
     }
+
+    // TODO test follower reject append entries
 }

@@ -69,6 +69,7 @@ public class RaftServer implements Runnable {
         this.stateMachine = stateMachine;
         this.maxEntriesPerAppend = c.maxEntriesPerAppend;
 
+        //TODO consider do not include selfId into peerNodes ?
         for (String peerId : c.peers) {
             this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, RaftServer.this.maxEntriesPerAppend));
         }
@@ -84,6 +85,7 @@ public class RaftServer implements Runnable {
             if (this.state.isTickTimeout(tick)) {
                 clearTickCount();
                 markTickerTimeout();
+                wakeUpWorker();
             }
 
         }, this.tickIntervalMs, this.tickIntervalMs, TimeUnit.MILLISECONDS);
@@ -191,6 +193,16 @@ public class RaftServer implements Runnable {
         this.receivedCmdQueue.add(cmd);
     }
 
+    void processTickTimeout() {
+        if (tickerTimeout.compareAndSet(true, false)) {
+            try {
+                this.state.onTickTimeout();
+            } catch (Throwable t) {
+                logger.error("process tick timeout failed on node {}", this, t);
+            }
+        }
+    }
+
     @Override
     public void run() {
         // init state
@@ -198,13 +210,7 @@ public class RaftServer implements Runnable {
 
         while (workerRun) {
             try {
-                if (tickerTimeout.compareAndSet(true, false)) {
-                    try {
-                        this.state.onTickTimeout();
-                    } catch (Throwable t) {
-                        logger.error("process tick timeout failed on node {}", this, t);
-                    }
-                }
+                processTickTimeout();
 
                 List<RaftCommand> cmds = pollReceivedCmd();
                 long start = System.nanoTime();
@@ -249,7 +255,7 @@ public class RaftServer implements Runnable {
                 initialed = true;
             }
         } catch (InterruptedException ex) {
-            // ignored
+            processTickTimeout();
         }
 
         int i = 0;
@@ -348,7 +354,8 @@ public class RaftServer implements Runnable {
 
     private void broadcastAppendEntries() {
         if (peerNodes.size() == 1) {
-            List<LogEntry> committedLogs = this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
+            this.raftLog.tryCommitTo(this.raftLog.getLastIndex());
+            List<LogEntry> committedLogs = this.raftLog.getEntriesNeedToApply();
             writeOutCommitedLogs(committedLogs);
         } else {
             for (final RaftPeerNode peer : peerNodes.values()) {
@@ -396,7 +403,6 @@ public class RaftServer implements Runnable {
         if (this.getState() == State.CANDIDATE) {
             this.reset(this.getTerm());
             this.leaderId = this.selfId;
-            this.votedFor = null;
             this.transitState(leader);
 
             // reinitialize nextIndex for every peer node
@@ -421,6 +427,9 @@ public class RaftServer implements Runnable {
     }
 
     private void reset(int term) {
+        // reset votedFor only when term changed
+        // so when a candidate transit to leader it can keep votedFor to itself then when it receives
+        // a request vote with the same term, it can reject that request
         if (this.term.getAndSet(term) != term) {
             this.votedFor = null;
         }
@@ -458,6 +467,7 @@ public class RaftServer implements Runnable {
             if (matchIndex != 0) {
                 resp.setSuccess(true);
                 resp.setMatchIndex(matchIndex);
+                writeOutCommitedLogs(raftLog.getEntriesNeedToApply());
             }
         }
         writeOutCommand(resp);
@@ -495,6 +505,7 @@ public class RaftServer implements Runnable {
         raftLog.tryCommitTo(cmd.getLeaderCommit());
         pong.setSuccess(true);
         writeOutCommand(pong);
+        writeOutCommitedLogs(raftLog.getEntriesNeedToApply());
     }
 
     void shutdown() {
@@ -597,8 +608,8 @@ public class RaftServer implements Runnable {
                 // from the current term has been committed in this way, then all prior entries are committed
                 // indirectly because of the Log Matching Property
                 if (e.getTerm() == RaftServer.this.getTerm()) {
-                    List<LogEntry> committedLogs = RaftServer.this.raftLog.tryCommitTo(kthMatchedIndexes);
-                    writeOutCommitedLogs(committedLogs);
+                    RaftServer.this.raftLog.tryCommitTo(kthMatchedIndexes);
+                    writeOutCommitedLogs(RaftServer.this.raftLog.getEntriesNeedToApply());
                     return true;
                 }
             }

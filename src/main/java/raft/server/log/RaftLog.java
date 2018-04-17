@@ -100,9 +100,7 @@ public class RaftLog {
     }
 
     public synchronized int tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
-        checkArgument(!entries.isEmpty(),
-                "try append empty entries with prevIndex: %s, prevTerm: %s, leaderCommitIndex: %s",
-                prevIndex, prevTerm, leaderCommitIndex);
+        // entries can be empty when leader just want to update follower's commit index
 
         if (prevIndex < this.offset) {
             logger.warn("try append entries with truncated prevIndex: {}. " +
@@ -135,10 +133,13 @@ public class RaftLog {
                         this.logs.set(index, e);
                     }
                 }
-                if (this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex)).isEmpty()) {
-                    logger.warn("try commit to {} failed with current commitIndex: {} and lastIndex: {}",
+
+                if (logger.isDebugEnabled()) {
+                    logger.info("try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
                             Math.min(leaderCommitIndex, lastIndex), this.commitIndex, this.getLastIndex());
                 }
+
+                this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex));
             }
             return lastIndex;
         }
@@ -184,15 +185,28 @@ public class RaftLog {
         return this.appliedIndex;
     }
 
-    public synchronized List<LogEntry> tryCommitTo(int commitTo) {
+    public synchronized boolean tryCommitTo(int commitTo) {
         checkArgument(commitTo <= this.getLastIndex(),
                 "try commit to %s but last index in log is %s", commitTo, this.getLastIndex());
         if (commitTo > this.getCommitIndex()) {
             this.commitIndex = commitTo;
-            return this.getEntries(this.appliedIndex + 1, this.getCommitIndex() + 1);
+            return true;
         }
 
-        return Collections.emptyList();
+        return false;
+    }
+
+    public synchronized List<LogEntry> getEntriesNeedToApply() {
+        int start = this.appliedIndex + 1;
+        int end = this.getCommitIndex() + 1;
+
+        assert start <= end : "start " + start + " end " + end;
+
+        if (start == end) {
+            return Collections.emptyList();
+        } else {
+            return this.getEntries(this.appliedIndex + 1, this.getCommitIndex() + 1);
+        }
     }
 
     public synchronized void appliedTo(int appliedTo) {

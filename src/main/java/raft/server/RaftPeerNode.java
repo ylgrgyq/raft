@@ -38,8 +38,8 @@ class RaftPeerNode {
         final int startIndex = this.nextIndex;
         final List<LogEntry> entries = serverLog.getEntries(startIndex - 1, startIndex + this.maxEntriesPerAppend);
 
-        // at least two entries, one is prev LogEntry, the other is the newly append LogEntry
-        assert entries.size() > 1;
+        // entries could contains only one LogEntry when leader just want to update follower's commit index
+        assert entries.size() > 0;
 
         final LogEntry prev = entries.get(0);
 
