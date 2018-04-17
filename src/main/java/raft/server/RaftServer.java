@@ -85,6 +85,7 @@ public class RaftServer implements Runnable {
             if (this.state.isTickTimeout(tick)) {
                 clearTickCount();
                 markTickerTimeout();
+                wakeUpWorker();
             }
 
         }, this.tickIntervalMs, this.tickIntervalMs, TimeUnit.MILLISECONDS);
@@ -192,6 +193,16 @@ public class RaftServer implements Runnable {
         this.receivedCmdQueue.add(cmd);
     }
 
+    void processTickTimeout() {
+        if (tickerTimeout.compareAndSet(true, false)) {
+            try {
+                this.state.onTickTimeout();
+            } catch (Throwable t) {
+                logger.error("process tick timeout failed on node {}", this, t);
+            }
+        }
+    }
+
     @Override
     public void run() {
         // init state
@@ -199,13 +210,7 @@ public class RaftServer implements Runnable {
 
         while (workerRun) {
             try {
-                if (tickerTimeout.compareAndSet(true, false)) {
-                    try {
-                        this.state.onTickTimeout();
-                    } catch (Throwable t) {
-                        logger.error("process tick timeout failed on node {}", this, t);
-                    }
-                }
+                processTickTimeout();
 
                 List<RaftCommand> cmds = pollReceivedCmd();
                 long start = System.nanoTime();
@@ -250,7 +255,7 @@ public class RaftServer implements Runnable {
                 initialed = true;
             }
         } catch (InterruptedException ex) {
-            // ignored
+            processTickTimeout();
         }
 
         int i = 0;

@@ -1,14 +1,15 @@
 package raft.server;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -64,7 +65,7 @@ class TestingRaftCluster {
     }
 
     class TestingStateMachine extends AbstractStateMachine{
-        private List<LogEntry> applied = new ArrayList<>();
+        private BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
 
         TestingStateMachine(Config c){
             super(c);
@@ -89,8 +90,37 @@ class TestingRaftCluster {
             applied.addAll(msgs);
         }
 
-        List<LogEntry> getApplied(){
-            return this.applied;
+        List<LogEntry> drainAvailableApplied() {
+            List<LogEntry> ret = new ArrayList<>();
+            this.applied.drainTo(ret);
+            return Collections.unmodifiableList(ret);
+        }
+
+        List<LogEntry> waitApplied(long timeoutMs){
+            return waitApplied(0, timeoutMs);
+        }
+
+        List<LogEntry> waitApplied(int atLeastExpect, long timeoutMs) {
+            Preconditions.checkArgument(atLeastExpect >= 0);
+
+            List<LogEntry> ret = new ArrayList<>(atLeastExpect);
+            this.applied.drainTo(ret);
+
+            long start = System.nanoTime();
+            long deadline = start + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+            while ((atLeastExpect == 0 || ret.size() < atLeastExpect) && System.nanoTime() < deadline) {
+                try {
+                    LogEntry e;
+                    if ((e = this.applied.poll(timeoutMs, TimeUnit.MILLISECONDS)) != null){
+                        ret.add(e);
+                        this.applied.drainTo(ret);
+                    }
+                } catch (InterruptedException ex) {
+                    // ignore
+                }
+            }
+
+            return Collections.unmodifiableList(ret);
         }
 
         void waitBecomeFollower(long timeoutMs) throws TimeoutException, InterruptedException{
