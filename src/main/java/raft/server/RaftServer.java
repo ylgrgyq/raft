@@ -193,16 +193,6 @@ public class RaftServer implements Runnable {
         this.receivedCmdQueue.add(cmd);
     }
 
-    void processTickTimeout() {
-        if (tickerTimeout.compareAndSet(true, false)) {
-            try {
-                this.state.onTickTimeout();
-            } catch (Throwable t) {
-                logger.error("process tick timeout failed on node {}", this, t);
-            }
-        }
-    }
-
     @Override
     public void run() {
         // init state
@@ -235,6 +225,16 @@ public class RaftServer implements Runnable {
                 }
             } catch (Throwable t) {
                 logger.error("node {} got unexpected exception", this, t);
+            }
+        }
+    }
+
+    private void processTickTimeout() {
+        if (tickerTimeout.compareAndSet(true, false)) {
+            try {
+                this.state.onTickTimeout();
+            } catch (Throwable t) {
+                logger.error("process tick timeout failed on node {}", this, t);
             }
         }
     }
@@ -282,6 +282,7 @@ public class RaftServer implements Runnable {
     }
 
     private void processReceivedCommand(RaftCommand cmd) {
+
         if (cmd.getType() == RaftCommand.CmdType.REQUEST_VOTE) {
             logger.debug("node {} received request vote command, request={}", this, cmd);
             final String candidateId = cmd.getFrom();
