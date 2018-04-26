@@ -9,8 +9,11 @@ import raft.server.proto.PBRaftPersistentState;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.nio.file.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.zip.CRC32;
 
 /**
  * Author: ylgrgyq
@@ -26,7 +29,7 @@ public class RaftPersistentState {
     private String votedFor;
     // latest term server has seen (initialized to 0 on first boot, increases monotonically)
     // TODO need persistent
-    private AtomicInteger term;
+    private int term;
     private Path stateFileDirPath;
     private Path stateFilePath;
     private volatile boolean initialized;
@@ -50,7 +53,8 @@ public class RaftPersistentState {
         if (Files.exists(stateFileDirPath)) {
             if (Files.exists(stateFilePath)) {
                 try {
-                    ByteBuffer buffer = ByteBuffer.wrap(Files.readAllBytes(stateFilePath));
+                    byte[] raw = Files.readAllBytes(stateFilePath);
+                    ByteBuffer buffer = ByteBuffer.wrap(raw);
                     if (magic != buffer.getShort()) {
                         String msg = String.format("unrecognized persistent state file: \"%s\"", stateFilePath);
                         throw new IllegalStateException(msg);
@@ -67,10 +71,18 @@ public class RaftPersistentState {
                     byte[] meta = new byte[length];
                     buffer.get(meta);
 
-                    PBRaftPersistentState state = PBRaftPersistentState.parseFrom(meta);
-                    this.term = new AtomicInteger(state.getTerm());
-                    this.votedFor = state.getVotedFor();
+                    CRC32 actualChecksum = new CRC32();
+                    actualChecksum.update(raw, 0, raw.length - Long.BYTES);
+                    long expectChecksum = buffer.getLong();
+                    if (expectChecksum != actualChecksum.getValue()) {
+                        String msg = String.format("broken raft persistent file: \"%s\"", stateFilePath);
+                        throw new IllegalStateException(msg);
+                    }
 
+                    PBRaftPersistentState state = PBRaftPersistentState.parseFrom(meta);
+                    term = state.getTerm();
+                    votedFor = state.getVotedFor();
+                    initialized = true;
                     return;
                 } catch (BufferUnderflowException | IOException ex) {
                     String msg = String.format("invalid raft persistent state file: \"%s\"", stateFilePath);
@@ -86,9 +98,8 @@ public class RaftPersistentState {
             }
         }
 
-        this.term = new AtomicInteger(0);
-        this.votedFor = null;
-
+        term = 0;
+        votedFor = null;
         initialized = true;
     }
 
@@ -100,52 +111,58 @@ public class RaftPersistentState {
 
     public void setVotedFor(String votedFor) {
         Preconditions.checkState(initialized, "should initialize RaftPersistentState before using it");
+        Preconditions.checkArgument(votedFor == null || ! votedFor.isEmpty(), "votedFor should not be empty string");
 
         this.votedFor = votedFor;
-//        this.persistent();
+        this.persistent();
     }
 
     public int getTerm() {
         Preconditions.checkState(initialized, "should initialize RaftPersistentState before using it");
 
-        return term.get();
+        return term;
     }
 
     public void setTerm(int term) {
         Preconditions.checkState(initialized, "should initialize RaftPersistentState before using it");
 
-        this.term.set(term);
-//        this.persistent();
+        this.term = term;
+        this.persistent();
     }
 
     public void setTermAndVotedFor(int term, String votedFor) {
         Preconditions.checkState(initialized, "should initialize RaftPersistentState before using it");
 
-        this.term.set(term);
+        this.term = term;
         this.votedFor = votedFor;
-//        this.persistent();
+        this.persistent();
     }
 
     private void persistent() {
-        PBRaftPersistentState state = PBRaftPersistentState.newBuilder()
-                .setTerm(term.get())
-                .setVotedFor(votedFor)
-                .build();
+        PBRaftPersistentState.Builder builder = PBRaftPersistentState.newBuilder().setTerm(term);
+        if (votedFor != null) {
+            builder.setVotedFor(votedFor);
+        }
+
+        PBRaftPersistentState state = builder.build();
 
         byte[] meta = state.toByteArray();
 
-        // allocate a buffer for magic, version, buffer length and serialized state
-        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES + Short.BYTES + Integer.BYTES + meta.length);
+        // allocate a buffer for magic, version, buffer length, serialized state and checksum
+        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES + Short.BYTES + Integer.BYTES + meta.length + Long.BYTES);
         buffer.putShort(magic);
         buffer.putShort(version);
         buffer.putInt(meta.length);
         buffer.put(meta);
 
+        CRC32 checksum = new CRC32();
+        checksum.update(buffer.array(), 0, buffer.position());
+        buffer.putLong(checksum.getValue());
         try {
             Path tmpPath = Files.createTempFile(stateFileDirPath, fileName, ".tmp_rps");
             Files.write(tmpPath, buffer.array());
 
-            Files.move(tmpPath, stateFilePath);
+            Files.move(tmpPath, stateFilePath, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
             throw new PersistentStateException(ex);
         }
