@@ -34,7 +34,7 @@ class RaftPeerNode {
         this.maxEntriesPerAppend = maxEntriesPerAppend;
     }
 
-    void sendAppend() {
+    void sendAppend(int term) {
         final int startIndex = this.nextIndex;
         final List<LogEntry> entries = serverLog.getEntries(startIndex - 1, startIndex + this.maxEntriesPerAppend);
 
@@ -45,7 +45,7 @@ class RaftPeerNode {
 
         RaftCommand.Builder msg = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.APPEND_ENTRIES)
-                .setTerm(this.server.getTerm())
+                .setTerm(term)
                 .setLeaderId(this.server.getLeaderId())
                 .setLeaderCommit(serverLog.getCommitIndex())
                 .setPrevLogIndex(prev.getIndex())
@@ -55,10 +55,10 @@ class RaftPeerNode {
         server.writeOutCommand(msg);
     }
 
-    void sendPing() {
+    void sendPing(int term) {
         RaftCommand.Builder msg = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.PING)
-                .setTerm(this.server.getTerm())
+                .setTerm(term)
                 .setLeaderId(this.server.getLeaderId())
                 .setLeaderCommit(Math.min(this.matchIndex, serverLog.getCommitIndex()))
                 .setTo(peerId);
@@ -79,14 +79,14 @@ class RaftPeerNode {
         return updated;
     }
 
-    void decreaseIndexAndResendAppend() {
+    void decreaseIndexAndResendAppend(int term) {
         this.nextIndex--;
         if (this.nextIndex < 1) {
             logger.warn("nextIndex for {} decreased to 1", this.toString());
             this.nextIndex = 1;
         }
         assert this.nextIndex > this.matchIndex;
-        this.sendAppend();
+        this.sendAppend(term);
     }
 
     void reset(int nextIndex) {

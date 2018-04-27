@@ -28,6 +28,8 @@ public class LogReplicationTest {
         peers.add(selfId);
 
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
+        cluster.clearPreviousPersistentState();
+        cluster.start();
         StateMachine leader = cluster.waitLeaderElected(2000);
 
         // propose some logs
@@ -91,6 +93,8 @@ public class LogReplicationTest {
         peerIdSet.add("triple node 003");
 
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
+        cluster.clearPreviousPersistentState();
+        cluster.start();
         StateMachine leader = cluster.waitLeaderElected(5000);
 
         String leaderId = leader.getId();

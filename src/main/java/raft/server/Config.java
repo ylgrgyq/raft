@@ -19,6 +19,7 @@ public class Config {
 
     final List<String> peers;
     final String selfId;
+    final String persistentStateFileDirPath;
 
     private Config(ConfigBuilder builder) {
         this.tickIntervalMs = builder.tickIntervalMs;
@@ -27,6 +28,7 @@ public class Config {
         this.maxEntriesPerAppend = builder.maxEntriesPerAppend;
         this.peers = builder.peers;
         this.selfId = builder.selfId;
+        this.persistentStateFileDirPath = builder.persistentStateFileDirPath;
     }
 
     public static ConfigBuilder newBuilder() {
@@ -38,6 +40,7 @@ public class Config {
         private long pingIntervalTicks = 20;
         private long suggestElectionTimeoutTicks = 60;
         private int maxEntriesPerAppend = 16;
+        private String persistentStateFileDirPath;
 
         private List<String> peers = Collections.emptyList();
         private String selfId;
@@ -70,8 +73,15 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder withPersistentStateFileDirPath(String path) {
+            Preconditions.checkNotNull(path);
+            this.persistentStateFileDirPath = path;
+            return this;
+        }
+
         public Config build() {
             Preconditions.checkNotNull(selfId, "Must provide self Id");
+            Preconditions.checkNotNull(persistentStateFileDirPath, "Must provide directory path to save raft persistent state");
             return new Config(this);
         }
     }

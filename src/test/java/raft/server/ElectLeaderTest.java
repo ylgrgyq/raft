@@ -20,6 +20,8 @@ public class ElectLeaderTest {
         peers.add(selfId);
 
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
+        cluster.clearPreviousPersistentState();
+        cluster.start();
         StateMachine leader = cluster.waitLeaderElected(2000);
 
         RaftStatus status = leader.getStatus();
@@ -41,6 +43,8 @@ public class ElectLeaderTest {
         peers.add("double node 002");
 
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
+        cluster.clearPreviousPersistentState();
+        cluster.start();
         StateMachine leader = cluster.waitLeaderElected();
 
         RaftStatus leaderStatus = leader.getStatus();
@@ -72,6 +76,8 @@ public class ElectLeaderTest {
         peerIdSet.add("triple node 003");
 
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
+        cluster.clearPreviousPersistentState();
+        cluster.start();
         StateMachine leader = cluster.waitLeaderElected(5000);
 
         String leaderId = leader.getId();

@@ -2,8 +2,6 @@ package raft.server;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import raft.server.proto.PBRaftPersistentState;
 
 import java.io.IOException;
@@ -20,8 +18,6 @@ import java.util.zip.CRC32;
  * Date: 18/4/23
  */
 public class RaftPersistentState {
-    private static final Logger logger = LoggerFactory.getLogger(RaftPersistentState.class.getName());
-
     private static final short magic = 8102;
     private static final short version = 0x01;
     private static final String fileName = "raft_persistent_state";
@@ -34,15 +30,16 @@ public class RaftPersistentState {
     private Path stateFilePath;
     private volatile boolean initialized;
 
-    public RaftPersistentState(String stateFileDir) {
+    public RaftPersistentState(String stateFileDir, String raftId) {
         Preconditions.checkArgument(! Strings.isNullOrEmpty(stateFileDir));
+        Preconditions.checkArgument(! Strings.isNullOrEmpty(raftId));
 
         this.stateFileDirPath = Paths.get(stateFileDir);
 
         Preconditions.checkArgument(Files.notExists(stateFileDirPath) || Files.isDirectory(stateFileDirPath),
                 "\"%s\" must be a directory to hold raft state file", stateFileDir);
 
-        this.stateFilePath = Paths.get(stateFileDir + "/" + fileName);
+        this.stateFilePath = Paths.get(stateFileDir + "/" + fileName + "_" + raftId);
     }
 
     public void init() {

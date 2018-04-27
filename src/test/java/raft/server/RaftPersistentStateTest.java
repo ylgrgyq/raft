@@ -19,28 +19,16 @@ import static org.junit.Assert.*;
 public class RaftPersistentStateTest {
     private static final String testingDirectory = "./target/deep/deep/deep/persistent";
     private static final Path testingDirectoryPath = Paths.get(testingDirectory);
-
-    private static void cleanDirectory(final Path dirPath) throws Exception{
-        Stream<Path> files = Files.walk(dirPath);
-        files.forEach(p -> {
-            try {
-                if (p != dirPath) {
-                    Files.delete(p);
-                }
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
-            }
-        });
-    }
+    private static final String raftId = "raft 001";
 
     @Test
     public void createDirectory() throws Exception {
-        cleanDirectory(testingDirectoryPath);
+        TestUtil.cleanDirectory(testingDirectoryPath);
         Files.deleteIfExists(testingDirectoryPath);
 
         assertTrue(! Files.exists(testingDirectoryPath));
 
-        RaftPersistentState pState = new RaftPersistentState(testingDirectory);
+        RaftPersistentState pState = new RaftPersistentState(testingDirectory, raftId);
         pState.init();
         assertTrue(Files.exists(testingDirectoryPath));
         assertEquals(0, pState.getTerm());
@@ -50,7 +38,7 @@ public class RaftPersistentStateTest {
     @Test
     public void emptyExistingDirectory() throws Exception {
         if (Files.isDirectory(testingDirectoryPath)) {
-            cleanDirectory(testingDirectoryPath);
+            TestUtil.cleanDirectory(testingDirectoryPath);
         } else {
             Files.deleteIfExists(testingDirectoryPath);
             Files.createDirectories(testingDirectoryPath);
@@ -60,7 +48,7 @@ public class RaftPersistentStateTest {
 
         assertTrue(Files.exists(testingDirectoryPath));
 
-        RaftPersistentState pState = new RaftPersistentState(testingDirectory);
+        RaftPersistentState pState = new RaftPersistentState(testingDirectory, raftId);
         pState.init();
         assertTrue(Files.exists(testingDirectoryPath));
         assertEquals(0, pState.getTerm());
@@ -70,8 +58,8 @@ public class RaftPersistentStateTest {
 
     @Test
     public void persistent() throws Exception {
-        RaftPersistentState initState = new RaftPersistentState(testingDirectory);
-        cleanDirectory(testingDirectoryPath);
+        RaftPersistentState initState = new RaftPersistentState(testingDirectory, raftId);
+        TestUtil.cleanDirectory(testingDirectoryPath);
         initState.init();
 
         final String voteFor = "Donald Trump";
@@ -79,7 +67,7 @@ public class RaftPersistentStateTest {
         initState.setTerm(term);
         initState.setVotedFor(voteFor);
 
-        RaftPersistentState loadedState = new RaftPersistentState(testingDirectory);
+        RaftPersistentState loadedState = new RaftPersistentState(testingDirectory, raftId);
         loadedState.init();
 
         assertEquals(initState.getTerm(), loadedState.getTerm());
@@ -89,7 +77,7 @@ public class RaftPersistentStateTest {
         int term2 = ThreadLocalRandom.current().nextInt(100, 200);
         loadedState.setTermAndVotedFor(term2, voteFor2);
 
-        RaftPersistentState loadedState2 = new RaftPersistentState(testingDirectory);
+        RaftPersistentState loadedState2 = new RaftPersistentState(testingDirectory, raftId);
         loadedState2.init();
 
         assertEquals(loadedState.getTerm(), loadedState2.getTerm());

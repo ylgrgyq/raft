@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -18,6 +19,7 @@ import java.util.concurrent.TimeoutException;
  */
 class TestingRaftCluster {
     private static final Logger logger = LoggerFactory.getLogger("TestingRaftCluster");
+    private static final String persistentStateDir = "./target/deep/deep/deep/persistent";
 
     private Map<String, StateMachine> nodes = new HashMap<>();
 
@@ -26,12 +28,20 @@ class TestingRaftCluster {
             Config c = Config.newBuilder()
                     .withPeers(peers)
                     .withSelfID(peerId)
+                    .withPersistentStateFileDirPath(persistentStateDir)
                     .build();
 
             TestingStateMachine stateMachine = new TestingStateMachine(c);
-            stateMachine.start();
             nodes.put(peerId, stateMachine);
         }
+    }
+
+    void start() {
+        nodes.values().forEach(StateMachine::start);
+    }
+
+    void clearPreviousPersistentState() throws Exception{
+        TestUtil.cleanDirectory(Paths.get(persistentStateDir));
     }
 
     StateMachine waitLeaderElected() throws TimeoutException, InterruptedException{
