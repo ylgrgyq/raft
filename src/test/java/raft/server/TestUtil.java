@@ -1,8 +1,12 @@
 package raft.server;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Stream;
 
 /**
  * Author: ylgrgyq
@@ -17,5 +21,20 @@ class TestUtil {
             dataList.add(data);
         }
         return dataList;
+    }
+
+    static void cleanDirectory(final Path dirPath) throws Exception{
+        if (Files.isDirectory(dirPath)) {
+            Stream<Path> files = Files.walk(dirPath);
+            files.forEach(p -> {
+                try {
+                    if (p != dirPath) {
+                        Files.delete(p);
+                    }
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
+        }
     }
 }

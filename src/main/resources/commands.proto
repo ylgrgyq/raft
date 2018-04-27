@@ -2,6 +2,11 @@ syntax = "proto3";
 package raft.server.proto;
 option java_multiple_files = true;
 
+message PBRaftPersistentState {
+    int32 term = 1;
+    string votedFor = 2;
+}
+
 message LogEntry {
     int32 index = 1;
     int32 term = 2;
