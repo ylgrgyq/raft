@@ -38,7 +38,7 @@ class TestingRaftCluster {
         nodes.values().forEach(StateMachine::start);
     }
 
-    void startPeer(String peerId) {
+    StateMachine startPeer(String peerId) {
         StateMachine n = nodes.get(peerId);
         if (n != null) {
             n.start();
@@ -48,15 +48,18 @@ class TestingRaftCluster {
                     .withSelfID(peerId)
                     .build();
             n = new TestingStateMachine(c);
+            nodes.put(peerId, n);
             n.start();
         }
+
+        return n;
     }
 
-    void clearClusterPreviousPersistentState() throws Exception{
+    void clearClusterPreviousPersistentState() {
         TestUtil.cleanDirectory(Paths.get(persistentStateDir));
     }
 
-    void clearPreviousPersistentState(String peerId) throws Exception{
+    void clearPreviousPersistentState(String peerId) {
         RaftPersistentState state = new RaftPersistentState(persistentStateDir, peerId);
         state.setTermAndVotedFor(0, null);
     }
@@ -100,7 +103,6 @@ class TestingRaftCluster {
 
     class TestingStateMachine extends AbstractStateMachine{
         private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
-        private volatile boolean isOffline = false;
 
         TestingStateMachine(Config c){
             super(c);
@@ -108,26 +110,18 @@ class TestingRaftCluster {
 
         @Override
         public void receiveCommand(RaftCommand cmd) {
-            if (isOffline) {
-                logger.debug("offline node {} receive command {}", this.getId(), cmd.toString());
-                return;
-            }
-
             logger.debug("node {} receive command {}", this.getId(), cmd.toString());
             raftServer.queueReceivedCommand(cmd);
         }
 
         @Override
         public void onWriteCommand(RaftCommand cmd) {
-            if (isOffline) {
-                logger.debug("offline node {} write command {}", this.getId(), cmd.toString());
-                return;
-            }
-
             logger.debug("node {} write command {}", this.getId(), cmd.toString());
             String to = cmd.getTo();
             StateMachine toNode = nodes.get(to);
-            toNode.receiveCommand(cmd);
+            if (toNode != null) {
+                toNode.receiveCommand(cmd);
+            }
         }
 
         @Override

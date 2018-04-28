@@ -83,6 +83,11 @@ public class Config {
         public Config build() {
             Preconditions.checkNotNull(selfId, "Must provide self Id");
             Preconditions.checkNotNull(persistentStateFileDirPath, "Must provide directory path to save raft persistent state");
+
+            if (peers.stream().noneMatch(p -> p.equals(selfId))) {
+                peers.add(selfId);
+            }
+
             return new Config(this);
         }
     }

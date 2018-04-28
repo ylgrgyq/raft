@@ -513,10 +513,12 @@ public class RaftServer implements Runnable {
     }
 
     void shutdown() {
+        logger.info("shutting down node {} ...", this);
         this.tickGenerator.shutdown();
         this.stateMachineJobExecutors.shutdown();
         this.workerRun = false;
         wakeUpWorker();
+        logger.info("node {} shutdown");
     }
 
     @Override
@@ -550,7 +552,7 @@ public class RaftServer implements Runnable {
         }
 
         public void finish() {
-            logger.debug("node {} shutdown leader", RaftServer.this);
+            logger.debug("node {} finish leader", RaftServer.this);
         }
 
         @Override
@@ -632,7 +634,7 @@ public class RaftServer implements Runnable {
         }
 
         public void finish() {
-            logger.debug("node {} shutdown follower", RaftServer.this);
+            logger.debug("node {} finish follower", RaftServer.this);
         }
 
         @Override
@@ -679,7 +681,7 @@ public class RaftServer implements Runnable {
         }
 
         public void finish() {
-            logger.debug("node {} shutdown candidate", RaftServer.this);
+            logger.debug("node {} finish candidate", RaftServer.this);
         }
 
         private void startElection() {

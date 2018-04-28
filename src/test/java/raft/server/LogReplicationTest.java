@@ -28,8 +28,8 @@ public class LogReplicationTest {
         peers.add(selfId);
 
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
-        cluster.clearPreviousPersistentState();
-        cluster.start();
+        cluster.clearClusterPreviousPersistentState();
+        cluster.startCluster();
         StateMachine leader = cluster.waitLeaderElected(2000);
 
         // propose some logs
@@ -63,7 +63,7 @@ public class LogReplicationTest {
         RaftStatus newStatus = leader.getStatus();
         assertEquals(logCount, newStatus.getAppliedIndex());
 
-        cluster.shutdown();
+        cluster.shutdownCluster();
     }
 
     private static void checkAppliedLogs(TestingRaftCluster.TestingStateMachine node, int logCount, List<byte[]> sourceDataList) {
@@ -93,8 +93,8 @@ public class LogReplicationTest {
         peerIdSet.add("triple node 003");
 
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        cluster.clearPreviousPersistentState();
-        cluster.start();
+        cluster.clearClusterPreviousPersistentState();
+        cluster.startCluster();
         StateMachine leader = cluster.waitLeaderElected(5000);
 
         String leaderId = leader.getId();
@@ -116,7 +116,7 @@ public class LogReplicationTest {
             checkAppliedLogs((TestingRaftCluster.TestingStateMachine)node, logCount, dataList);
         }
 
-        cluster.shutdown();
+        cluster.shutdownCluster();
     }
 
     // TODO test follower reject append entries

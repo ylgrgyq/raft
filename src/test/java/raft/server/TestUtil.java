@@ -23,18 +23,22 @@ class TestUtil {
         return dataList;
     }
 
-    static void cleanDirectory(final Path dirPath) throws Exception{
-        if (Files.isDirectory(dirPath)) {
-            Stream<Path> files = Files.walk(dirPath);
-            files.forEach(p -> {
-                try {
-                    if (p != dirPath) {
-                        Files.delete(p);
+    static void cleanDirectory(final Path dirPath) {
+        try {
+            if (Files.isDirectory(dirPath)) {
+                Stream<Path> files = Files.walk(dirPath);
+                files.forEach(p -> {
+                    try {
+                        if (p != dirPath) {
+                            Files.delete(p);
+                        }
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
                     }
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
-                }
-            });
+                });
+            }
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
         }
     }
 }
