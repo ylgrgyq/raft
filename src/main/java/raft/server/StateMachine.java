@@ -10,7 +10,7 @@ import java.util.concurrent.CompletableFuture;
  * Author: ylgrgyq
  * Date: 18/4/1
  */
-public interface StateMachine extends LifeCycle{
+public interface StateMachine {
     void onWriteCommand(RaftCommand cmd);
     void onProposalCommited(List<LogEntry> msgs);
 
@@ -21,4 +21,6 @@ public interface StateMachine extends LifeCycle{
     String getId();
     boolean isLeader();
     RaftStatus getStatus();
+    void start();
+    void shutdown();
 }

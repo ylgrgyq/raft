@@ -1,5 +1,6 @@
 package raft.server;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
@@ -51,6 +52,9 @@ public class RaftServer implements Runnable {
     private volatile boolean workerRun = true;
 
     RaftServer(Config c, StateMachine stateMachine) {
+        Preconditions.checkNotNull(c);
+        Preconditions.checkNotNull(stateMachine);
+
         this.workerThread = new Thread(this);
         this.raftLog = new RaftLog();
         this.stateMachineJobExecutors = Executors.newFixedThreadPool(8, new ThreadFactoryImpl("state-machine-executors-"));
@@ -546,7 +550,7 @@ public class RaftServer implements Runnable {
         }
 
         public void finish() {
-            logger.debug("node {} finish leader", RaftServer.this);
+            logger.debug("node {} shutdown leader", RaftServer.this);
         }
 
         @Override
@@ -628,7 +632,7 @@ public class RaftServer implements Runnable {
         }
 
         public void finish() {
-            logger.debug("node {} finish follower", RaftServer.this);
+            logger.debug("node {} shutdown follower", RaftServer.this);
         }
 
         @Override
@@ -675,7 +679,7 @@ public class RaftServer implements Runnable {
         }
 
         public void finish() {
-            logger.debug("node {} finish candidate", RaftServer.this);
+            logger.debug("node {} shutdown candidate", RaftServer.this);
         }
 
         private void startElection() {

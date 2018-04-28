@@ -8,10 +8,7 @@ import raft.server.proto.RaftCommand;
 
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 /**
  * Author: ylgrgyq
@@ -21,14 +18,15 @@ class TestingRaftCluster {
     private static final Logger logger = LoggerFactory.getLogger("TestingRaftCluster");
     private static final String persistentStateDir = "./target/deep/deep/deep/persistent";
 
-    private Map<String, StateMachine> nodes = new HashMap<>();
+    private final Map<String, StateMachine> nodes = new ConcurrentHashMap<>();
+    private final Config.ConfigBuilder configBuilder = Config.newBuilder()
+                    .withPersistentStateFileDirPath(persistentStateDir);
 
     TestingRaftCluster(List<String> peers) {
         for (String peerId : peers) {
-            Config c = Config.newBuilder()
+            Config c = configBuilder
                     .withPeers(peers)
                     .withSelfID(peerId)
-                    .withPersistentStateFileDirPath(persistentStateDir)
                     .build();
 
             TestingStateMachine stateMachine = new TestingStateMachine(c);
@@ -36,12 +34,31 @@ class TestingRaftCluster {
         }
     }
 
-    void start() {
+    void startCluster() {
         nodes.values().forEach(StateMachine::start);
     }
 
-    void clearPreviousPersistentState() throws Exception{
+    void startPeer(String peerId) {
+        StateMachine n = nodes.get(peerId);
+        if (n != null) {
+            n.start();
+        } else {
+            Config c = configBuilder
+                    .withPeers(new ArrayList<>(nodes.keySet()))
+                    .withSelfID(peerId)
+                    .build();
+            n = new TestingStateMachine(c);
+            n.start();
+        }
+    }
+
+    void clearClusterPreviousPersistentState() throws Exception{
         TestUtil.cleanDirectory(Paths.get(persistentStateDir));
+    }
+
+    void clearPreviousPersistentState(String peerId) throws Exception{
+        RaftPersistentState state = new RaftPersistentState(persistentStateDir, peerId);
+        state.setTermAndVotedFor(0, null);
     }
 
     StateMachine waitLeaderElected() throws TimeoutException, InterruptedException{
@@ -68,14 +85,22 @@ class TestingRaftCluster {
         return nodes.get(peerId);
     }
 
-    void shutdown(){
+    void shutdownCluster(){
         for (StateMachine n : nodes.values()) {
-            n.finish();
+            n.shutdown();
         }
+        nodes.clear();
+    }
+
+    void shutdownPeer(String peerId) {
+        StateMachine n = nodes.get(peerId);
+        n.shutdown();
+        nodes.remove(peerId);
     }
 
     class TestingStateMachine extends AbstractStateMachine{
-        private BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
+        private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
+        private volatile boolean isOffline = false;
 
         TestingStateMachine(Config c){
             super(c);
@@ -83,14 +108,24 @@ class TestingRaftCluster {
 
         @Override
         public void receiveCommand(RaftCommand cmd) {
+            if (isOffline) {
+                logger.debug("offline node {} receive command {}", this.getId(), cmd.toString());
+                return;
+            }
+
             logger.debug("node {} receive command {}", this.getId(), cmd.toString());
             raftServer.queueReceivedCommand(cmd);
         }
 
         @Override
         public void onWriteCommand(RaftCommand cmd) {
-            String to = cmd.getTo();
+            if (isOffline) {
+                logger.debug("offline node {} write command {}", this.getId(), cmd.toString());
+                return;
+            }
+
             logger.debug("node {} write command {}", this.getId(), cmd.toString());
+            String to = cmd.getTo();
             StateMachine toNode = nodes.get(to);
             toNode.receiveCommand(cmd);
         }

@@ -4,6 +4,7 @@ import raft.server.proto.RaftCommand;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Author: ylgrgyq
@@ -11,7 +12,8 @@ import java.util.concurrent.CompletableFuture;
  */
 @SuppressWarnings("WeakerAccess")
 public abstract class AbstractStateMachine implements StateMachine{
-    protected RaftServer raftServer;
+    private final AtomicBoolean started = new AtomicBoolean(false);
+    protected final RaftServer raftServer;
     public AbstractStateMachine(Config c) {
         this.raftServer = new RaftServer(c, this);
     }
@@ -43,11 +45,15 @@ public abstract class AbstractStateMachine implements StateMachine{
     }
 
     public void start() {
-        raftServer.start();
+        if (started.compareAndSet(false, true)) {
+            raftServer.start();
+        }
     }
 
     @Override
-    public void finish() {
-        raftServer.shutdown();
+    public void shutdown() {
+        if (started.compareAndSet(true, false)) {
+            raftServer.shutdown();
+        }
     }
 }

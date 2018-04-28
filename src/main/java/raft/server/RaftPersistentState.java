@@ -20,11 +20,9 @@ import java.util.zip.CRC32;
 public class RaftPersistentState {
     private static final short magic = 8102;
     private static final short version = 0x01;
-    private static final String fileName = "raft_persistent_state";
+    private static final String fileNamePrefix = "raft_persistent_state";
 
     private String votedFor;
-    // latest term server has seen (initialized to 0 on first boot, increases monotonically)
-    // TODO need persistent
     private int term;
     private Path stateFileDirPath;
     private Path stateFilePath;
@@ -39,7 +37,7 @@ public class RaftPersistentState {
         Preconditions.checkArgument(Files.notExists(stateFileDirPath) || Files.isDirectory(stateFileDirPath),
                 "\"%s\" must be a directory to hold raft state file", stateFileDir);
 
-        this.stateFilePath = Paths.get(stateFileDir + "/" + fileName + "_" + raftId);
+        this.stateFilePath = Paths.get(stateFileDir + "/" + fileNamePrefix + "_" + raftId);
     }
 
     public void init() {
@@ -156,7 +154,7 @@ public class RaftPersistentState {
         checksum.update(buffer.array(), 0, buffer.position());
         buffer.putLong(checksum.getValue());
         try {
-            Path tmpPath = Files.createTempFile(stateFileDirPath, fileName, ".tmp_rps");
+            Path tmpPath = Files.createTempFile(stateFileDirPath, fileNamePrefix, ".tmp_rps");
             Files.write(tmpPath, buffer.array());
 
             Files.move(tmpPath, stateFilePath, StandardCopyOption.REPLACE_EXISTING);
