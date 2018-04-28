@@ -2,9 +2,7 @@ package raft.server;
 
 import com.google.common.base.Preconditions;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -50,8 +48,11 @@ public class Config {
             return this;
         }
 
-        public ConfigBuilder withPeers(List<String> peers) {
-            this.peers = Objects.requireNonNull(peers, "peerId list must not be null");
+        public ConfigBuilder withPeers(Collection<String> peers) {
+            peers = Objects.requireNonNull(peers, "peers must not be null");
+            Preconditions.checkArgument(peers instanceof Set || peers.size() == new HashSet<>(peers).size(),
+                    "found duplicate id in peers: %s", peers);
+            this.peers = new ArrayList<>(peers);
             return this;
         }
 
