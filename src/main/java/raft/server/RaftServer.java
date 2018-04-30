@@ -282,6 +282,15 @@ public class RaftServer implements Runnable {
     private void processReceivedCommand(RaftCommand cmd) {
         final int selfTerm = meta.getTerm();
         if (cmd.getType() == RaftCommand.CmdType.REQUEST_VOTE) {
+            if (leaderId != null && tickCount.get() < electionTimeoutTicks) {
+                // if a server receives a RequestVote request within the minimum election timeout of hearing
+                // from a current leader, it does not update its term or grant its vote
+                logger.info("node {} ignore request vote cmd: {} because it's leader still valid. ticks remain: {}",
+                        this, cmd, electionTimeoutTicks - tickCount.get());
+                return;
+            }
+
+
             logger.debug("node {} received request vote command, request={}", this, cmd);
             final String candidateId = cmd.getFrom();
             boolean isGranted = false;
