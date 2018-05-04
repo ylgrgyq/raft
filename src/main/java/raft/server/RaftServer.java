@@ -1,10 +1,12 @@
 package raft.server;
 
 import com.google.common.base.Preconditions;
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
+import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
@@ -50,6 +52,7 @@ public class RaftServer implements Runnable {
     private StateMachine stateMachine;
     private Thread workerThread;
     private volatile boolean workerRun = true;
+    private boolean existsPendingConfigChange = false;
 
     RaftServer(Config c, StateMachine stateMachine) {
         Preconditions.checkNotNull(c);
@@ -155,11 +158,15 @@ public class RaftServer implements Runnable {
     }
 
     CompletableFuture<ProposeResponse> propose(List<byte[]> entries) {
+        return propose(entries, false);
+    }
+
+    CompletableFuture<ProposeResponse> propose(List<byte[]> entries, boolean isContainsConfigChange) {
         String leaderId = this.getLeaderId();
         CompletableFuture<ProposeResponse> future;
         if (this.getState() == State.LEADER) {
             future = new CompletableFuture<>();
-            proposalQueue.add(new Proposal(entries, future));
+            proposalQueue.add(new Proposal(entries, future, isContainsConfigChange));
             wakeUpWorker();
         } else {
             future = CompletableFuture.completedFuture(new ProposeResponse(leaderId, ErrorMsg.NOT_LEADER_NODE));
@@ -222,7 +229,8 @@ public class RaftServer implements Runnable {
                     }
                 }
             } catch (Throwable t) {
-                logger.error("node {} got unexpected exception", this, t);
+                logger.error("node {} got unexpected exception, self shutdown immediately", this, t);
+                shutdown();
             }
         }
     }
@@ -347,9 +355,16 @@ public class RaftServer implements Runnable {
         ErrorMsg error = null;
         try {
             if (this.getState() == State.LEADER) {
-                final int term = meta.getTerm();
-                this.raftLog.directAppend(term, proposal.entries);
-                this.broadcastAppendEntries();
+                if (existsPendingConfigChange && proposal.isContainsConfigChange) {
+                    error = ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION;
+                } else {
+                    if (proposal.isContainsConfigChange) {
+                        existsPendingConfigChange = true;
+                    }
+                    final int term = meta.getTerm();
+                    this.raftLog.directAppend(term, proposal.entries);
+                    this.broadcastAppendEntries();
+                }
             } else {
                 error = ErrorMsg.NOT_LEADER_NODE;
             }
@@ -377,11 +392,44 @@ public class RaftServer implements Runnable {
     }
 
     private void writeOutCommitedLogs(List<LogEntry> commitedLogs) {
+        for (LogEntry e : commitedLogs) {
+            if (e.getType() == LogEntry.EntryType.CONFIG) {
+                try {
+                    ConfigChange change = ConfigChange.parseFrom(e.getData());
+                    String serverAddr = change.getServerAddress();
+                    switch (change.getAction()) {
+                        case ADD_SERVER:
+                            addNode(serverAddr);
+                            break;
+                        case REMOVE_SERVER:
+                            removeNode(serverAddr);
+                            break;
+                        default:
+                            String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
+                                    this, e);
+                            throw new RuntimeException(errorMsg);
+
+                    }
+                } catch (InvalidProtocolBufferException ex) {
+                    String errorMsg = String.format("node %s failed to parse ConfigChange msg: %s", this, e);
+                    throw new RuntimeException(errorMsg, ex);
+                }
+            }
+        }
+
         try {
             stateMachineJobExecutors.submit(() -> this.stateMachine.onProposalCommited(commitedLogs));
         } catch (RejectedExecutionException ex) {
-            logger.error("node {} submit apply proposal job failed", ex);
+            logger.error("node {} submit apply proposal job failed", this, ex);
         }
+    }
+
+    private void addNode(String addr) {
+
+    }
+
+    private void removeNode(String addr) {
+
     }
 
     private void broadcastPing() {
@@ -543,10 +591,12 @@ public class RaftServer implements Runnable {
     private static class Proposal {
         private final List<byte[]> entries;
         private final CompletableFuture<ProposeResponse> future;
+        private final boolean isContainsConfigChange;
 
-        Proposal(List<byte[]> entries, CompletableFuture<ProposeResponse> future) {
+        Proposal(List<byte[]> entries, CompletableFuture<ProposeResponse> future, boolean isContainsConfigChange) {
             this.entries = new ArrayList<>(entries);
             this.future = future;
+            this.isContainsConfigChange = isContainsConfigChange;
         }
     }
 

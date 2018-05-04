@@ -18,6 +18,8 @@ public interface StateMachine {
     CompletableFuture<ProposeResponse> propose(List<byte[]> data);
     void appliedTo(int appliedTo);
 
+    CompletableFuture<ProposeResponse> addNode(String newNode);
+    CompletableFuture<ProposeResponse> removeNode(String newNode);
     String getId();
     boolean isLeader();
     RaftStatus getStatus();

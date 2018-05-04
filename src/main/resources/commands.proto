@@ -8,9 +8,26 @@ message PBRaftPersistentState {
 }
 
 message LogEntry {
+    enum EntryType {
+        LOG = 0;
+        CONFIG = 1;
+    }
+
     int32 index = 1;
     int32 term = 2;
     bytes data = 3;
+    EntryType type = 4;
+}
+
+
+message ConfigChange {
+    enum ConfigChangeAction {
+        ADD_SERVER = 0;
+        REMOVE_SERVER = 1;
+    }
+
+    string server_address = 1;
+    ConfigChangeAction action = 2;
 }
 
 message RaftCommand {

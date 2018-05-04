@@ -93,6 +93,8 @@ public class RaftLog {
                     .setIndex(i)
                     .setTerm(term)
                     .build();
+
+            LogEntry e2 = LogEntry.newBuilder(e).build();
             this.logs.add(e);
         }
 

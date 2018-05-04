@@ -6,7 +6,9 @@ package raft.server;
  */
 public enum ErrorMsg {
     INTERNAL_ERROR(1, "Internal error"),
-    NOT_LEADER_NODE(0, "This node is not leader");
+    NOT_LEADER_NODE(0, "This node is not leader"),
+    EXISTS_UNAPPLIED_CONFIGURATION(2, "There's a pending unapplied configuration");
+
 
     private int code;
     private String msg;

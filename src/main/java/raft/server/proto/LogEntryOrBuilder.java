@@ -21,4 +21,13 @@ public interface LogEntryOrBuilder extends
    * <code>bytes data = 3;</code>
    */
   com.google.protobuf.ByteString getData();
+
+  /**
+   * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+   */
+  int getTypeValue();
+  /**
+   * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+   */
+  raft.server.proto.LogEntry.EntryType getType();
 }
