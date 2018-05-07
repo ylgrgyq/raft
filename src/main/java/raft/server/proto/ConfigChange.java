@@ -16,7 +16,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private ConfigChange() {
-    serverAddress_ = "";
+    peerId_ = "";
     action_ = 0;
   }
 
@@ -54,7 +54,7 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            serverAddress_ = s;
+            peerId_ = s;
             break;
           }
           case 16: {
@@ -185,34 +185,34 @@ private static final long serialVersionUID = 0L;
     // @@protoc_insertion_point(enum_scope:raft.server.proto.ConfigChange.ConfigChangeAction)
   }
 
-  public static final int SERVER_ADDRESS_FIELD_NUMBER = 1;
-  private volatile java.lang.Object serverAddress_;
+  public static final int PEER_ID_FIELD_NUMBER = 1;
+  private volatile java.lang.Object peerId_;
   /**
-   * <code>string server_address = 1;</code>
+   * <code>string peer_id = 1;</code>
    */
-  public java.lang.String getServerAddress() {
-    java.lang.Object ref = serverAddress_;
+  public java.lang.String getPeerId() {
+    java.lang.Object ref = peerId_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      serverAddress_ = s;
+      peerId_ = s;
       return s;
     }
   }
   /**
-   * <code>string server_address = 1;</code>
+   * <code>string peer_id = 1;</code>
    */
   public com.google.protobuf.ByteString
-      getServerAddressBytes() {
-    java.lang.Object ref = serverAddress_;
+      getPeerIdBytes() {
+    java.lang.Object ref = peerId_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      serverAddress_ = b;
+      peerId_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -247,8 +247,8 @@ private static final long serialVersionUID = 0L;
 
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!getServerAddressBytes().isEmpty()) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, serverAddress_);
+    if (!getPeerIdBytes().isEmpty()) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, peerId_);
     }
     if (action_ != raft.server.proto.ConfigChange.ConfigChangeAction.ADD_SERVER.getNumber()) {
       output.writeEnum(2, action_);
@@ -261,8 +261,8 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (!getServerAddressBytes().isEmpty()) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, serverAddress_);
+    if (!getPeerIdBytes().isEmpty()) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, peerId_);
     }
     if (action_ != raft.server.proto.ConfigChange.ConfigChangeAction.ADD_SERVER.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
@@ -284,8 +284,8 @@ private static final long serialVersionUID = 0L;
     raft.server.proto.ConfigChange other = (raft.server.proto.ConfigChange) obj;
 
     boolean result = true;
-    result = result && getServerAddress()
-        .equals(other.getServerAddress());
+    result = result && getPeerId()
+        .equals(other.getPeerId());
     result = result && action_ == other.action_;
     result = result && unknownFields.equals(other.unknownFields);
     return result;
@@ -298,8 +298,8 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + SERVER_ADDRESS_FIELD_NUMBER;
-    hash = (53 * hash) + getServerAddress().hashCode();
+    hash = (37 * hash) + PEER_ID_FIELD_NUMBER;
+    hash = (53 * hash) + getPeerId().hashCode();
     hash = (37 * hash) + ACTION_FIELD_NUMBER;
     hash = (53 * hash) + action_;
     hash = (29 * hash) + unknownFields.hashCode();
@@ -431,7 +431,7 @@ private static final long serialVersionUID = 0L;
     }
     public Builder clear() {
       super.clear();
-      serverAddress_ = "";
+      peerId_ = "";
 
       action_ = 0;
 
@@ -457,7 +457,7 @@ private static final long serialVersionUID = 0L;
 
     public raft.server.proto.ConfigChange buildPartial() {
       raft.server.proto.ConfigChange result = new raft.server.proto.ConfigChange(this);
-      result.serverAddress_ = serverAddress_;
+      result.peerId_ = peerId_;
       result.action_ = action_;
       onBuilt();
       return result;
@@ -500,8 +500,8 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(raft.server.proto.ConfigChange other) {
       if (other == raft.server.proto.ConfigChange.getDefaultInstance()) return this;
-      if (!other.getServerAddress().isEmpty()) {
-        serverAddress_ = other.serverAddress_;
+      if (!other.getPeerId().isEmpty()) {
+        peerId_ = other.peerId_;
         onChanged();
       }
       if (other.action_ != 0) {
@@ -534,71 +534,71 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private java.lang.Object serverAddress_ = "";
+    private java.lang.Object peerId_ = "";
     /**
-     * <code>string server_address = 1;</code>
+     * <code>string peer_id = 1;</code>
      */
-    public java.lang.String getServerAddress() {
-      java.lang.Object ref = serverAddress_;
+    public java.lang.String getPeerId() {
+      java.lang.Object ref = peerId_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        serverAddress_ = s;
+        peerId_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
       }
     }
     /**
-     * <code>string server_address = 1;</code>
+     * <code>string peer_id = 1;</code>
      */
     public com.google.protobuf.ByteString
-        getServerAddressBytes() {
-      java.lang.Object ref = serverAddress_;
+        getPeerIdBytes() {
+      java.lang.Object ref = peerId_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        serverAddress_ = b;
+        peerId_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
       }
     }
     /**
-     * <code>string server_address = 1;</code>
+     * <code>string peer_id = 1;</code>
      */
-    public Builder setServerAddress(
+    public Builder setPeerId(
         java.lang.String value) {
       if (value == null) {
     throw new NullPointerException();
   }
   
-      serverAddress_ = value;
+      peerId_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>string server_address = 1;</code>
+     * <code>string peer_id = 1;</code>
      */
-    public Builder clearServerAddress() {
+    public Builder clearPeerId() {
       
-      serverAddress_ = getDefaultInstance().getServerAddress();
+      peerId_ = getDefaultInstance().getPeerId();
       onChanged();
       return this;
     }
     /**
-     * <code>string server_address = 1;</code>
+     * <code>string peer_id = 1;</code>
      */
-    public Builder setServerAddressBytes(
+    public Builder setPeerIdBytes(
         com.google.protobuf.ByteString value) {
       if (value == null) {
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
       
-      serverAddress_ = value;
+      peerId_ = value;
       onChanged();
       return this;
     }

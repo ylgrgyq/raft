@@ -10,6 +10,7 @@ import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -149,6 +150,7 @@ public class RaftServer implements Runnable {
         status.setLeaderId(this.leaderId);
         status.setVotedFor(meta.getVotedFor());
         status.setState(this.getState());
+        status.setPeerNodeIds(new ArrayList<>(peerNodes.keySet()));
 
         return status;
     }
@@ -396,13 +398,13 @@ public class RaftServer implements Runnable {
             if (e.getType() == LogEntry.EntryType.CONFIG) {
                 try {
                     ConfigChange change = ConfigChange.parseFrom(e.getData());
-                    String serverAddr = change.getServerAddress();
+                    String peerId = change.getPeerId();
                     switch (change.getAction()) {
                         case ADD_SERVER:
-                            addNode(serverAddr);
+                            addNode(peerId);
                             break;
                         case REMOVE_SERVER:
-                            removeNode(serverAddr);
+                            removeNode(peerId);
                             break;
                         default:
                             String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
@@ -424,9 +426,9 @@ public class RaftServer implements Runnable {
         }
     }
 
-    private void addNode(final String addr) {
-        peerNodes.computeIfAbsent(addr,
-                k -> new RaftPeerNode(addr,
+    private void addNode(final String peerId) {
+        peerNodes.computeIfAbsent(peerId,
+                k -> new RaftPeerNode(peerId,
                         this,
                         this.raftLog,
                         this.raftLog.getLastIndex() + 1,
@@ -434,8 +436,8 @@ public class RaftServer implements Runnable {
         existsPendingConfigChange = false;
     }
 
-    private void removeNode(String addr) {
-        peerNodes.remove(addr);
+    private void removeNode(final String peerId) {
+        peerNodes.remove(peerId);
         existsPendingConfigChange = false;
 
         // quorum has changed, check if there's any pending entries

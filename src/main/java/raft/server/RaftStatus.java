@@ -1,5 +1,7 @@
 package raft.server;
 
+import java.util.List;
+
 /**
  * Author: ylgrgyq
  * Date: 18/4/1
@@ -12,6 +14,7 @@ public class RaftStatus {
     private int appliedIndex;
     private String leaderId;
     private State state;
+    private List<String> peerNodeIds;
 
     public void setId(String id) {
         this.id = id;
@@ -35,6 +38,10 @@ public class RaftStatus {
 
     public void setState(State state) {
         this.state = state;
+    }
+
+    public void setPeerNodeIds(List<String> peerNodeIds) {
+        this.peerNodeIds = peerNodeIds;
     }
 
     public String getId() {
@@ -69,6 +76,10 @@ public class RaftStatus {
         this.appliedIndex = appliedIndex;
     }
 
+    public List<String> getPeerNodeIds() {
+        return peerNodeIds;
+    }
+
     @Override
     public String toString() {
         return "{" +
@@ -79,6 +90,7 @@ public class RaftStatus {
                 ", appliedIndex=" + appliedIndex +
                 ", leaderId='" + leaderId + '\'' +
                 ", state=" + state +
+                ", peerNodeIds=" + peerNodeIds +
                 '}';
     }
 }

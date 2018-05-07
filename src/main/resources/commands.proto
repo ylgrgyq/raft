@@ -26,7 +26,7 @@ message ConfigChange {
         REMOVE_SERVER = 1;
     }
 
-    string server_address = 1;
+    string peer_id = 1;
     ConfigChangeAction action = 2;
 }
 
