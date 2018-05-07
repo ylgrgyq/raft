@@ -424,12 +424,46 @@ public class RaftServer implements Runnable {
         }
     }
 
-    private void addNode(String addr) {
-
+    private void addNode(final String addr) {
+        peerNodes.computeIfAbsent(addr,
+                k -> new RaftPeerNode(addr,
+                        this,
+                        this.raftLog,
+                        this.raftLog.getLastIndex() + 1,
+                        RaftServer.this.maxEntriesPerAppend));
+        existsPendingConfigChange = false;
     }
 
     private void removeNode(String addr) {
+        peerNodes.remove(addr);
+        existsPendingConfigChange = false;
 
+        // quorum has changed, check if there's any pending entries
+        if (getState() == State.LEADER && updateCommit()) {
+            broadcastAppendEntries();
+        }
+    }
+
+    private boolean updateCommit() {
+        // kth biggest number
+        int k = RaftServer.this.getQuorum() - 1;
+        List<Integer> matchedIndexes = peerNodes.values().stream()
+                .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
+        int kthMatchedIndexes = matchedIndexes.get(k);
+        Optional<LogEntry> kthLog = RaftServer.this.raftLog.getEntry(kthMatchedIndexes);
+        if (kthLog.isPresent()) {
+            LogEntry e = kthLog.get();
+            // this is a key point. Raft never commits log entries from previous terms by counting replicas
+            // Only log entries from the leader’s current term are committed by counting replicas; once an entry
+            // from the current term has been committed in this way, then all prior entries are committed
+            // indirectly because of the Log Matching Property
+            if (e.getTerm() == RaftServer.this.meta.getTerm()) {
+                RaftServer.this.raftLog.tryCommitTo(kthMatchedIndexes);
+                writeOutCommitedLogs(RaftServer.this.raftLog.getEntriesNeedToApply());
+                return true;
+            }
+        }
+        return false;
     }
 
     private void broadcastPing() {
@@ -658,28 +692,6 @@ public class RaftServer implements Runnable {
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
             }
-        }
-
-        private boolean updateCommit() {
-            // kth biggest number
-            int k = RaftServer.this.getQuorum() - 1;
-            List<Integer> matchedIndexes = peerNodes.values().stream()
-                    .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
-            int kthMatchedIndexes = matchedIndexes.get(k);
-            Optional<LogEntry> kthLog = RaftServer.this.raftLog.getEntry(kthMatchedIndexes);
-            if (kthLog.isPresent()) {
-                LogEntry e = kthLog.get();
-                // this is a key point. Raft never commits log entries from previous terms by counting replicas
-                // Only log entries from the leader’s current term are committed by counting replicas; once an entry
-                // from the current term has been committed in this way, then all prior entries are committed
-                // indirectly because of the Log Matching Property
-                if (e.getTerm() == RaftServer.this.meta.getTerm()) {
-                    RaftServer.this.raftLog.tryCommitTo(kthMatchedIndexes);
-                    writeOutCommitedLogs(RaftServer.this.raftLog.getEntriesNeedToApply());
-                    return true;
-                }
-            }
-            return false;
         }
     }
 

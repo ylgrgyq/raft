@@ -34,7 +34,7 @@ public abstract class AbstractStateMachine implements StateMachine{
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(change.toByteArray());
-        return propose(data);
+        return raftServer.propose(data, true);
     }
 
     @Override
@@ -46,7 +46,7 @@ public abstract class AbstractStateMachine implements StateMachine{
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(change.toByteArray());
-        return propose(data);
+        return raftServer.propose(data, true);
     }
 
     @Override
