@@ -1,6 +1,7 @@
 package raft.server;
 
 import com.google.common.base.Preconditions;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +11,6 @@ import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -160,18 +160,23 @@ public class RaftServer implements Runnable {
     }
 
     CompletableFuture<ProposeResponse> propose(List<byte[]> entries) {
-        return propose(entries, false);
+        return propose(entries, LogEntry.EntryType.LOG);
     }
 
-    CompletableFuture<ProposeResponse> propose(List<byte[]> entries, boolean isContainsConfigChange) {
+    CompletableFuture<ProposeResponse> propose(List<byte[]> entries, LogEntry.EntryType type) {
         String leaderId = this.getLeaderId();
         CompletableFuture<ProposeResponse> future;
         if (this.getState() == State.LEADER) {
             future = new CompletableFuture<>();
-            proposalQueue.add(new Proposal(entries, future, isContainsConfigChange));
+            List<LogEntry> logEntries =
+                    entries.stream().map(data -> LogEntry.newBuilder()
+                            .setData(ByteString.copyFrom(data))
+                            .setType(type)
+                            .build()).collect(Collectors.toList());
+            proposalQueue.add(new Proposal(logEntries, future, type == LogEntry.EntryType.CONFIG));
             wakeUpWorker();
         } else {
-            future = CompletableFuture.completedFuture(new ProposeResponse(leaderId, ErrorMsg.NOT_LEADER_NODE));
+            future = CompletableFuture.completedFuture(new ProposeResponse(leaderId, ErrorMsg.NOT_LEADER));
         }
         return future;
     }
@@ -187,7 +192,7 @@ public class RaftServer implements Runnable {
         try {
             stateMachineJobExecutors.submit(() -> stateMachine.onWriteCommand(builder.build()));
         } catch (RejectedExecutionException ex) {
-            logger.error("node {} submit write out command job failed", ex);
+            logger.error("node {} submit write out command job failed", this, ex);
         }
     }
 
@@ -368,7 +373,7 @@ public class RaftServer implements Runnable {
                     this.broadcastAppendEntries();
                 }
             } else {
-                error = ErrorMsg.NOT_LEADER_NODE;
+                error = ErrorMsg.NOT_LEADER;
             }
         } catch (Throwable t) {
             logger.error("propose failed on node {}", this, t);
@@ -400,10 +405,10 @@ public class RaftServer implements Runnable {
                     ConfigChange change = ConfigChange.parseFrom(e.getData());
                     String peerId = change.getPeerId();
                     switch (change.getAction()) {
-                        case ADD_SERVER:
+                        case ADD_NODE:
                             addNode(peerId);
                             break;
-                        case REMOVE_SERVER:
+                        case REMOVE_NODE:
                             removeNode(peerId);
                             break;
                         default:
@@ -434,16 +439,18 @@ public class RaftServer implements Runnable {
                         this.raftLog.getLastIndex() + 1,
                         RaftServer.this.maxEntriesPerAppend));
         existsPendingConfigChange = false;
+        logger.info("{} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
     }
 
     private void removeNode(final String peerId) {
-        peerNodes.remove(peerId);
-        existsPendingConfigChange = false;
-
-        // quorum has changed, check if there's any pending entries
-        if (getState() == State.LEADER && updateCommit()) {
-            broadcastAppendEntries();
+        if (peerNodes.remove(peerId) != null) {
+            logger.info("{} remove peerId \"{}\" from cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
+            // quorum has changed, check if there's any pending entries
+            if (getState() == State.LEADER && updateCommit()) {
+                broadcastAppendEntries();
+            }
         }
+        existsPendingConfigChange = false;
     }
 
     private boolean updateCommit() {
@@ -611,7 +618,7 @@ public class RaftServer implements Runnable {
         this.stateMachineJobExecutors.shutdown();
         this.workerRun = false;
         wakeUpWorker();
-        logger.info("node {} shutdown");
+        logger.info("node {} shutdown", this);
     }
 
     @Override
@@ -625,11 +632,11 @@ public class RaftServer implements Runnable {
     }
 
     private static class Proposal {
-        private final List<byte[]> entries;
+        private final List<LogEntry> entries;
         private final CompletableFuture<ProposeResponse> future;
         private final boolean isContainsConfigChange;
 
-        Proposal(List<byte[]> entries, CompletableFuture<ProposeResponse> future, boolean isContainsConfigChange) {
+        Proposal(List<LogEntry> entries, CompletableFuture<ProposeResponse> future, boolean isContainsConfigChange) {
             this.entries = new ArrayList<>(entries);
             this.future = future;
             this.isContainsConfigChange = isContainsConfigChange;

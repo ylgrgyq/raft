@@ -93,24 +93,24 @@ private static final long serialVersionUID = 0L;
   public enum ConfigChangeAction
       implements com.google.protobuf.ProtocolMessageEnum {
     /**
-     * <code>ADD_SERVER = 0;</code>
+     * <code>ADD_NODE = 0;</code>
      */
-    ADD_SERVER(0),
+    ADD_NODE(0),
     /**
-     * <code>REMOVE_SERVER = 1;</code>
+     * <code>REMOVE_NODE = 1;</code>
      */
-    REMOVE_SERVER(1),
+    REMOVE_NODE(1),
     UNRECOGNIZED(-1),
     ;
 
     /**
-     * <code>ADD_SERVER = 0;</code>
+     * <code>ADD_NODE = 0;</code>
      */
-    public static final int ADD_SERVER_VALUE = 0;
+    public static final int ADD_NODE_VALUE = 0;
     /**
-     * <code>REMOVE_SERVER = 1;</code>
+     * <code>REMOVE_NODE = 1;</code>
      */
-    public static final int REMOVE_SERVER_VALUE = 1;
+    public static final int REMOVE_NODE_VALUE = 1;
 
 
     public final int getNumber() {
@@ -131,8 +131,8 @@ private static final long serialVersionUID = 0L;
 
     public static ConfigChangeAction forNumber(int value) {
       switch (value) {
-        case 0: return ADD_SERVER;
-        case 1: return REMOVE_SERVER;
+        case 0: return ADD_NODE;
+        case 1: return REMOVE_NODE;
         default: return null;
       }
     }
@@ -250,7 +250,7 @@ private static final long serialVersionUID = 0L;
     if (!getPeerIdBytes().isEmpty()) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, peerId_);
     }
-    if (action_ != raft.server.proto.ConfigChange.ConfigChangeAction.ADD_SERVER.getNumber()) {
+    if (action_ != raft.server.proto.ConfigChange.ConfigChangeAction.ADD_NODE.getNumber()) {
       output.writeEnum(2, action_);
     }
     unknownFields.writeTo(output);
@@ -264,7 +264,7 @@ private static final long serialVersionUID = 0L;
     if (!getPeerIdBytes().isEmpty()) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, peerId_);
     }
-    if (action_ != raft.server.proto.ConfigChange.ConfigChangeAction.ADD_SERVER.getNumber()) {
+    if (action_ != raft.server.proto.ConfigChange.ConfigChangeAction.ADD_NODE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(2, action_);
     }

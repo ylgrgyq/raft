@@ -28,25 +28,25 @@ public abstract class AbstractStateMachine implements StateMachine{
     @Override
     public CompletableFuture<ProposeResponse> addNode(String newNode) {
         ConfigChange change = ConfigChange.newBuilder()
-                .setAction(ConfigChange.ConfigChangeAction.ADD_SERVER)
-                .setServerAddress(newNode)
+                .setAction(ConfigChange.ConfigChangeAction.ADD_NODE)
+                .setPeerId(newNode)
                 .build();
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(change.toByteArray());
-        return raftServer.propose(data, true);
+        return raftServer.propose(data, LogEntry.EntryType.CONFIG);
     }
 
     @Override
     public CompletableFuture<ProposeResponse> removeNode(String newNode) {
         ConfigChange change = ConfigChange.newBuilder()
-                .setAction(ConfigChange.ConfigChangeAction.REMOVE_SERVER)
-                .setServerAddress(newNode)
+                .setAction(ConfigChange.ConfigChangeAction.REMOVE_NODE)
+                .setPeerId(newNode)
                 .build();
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(change.toByteArray());
-        return raftServer.propose(data, true);
+        return raftServer.propose(data, LogEntry.EntryType.CONFIG);
     }
 
     @Override

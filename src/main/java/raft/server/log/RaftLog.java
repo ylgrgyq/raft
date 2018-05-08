@@ -5,7 +5,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -80,21 +83,18 @@ public class RaftLog {
         return new ArrayList<>(this.logs.subList(start, Math.min(end, this.logs.size())));
     }
 
-    public synchronized int directAppend(int term, List<byte[]> entries) {
+    public synchronized int directAppend(int term, List<LogEntry> entries) {
         if (entries.size() == 0) {
             return this.getLastIndex();
         }
 
         int i = this.getLastIndex();
-        for (byte[] data : entries) {
+        for (LogEntry entry : entries) {
             ++i;
-            LogEntry e = LogEntry.newBuilder()
-                    .setData(ByteString.copyFrom(data))
+            LogEntry e = LogEntry.newBuilder(entry)
                     .setIndex(i)
                     .setTerm(term)
                     .build();
-
-            LogEntry e2 = LogEntry.newBuilder(e).build();
             this.logs.add(e);
         }
 

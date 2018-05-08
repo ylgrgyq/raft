@@ -48,26 +48,26 @@ public final class Commands {
       "tedFor\030\002 \001(\t\"\214\001\n\010LogEntry\022\r\n\005index\030\001 \001(\005" +
       "\022\014\n\004term\030\002 \001(\005\022\014\n\004data\030\003 \001(\014\0223\n\004type\030\004 \001" +
       "(\0162%.raft.server.proto.LogEntry.EntryTyp" +
-      "e\" \n\tEntryType\022\007\n\003LOG\020\000\022\n\n\006CONFIG\020\001\"\234\001\n\014" +
+      "e\" \n\tEntryType\022\007\n\003LOG\020\000\022\n\n\006CONFIG\020\001\"\230\001\n\014" +
       "ConfigChange\022\017\n\007peer_id\030\001 \001(\t\022B\n\006action\030" +
       "\002 \001(\01622.raft.server.proto.ConfigChange.C" +
-      "onfigChangeAction\"7\n\022ConfigChangeAction\022" +
-      "\016\n\nADD_SERVER\020\000\022\021\n\rREMOVE_SERVER\020\001\"\302\004\n\013R" +
-      "aftCommand\0224\n\004type\030\001 \001(\0162&.raft.server.p" +
-      "roto.RaftCommand.CmdType\022\014\n\004from\030\002 \001(\t\022\n" +
-      "\n\002to\030\003 \001(\t\022\014\n\004term\030\004 \001(\005\022\026\n\016prev_log_ind" +
-      "ex\030\005 \001(\005\022\025\n\rprev_log_term\030\006 \001(\005\022\023\n\013match" +
-      "_index\030\007 \001(\005\022\025\n\rleader_commit\030\010 \001(\005\022\017\n\007s" +
-      "uccess\030\t \001(\010\022,\n\007entries\030\n \003(\0132\033.raft.ser" +
-      "ver.proto.LogEntry\022\021\n\tleader_id\030\013 \001(\t\022\026\n" +
-      "\016last_log_index\030\014 \001(\005\022\025\n\rlast_log_term\030\r" +
-      " \001(\005\022\024\n\014vote_granted\030\016 \001(\010\022\023\n\013leader_hin" +
-      "t\030\017 \001(\t\"\315\001\n\007CmdType\022\010\n\004NONE\020\000\022\020\n\014REQUEST" +
-      "_VOTE\020\001\022\025\n\021REQUEST_VOTE_RESP\020\002\022\022\n\016APPEND" +
-      "_ENTRIES\020\003\022\027\n\023APPEND_ENTRIES_RESP\020\004\022\016\n\nA" +
-      "DD_SERVER\020\005\022\023\n\017ADD_SERVER_RESP\020\006\022\021\n\rREMO" +
-      "VE_SERVER\020\007\022\026\n\022REMOVE_SERVER_RESP\020\010\022\010\n\004P" +
-      "ING\020\t\022\010\n\004PONG\020\nB\002P\001b\006proto3"
+      "onfigChangeAction\"3\n\022ConfigChangeAction\022" +
+      "\014\n\010ADD_NODE\020\000\022\017\n\013REMOVE_NODE\020\001\"\302\004\n\013RaftC" +
+      "ommand\0224\n\004type\030\001 \001(\0162&.raft.server.proto" +
+      ".RaftCommand.CmdType\022\014\n\004from\030\002 \001(\t\022\n\n\002to" +
+      "\030\003 \001(\t\022\014\n\004term\030\004 \001(\005\022\026\n\016prev_log_index\030\005" +
+      " \001(\005\022\025\n\rprev_log_term\030\006 \001(\005\022\023\n\013match_ind" +
+      "ex\030\007 \001(\005\022\025\n\rleader_commit\030\010 \001(\005\022\017\n\007succe" +
+      "ss\030\t \001(\010\022,\n\007entries\030\n \003(\0132\033.raft.server." +
+      "proto.LogEntry\022\021\n\tleader_id\030\013 \001(\t\022\026\n\016las" +
+      "t_log_index\030\014 \001(\005\022\025\n\rlast_log_term\030\r \001(\005" +
+      "\022\024\n\014vote_granted\030\016 \001(\010\022\023\n\013leader_hint\030\017 " +
+      "\001(\t\"\315\001\n\007CmdType\022\010\n\004NONE\020\000\022\020\n\014REQUEST_VOT" +
+      "E\020\001\022\025\n\021REQUEST_VOTE_RESP\020\002\022\022\n\016APPEND_ENT" +
+      "RIES\020\003\022\027\n\023APPEND_ENTRIES_RESP\020\004\022\016\n\nADD_S" +
+      "ERVER\020\005\022\023\n\017ADD_SERVER_RESP\020\006\022\021\n\rREMOVE_S" +
+      "ERVER\020\007\022\026\n\022REMOVE_SERVER_RESP\020\010\022\010\n\004PING\020" +
+      "\t\022\010\n\004PONG\020\nB\002P\001b\006proto3"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
         new com.google.protobuf.Descriptors.FileDescriptor.    InternalDescriptorAssigner() {

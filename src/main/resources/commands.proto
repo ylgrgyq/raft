@@ -22,8 +22,8 @@ message LogEntry {
 
 message ConfigChange {
     enum ConfigChangeAction {
-        ADD_SERVER = 0;
-        REMOVE_SERVER = 1;
+        ADD_NODE = 0;
+        REMOVE_NODE = 1;
     }
 
     string peer_id = 1;
