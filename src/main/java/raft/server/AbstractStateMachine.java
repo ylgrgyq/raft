@@ -44,6 +44,11 @@ public abstract class AbstractStateMachine implements StateMachine{
                 .setPeerId(newNode)
                 .build();
 
+        if (newNode.equals(raftServer.getLeaderId())) {
+            return CompletableFuture.completedFuture(
+                    new ProposeResponse(raftServer.getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
+        }
+
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(change.toByteArray());
         return raftServer.propose(data, LogEntry.EntryType.CONFIG);

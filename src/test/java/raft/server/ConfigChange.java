@@ -216,25 +216,8 @@ public class ConfigChange {
 
         CompletableFuture<ProposeResponse> f = leader.removeNode(leaderId);
         ProposeResponse resp = f.get();
-        assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
-
-        peerIdSet.remove(leaderId);
-        peerIdSet.forEach(id -> {
-            TestingRaftCluster.TestingStateMachine node = cluster.getNodeById(id);
-            node.waitApplied(1, 5000);
-
-            RaftStatus status = node.getStatus();
-            List<String> peerIds = status.getPeerNodeIds();
-            assertEquals(peerIdSet.size(), peerIds.size());
-            assertTrue(peerIdSet.containsAll(peerIds));
-        });
-
-        StateMachine newLeader = cluster.waitLeaderElected(5000);
-        RaftStatus leaderStatus = newLeader.getStatus();
-        assertEquals(State.LEADER, leaderStatus.getState());
-
-        assertNull(cluster.getNodeById(leaderId));
+        assertFalse(resp.isSuccess());
+        assertEquals(ErrorMsg.FORBID_REMOVE_LEADER, resp.getError());
 
         cluster.shutdownCluster();
     }
