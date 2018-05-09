@@ -1,3 +1,3 @@
 # raft
 
-Write a raft server to know more about it.
+Write a raft raft to know more about it.

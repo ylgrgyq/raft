@@ -113,7 +113,7 @@ class TestingRaftCluster {
         @Override
         public void receiveCommand(RaftCommand cmd) {
             logger.debug("node {} receive command {}", this.getId(), cmd.toString());
-            raftServer.queueReceivedCommand(cmd);
+            raft.queueReceivedCommand(cmd);
         }
 
         @Override
@@ -187,7 +187,7 @@ class TestingRaftCluster {
         void waitBecomeFollower(long timeoutMs) throws TimeoutException, InterruptedException{
             long start = System.currentTimeMillis();
             while (true) {
-                if (raftServer.getState() == State.FOLLOWER) {
+                if (raft.getState() == State.FOLLOWER) {
                     return;
                 }
 

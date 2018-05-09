@@ -16,13 +16,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @SuppressWarnings("WeakerAccess")
 public abstract class AbstractStateMachine implements StateMachine{
     private final AtomicBoolean started = new AtomicBoolean(false);
-    protected final RaftServer raftServer;
+    protected final RaftImpl raft;
     public AbstractStateMachine(Config c) {
-        this.raftServer = new RaftServer(c, this);
+        this.raft = new RaftImpl(c, this);
     }
 
     public CompletableFuture<ProposeResponse> propose(List<byte[]> data) {
-        return raftServer.propose(data);
+        return raft.propose(data);
     }
 
     @Override
@@ -34,7 +34,7 @@ public abstract class AbstractStateMachine implements StateMachine{
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(change.toByteArray());
-        return raftServer.propose(data, LogEntry.EntryType.CONFIG);
+        return raft.propose(data, LogEntry.EntryType.CONFIG);
     }
 
     @Override
@@ -44,48 +44,48 @@ public abstract class AbstractStateMachine implements StateMachine{
                 .setPeerId(newNode)
                 .build();
 
-        if (newNode.equals(raftServer.getLeaderId())) {
+        if (newNode.equals(raft.getLeaderId())) {
             return CompletableFuture.completedFuture(
-                    new ProposeResponse(raftServer.getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
+                    new ProposeResponse(raft.getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
         }
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(change.toByteArray());
-        return raftServer.propose(data, LogEntry.EntryType.CONFIG);
+        return raft.propose(data, LogEntry.EntryType.CONFIG);
     }
 
     @Override
     public void appliedTo(int appliedTo) {
-        raftServer.appliedTo(appliedTo);
+        raft.appliedTo(appliedTo);
     }
 
     @Override
     public void receiveCommand(RaftCommand cmd) {
-        raftServer.queueReceivedCommand(cmd);
+        raft.queueReceivedCommand(cmd);
     }
 
     public RaftStatus getStatus() {
-        return raftServer.getStatus();
+        return raft.getStatus();
     }
 
     public String getId() {
-        return raftServer.getSelfId();
+        return raft.getSelfId();
     }
 
     public boolean isLeader() {
-        return raftServer.isLeader();
+        return raft.isLeader();
     }
 
     public void start() {
         if (started.compareAndSet(false, true)) {
-            raftServer.start();
+            raft.start();
         }
     }
 
     @Override
     public void shutdown() {
         if (started.compareAndSet(true, false)) {
-            raftServer.shutdown();
+            raft.shutdown();
         }
     }
 }

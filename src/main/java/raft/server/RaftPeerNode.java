@@ -16,20 +16,20 @@ class RaftPeerNode {
     private static final Logger logger = LoggerFactory.getLogger(RaftPeerNode.class.getName());
 
     private final String peerId;
-    private final RaftServer server;
+    private final RaftImpl raft;
     private final RaftLog serverLog;
 
-    // index of the next log entry to send to that server (initialized to leader last log index + 1)
+    // index of the next log entry to send to that raft (initialized to leader last log index + 1)
     private int nextIndex;
-    // index of highest log entry known to be replicated on server (initialized to 0, increases monotonically)
+    // index of highest log entry known to be replicated on raft (initialized to 0, increases monotonically)
     private int matchIndex;
     private int maxEntriesPerAppend;
 
-    RaftPeerNode(String peerId, RaftServer server, RaftLog log, int nextIndex, int maxEntriesPerAppend) {
+    RaftPeerNode(String peerId, RaftImpl raft, RaftLog log, int nextIndex, int maxEntriesPerAppend) {
         this.peerId = peerId;
         this.nextIndex = nextIndex;
         this.matchIndex = 0;
-        this.server = server;
+        this.raft = raft;
         this.serverLog = log;
         this.maxEntriesPerAppend = maxEntriesPerAppend;
     }
@@ -46,23 +46,23 @@ class RaftPeerNode {
         RaftCommand.Builder msg = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.APPEND_ENTRIES)
                 .setTerm(term)
-                .setLeaderId(this.server.getLeaderId())
+                .setLeaderId(this.raft.getLeaderId())
                 .setLeaderCommit(serverLog.getCommitIndex())
                 .setPrevLogIndex(prev.getIndex())
                 .setPrevLogTerm(prev.getTerm())
                 .addAllEntries(entries.subList(1, entries.size()))
                 .setTo(peerId);
-        server.writeOutCommand(msg);
+        raft.writeOutCommand(msg);
     }
 
     void sendPing(int term) {
         RaftCommand.Builder msg = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.PING)
                 .setTerm(term)
-                .setLeaderId(this.server.getLeaderId())
+                .setLeaderId(this.raft.getLeaderId())
                 .setLeaderCommit(Math.min(this.matchIndex, serverLog.getCommitIndex()))
                 .setTo(peerId);
-        server.writeOutCommand(msg);
+        raft.writeOutCommand(msg);
     }
 
     boolean updateIndexes(int matchIndex) {
