@@ -8,9 +8,26 @@ message PBRaftPersistentState {
 }
 
 message LogEntry {
+    enum EntryType {
+        LOG = 0;
+        CONFIG = 1;
+    }
+
     int32 index = 1;
     int32 term = 2;
     bytes data = 3;
+    EntryType type = 4;
+}
+
+
+message ConfigChange {
+    enum ConfigChangeAction {
+        ADD_NODE = 0;
+        REMOVE_NODE = 1;
+    }
+
+    string peer_id = 1;
+    ConfigChangeAction action = 2;
 }
 
 message RaftCommand {
@@ -20,8 +37,12 @@ message RaftCommand {
         REQUEST_VOTE_RESP = 2;
         APPEND_ENTRIES = 3;
         APPEND_ENTRIES_RESP = 4;
-        PING = 5;
-        PONG = 6;
+        ADD_SERVER = 5;
+        ADD_SERVER_RESP = 6;
+        REMOVE_SERVER = 7;
+        REMOVE_SERVER_RESP = 8;
+        PING = 9;
+        PONG = 10;
     }
 
     CmdType type = 1;
@@ -38,4 +59,5 @@ message RaftCommand {
     int32 last_log_index = 12;
     int32 last_log_term = 13;
     bool vote_granted = 14;
+    string leader_hint = 15;
 }

@@ -4,22 +4,20 @@
 package raft.server.proto;
 
 /**
- * Protobuf type {@code raft.server.proto.LogEntry}
+ * Protobuf type {@code raft.server.proto.ConfigChange}
  */
-public  final class LogEntry extends
+public  final class ConfigChange extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:raft.server.proto.LogEntry)
-    LogEntryOrBuilder {
+    // @@protoc_insertion_point(message_implements:raft.server.proto.ConfigChange)
+    ConfigChangeOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use LogEntry.newBuilder() to construct.
-  private LogEntry(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use ConfigChange.newBuilder() to construct.
+  private ConfigChange(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private LogEntry() {
-    index_ = 0;
-    term_ = 0;
-    data_ = com.google.protobuf.ByteString.EMPTY;
-    type_ = 0;
+  private ConfigChange() {
+    peerId_ = "";
+    action_ = 0;
   }
 
   @java.lang.Override
@@ -27,7 +25,7 @@ private static final long serialVersionUID = 0L;
   getUnknownFields() {
     return this.unknownFields;
   }
-  private LogEntry(
+  private ConfigChange(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -53,25 +51,16 @@ private static final long serialVersionUID = 0L;
             }
             break;
           }
-          case 8: {
+          case 10: {
+            java.lang.String s = input.readStringRequireUtf8();
 
-            index_ = input.readInt32();
+            peerId_ = s;
             break;
           }
           case 16: {
-
-            term_ = input.readInt32();
-            break;
-          }
-          case 26: {
-
-            data_ = input.readBytes();
-            break;
-          }
-          case 32: {
             int rawValue = input.readEnum();
 
-            type_ = rawValue;
+            action_ = rawValue;
             break;
           }
         }
@@ -88,40 +77,40 @@ private static final long serialVersionUID = 0L;
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return raft.server.proto.Commands.internal_static_raft_server_proto_LogEntry_descriptor;
+    return raft.server.proto.Commands.internal_static_raft_server_proto_ConfigChange_descriptor;
   }
 
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return raft.server.proto.Commands.internal_static_raft_server_proto_LogEntry_fieldAccessorTable
+    return raft.server.proto.Commands.internal_static_raft_server_proto_ConfigChange_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            raft.server.proto.LogEntry.class, raft.server.proto.LogEntry.Builder.class);
+            raft.server.proto.ConfigChange.class, raft.server.proto.ConfigChange.Builder.class);
   }
 
   /**
-   * Protobuf enum {@code raft.server.proto.LogEntry.EntryType}
+   * Protobuf enum {@code raft.server.proto.ConfigChange.ConfigChangeAction}
    */
-  public enum EntryType
+  public enum ConfigChangeAction
       implements com.google.protobuf.ProtocolMessageEnum {
     /**
-     * <code>LOG = 0;</code>
+     * <code>ADD_NODE = 0;</code>
      */
-    LOG(0),
+    ADD_NODE(0),
     /**
-     * <code>CONFIG = 1;</code>
+     * <code>REMOVE_NODE = 1;</code>
      */
-    CONFIG(1),
+    REMOVE_NODE(1),
     UNRECOGNIZED(-1),
     ;
 
     /**
-     * <code>LOG = 0;</code>
+     * <code>ADD_NODE = 0;</code>
      */
-    public static final int LOG_VALUE = 0;
+    public static final int ADD_NODE_VALUE = 0;
     /**
-     * <code>CONFIG = 1;</code>
+     * <code>REMOVE_NODE = 1;</code>
      */
-    public static final int CONFIG_VALUE = 1;
+    public static final int REMOVE_NODE_VALUE = 1;
 
 
     public final int getNumber() {
@@ -136,27 +125,27 @@ private static final long serialVersionUID = 0L;
      * @deprecated Use {@link #forNumber(int)} instead.
      */
     @java.lang.Deprecated
-    public static EntryType valueOf(int value) {
+    public static ConfigChangeAction valueOf(int value) {
       return forNumber(value);
     }
 
-    public static EntryType forNumber(int value) {
+    public static ConfigChangeAction forNumber(int value) {
       switch (value) {
-        case 0: return LOG;
-        case 1: return CONFIG;
+        case 0: return ADD_NODE;
+        case 1: return REMOVE_NODE;
         default: return null;
       }
     }
 
-    public static com.google.protobuf.Internal.EnumLiteMap<EntryType>
+    public static com.google.protobuf.Internal.EnumLiteMap<ConfigChangeAction>
         internalGetValueMap() {
       return internalValueMap;
     }
     private static final com.google.protobuf.Internal.EnumLiteMap<
-        EntryType> internalValueMap =
-          new com.google.protobuf.Internal.EnumLiteMap<EntryType>() {
-            public EntryType findValueByNumber(int number) {
-              return EntryType.forNumber(number);
+        ConfigChangeAction> internalValueMap =
+          new com.google.protobuf.Internal.EnumLiteMap<ConfigChangeAction>() {
+            public ConfigChangeAction findValueByNumber(int number) {
+              return ConfigChangeAction.forNumber(number);
             }
           };
 
@@ -170,12 +159,12 @@ private static final long serialVersionUID = 0L;
     }
     public static final com.google.protobuf.Descriptors.EnumDescriptor
         getDescriptor() {
-      return raft.server.proto.LogEntry.getDescriptor().getEnumTypes().get(0);
+      return raft.server.proto.ConfigChange.getDescriptor().getEnumTypes().get(0);
     }
 
-    private static final EntryType[] VALUES = values();
+    private static final ConfigChangeAction[] VALUES = values();
 
-    public static EntryType valueOf(
+    public static ConfigChangeAction valueOf(
         com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
       if (desc.getType() != getDescriptor()) {
         throw new java.lang.IllegalArgumentException(
@@ -189,54 +178,61 @@ private static final long serialVersionUID = 0L;
 
     private final int value;
 
-    private EntryType(int value) {
+    private ConfigChangeAction(int value) {
       this.value = value;
     }
 
-    // @@protoc_insertion_point(enum_scope:raft.server.proto.LogEntry.EntryType)
+    // @@protoc_insertion_point(enum_scope:raft.server.proto.ConfigChange.ConfigChangeAction)
   }
 
-  public static final int INDEX_FIELD_NUMBER = 1;
-  private int index_;
+  public static final int PEER_ID_FIELD_NUMBER = 1;
+  private volatile java.lang.Object peerId_;
   /**
-   * <code>int32 index = 1;</code>
+   * <code>string peer_id = 1;</code>
    */
-  public int getIndex() {
-    return index_;
+  public java.lang.String getPeerId() {
+    java.lang.Object ref = peerId_;
+    if (ref instanceof java.lang.String) {
+      return (java.lang.String) ref;
+    } else {
+      com.google.protobuf.ByteString bs = 
+          (com.google.protobuf.ByteString) ref;
+      java.lang.String s = bs.toStringUtf8();
+      peerId_ = s;
+      return s;
+    }
+  }
+  /**
+   * <code>string peer_id = 1;</code>
+   */
+  public com.google.protobuf.ByteString
+      getPeerIdBytes() {
+    java.lang.Object ref = peerId_;
+    if (ref instanceof java.lang.String) {
+      com.google.protobuf.ByteString b = 
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
+      peerId_ = b;
+      return b;
+    } else {
+      return (com.google.protobuf.ByteString) ref;
+    }
   }
 
-  public static final int TERM_FIELD_NUMBER = 2;
-  private int term_;
+  public static final int ACTION_FIELD_NUMBER = 2;
+  private int action_;
   /**
-   * <code>int32 term = 2;</code>
+   * <code>.raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
    */
-  public int getTerm() {
-    return term_;
-  }
-
-  public static final int DATA_FIELD_NUMBER = 3;
-  private com.google.protobuf.ByteString data_;
-  /**
-   * <code>bytes data = 3;</code>
-   */
-  public com.google.protobuf.ByteString getData() {
-    return data_;
-  }
-
-  public static final int TYPE_FIELD_NUMBER = 4;
-  private int type_;
-  /**
-   * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
-   */
-  public int getTypeValue() {
-    return type_;
+  public int getActionValue() {
+    return action_;
   }
   /**
-   * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+   * <code>.raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
    */
-  public raft.server.proto.LogEntry.EntryType getType() {
-    raft.server.proto.LogEntry.EntryType result = raft.server.proto.LogEntry.EntryType.valueOf(type_);
-    return result == null ? raft.server.proto.LogEntry.EntryType.UNRECOGNIZED : result;
+  public raft.server.proto.ConfigChange.ConfigChangeAction getAction() {
+    raft.server.proto.ConfigChange.ConfigChangeAction result = raft.server.proto.ConfigChange.ConfigChangeAction.valueOf(action_);
+    return result == null ? raft.server.proto.ConfigChange.ConfigChangeAction.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -251,17 +247,11 @@ private static final long serialVersionUID = 0L;
 
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (index_ != 0) {
-      output.writeInt32(1, index_);
+    if (!getPeerIdBytes().isEmpty()) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, peerId_);
     }
-    if (term_ != 0) {
-      output.writeInt32(2, term_);
-    }
-    if (!data_.isEmpty()) {
-      output.writeBytes(3, data_);
-    }
-    if (type_ != raft.server.proto.LogEntry.EntryType.LOG.getNumber()) {
-      output.writeEnum(4, type_);
+    if (action_ != raft.server.proto.ConfigChange.ConfigChangeAction.ADD_NODE.getNumber()) {
+      output.writeEnum(2, action_);
     }
     unknownFields.writeTo(output);
   }
@@ -271,21 +261,12 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (index_ != 0) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, index_);
+    if (!getPeerIdBytes().isEmpty()) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, peerId_);
     }
-    if (term_ != 0) {
+    if (action_ != raft.server.proto.ConfigChange.ConfigChangeAction.ADD_NODE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, term_);
-    }
-    if (!data_.isEmpty()) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(3, data_);
-    }
-    if (type_ != raft.server.proto.LogEntry.EntryType.LOG.getNumber()) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(4, type_);
+        .computeEnumSize(2, action_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -297,19 +278,15 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof raft.server.proto.LogEntry)) {
+    if (!(obj instanceof raft.server.proto.ConfigChange)) {
       return super.equals(obj);
     }
-    raft.server.proto.LogEntry other = (raft.server.proto.LogEntry) obj;
+    raft.server.proto.ConfigChange other = (raft.server.proto.ConfigChange) obj;
 
     boolean result = true;
-    result = result && (getIndex()
-        == other.getIndex());
-    result = result && (getTerm()
-        == other.getTerm());
-    result = result && getData()
-        .equals(other.getData());
-    result = result && type_ == other.type_;
+    result = result && getPeerId()
+        .equals(other.getPeerId());
+    result = result && action_ == other.action_;
     result = result && unknownFields.equals(other.unknownFields);
     return result;
   }
@@ -321,82 +298,78 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + INDEX_FIELD_NUMBER;
-    hash = (53 * hash) + getIndex();
-    hash = (37 * hash) + TERM_FIELD_NUMBER;
-    hash = (53 * hash) + getTerm();
-    hash = (37 * hash) + DATA_FIELD_NUMBER;
-    hash = (53 * hash) + getData().hashCode();
-    hash = (37 * hash) + TYPE_FIELD_NUMBER;
-    hash = (53 * hash) + type_;
+    hash = (37 * hash) + PEER_ID_FIELD_NUMBER;
+    hash = (53 * hash) + getPeerId().hashCode();
+    hash = (37 * hash) + ACTION_FIELD_NUMBER;
+    hash = (53 * hash) + action_;
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
   }
 
-  public static raft.server.proto.LogEntry parseFrom(
+  public static raft.server.proto.ConfigChange parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static raft.server.proto.LogEntry parseFrom(
+  public static raft.server.proto.ConfigChange parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static raft.server.proto.LogEntry parseFrom(
+  public static raft.server.proto.ConfigChange parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static raft.server.proto.LogEntry parseFrom(
+  public static raft.server.proto.ConfigChange parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static raft.server.proto.LogEntry parseFrom(byte[] data)
+  public static raft.server.proto.ConfigChange parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static raft.server.proto.LogEntry parseFrom(
+  public static raft.server.proto.ConfigChange parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static raft.server.proto.LogEntry parseFrom(java.io.InputStream input)
+  public static raft.server.proto.ConfigChange parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static raft.server.proto.LogEntry parseFrom(
+  public static raft.server.proto.ConfigChange parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static raft.server.proto.LogEntry parseDelimitedFrom(java.io.InputStream input)
+  public static raft.server.proto.ConfigChange parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static raft.server.proto.LogEntry parseDelimitedFrom(
+  public static raft.server.proto.ConfigChange parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static raft.server.proto.LogEntry parseFrom(
+  public static raft.server.proto.ConfigChange parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static raft.server.proto.LogEntry parseFrom(
+  public static raft.server.proto.ConfigChange parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -408,7 +381,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(raft.server.proto.LogEntry prototype) {
+  public static Builder newBuilder(raft.server.proto.ConfigChange prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   public Builder toBuilder() {
@@ -423,25 +396,25 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
-   * Protobuf type {@code raft.server.proto.LogEntry}
+   * Protobuf type {@code raft.server.proto.ConfigChange}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:raft.server.proto.LogEntry)
-      raft.server.proto.LogEntryOrBuilder {
+      // @@protoc_insertion_point(builder_implements:raft.server.proto.ConfigChange)
+      raft.server.proto.ConfigChangeOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return raft.server.proto.Commands.internal_static_raft_server_proto_LogEntry_descriptor;
+      return raft.server.proto.Commands.internal_static_raft_server_proto_ConfigChange_descriptor;
     }
 
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return raft.server.proto.Commands.internal_static_raft_server_proto_LogEntry_fieldAccessorTable
+      return raft.server.proto.Commands.internal_static_raft_server_proto_ConfigChange_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              raft.server.proto.LogEntry.class, raft.server.proto.LogEntry.Builder.class);
+              raft.server.proto.ConfigChange.class, raft.server.proto.ConfigChange.Builder.class);
     }
 
-    // Construct using raft.server.proto.LogEntry.newBuilder()
+    // Construct using raft.server.proto.ConfigChange.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -458,40 +431,34 @@ private static final long serialVersionUID = 0L;
     }
     public Builder clear() {
       super.clear();
-      index_ = 0;
+      peerId_ = "";
 
-      term_ = 0;
-
-      data_ = com.google.protobuf.ByteString.EMPTY;
-
-      type_ = 0;
+      action_ = 0;
 
       return this;
     }
 
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return raft.server.proto.Commands.internal_static_raft_server_proto_LogEntry_descriptor;
+      return raft.server.proto.Commands.internal_static_raft_server_proto_ConfigChange_descriptor;
     }
 
-    public raft.server.proto.LogEntry getDefaultInstanceForType() {
-      return raft.server.proto.LogEntry.getDefaultInstance();
+    public raft.server.proto.ConfigChange getDefaultInstanceForType() {
+      return raft.server.proto.ConfigChange.getDefaultInstance();
     }
 
-    public raft.server.proto.LogEntry build() {
-      raft.server.proto.LogEntry result = buildPartial();
+    public raft.server.proto.ConfigChange build() {
+      raft.server.proto.ConfigChange result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
       return result;
     }
 
-    public raft.server.proto.LogEntry buildPartial() {
-      raft.server.proto.LogEntry result = new raft.server.proto.LogEntry(this);
-      result.index_ = index_;
-      result.term_ = term_;
-      result.data_ = data_;
-      result.type_ = type_;
+    public raft.server.proto.ConfigChange buildPartial() {
+      raft.server.proto.ConfigChange result = new raft.server.proto.ConfigChange(this);
+      result.peerId_ = peerId_;
+      result.action_ = action_;
       onBuilt();
       return result;
     }
@@ -523,27 +490,22 @@ private static final long serialVersionUID = 0L;
       return (Builder) super.addRepeatedField(field, value);
     }
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof raft.server.proto.LogEntry) {
-        return mergeFrom((raft.server.proto.LogEntry)other);
+      if (other instanceof raft.server.proto.ConfigChange) {
+        return mergeFrom((raft.server.proto.ConfigChange)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(raft.server.proto.LogEntry other) {
-      if (other == raft.server.proto.LogEntry.getDefaultInstance()) return this;
-      if (other.getIndex() != 0) {
-        setIndex(other.getIndex());
+    public Builder mergeFrom(raft.server.proto.ConfigChange other) {
+      if (other == raft.server.proto.ConfigChange.getDefaultInstance()) return this;
+      if (!other.getPeerId().isEmpty()) {
+        peerId_ = other.peerId_;
+        onChanged();
       }
-      if (other.getTerm() != 0) {
-        setTerm(other.getTerm());
-      }
-      if (other.getData() != com.google.protobuf.ByteString.EMPTY) {
-        setData(other.getData());
-      }
-      if (other.type_ != 0) {
-        setTypeValue(other.getTypeValue());
+      if (other.action_ != 0) {
+        setActionValue(other.getActionValue());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -558,11 +520,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      raft.server.proto.LogEntry parsedMessage = null;
+      raft.server.proto.ConfigChange parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (raft.server.proto.LogEntry) e.getUnfinishedMessage();
+        parsedMessage = (raft.server.proto.ConfigChange) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -572,127 +534,115 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private int index_ ;
+    private java.lang.Object peerId_ = "";
     /**
-     * <code>int32 index = 1;</code>
+     * <code>string peer_id = 1;</code>
      */
-    public int getIndex() {
-      return index_;
+    public java.lang.String getPeerId() {
+      java.lang.Object ref = peerId_;
+      if (!(ref instanceof java.lang.String)) {
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
+        java.lang.String s = bs.toStringUtf8();
+        peerId_ = s;
+        return s;
+      } else {
+        return (java.lang.String) ref;
+      }
     }
     /**
-     * <code>int32 index = 1;</code>
+     * <code>string peer_id = 1;</code>
      */
-    public Builder setIndex(int value) {
-      
-      index_ = value;
-      onChanged();
-      return this;
+    public com.google.protobuf.ByteString
+        getPeerIdBytes() {
+      java.lang.Object ref = peerId_;
+      if (ref instanceof String) {
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
+        peerId_ = b;
+        return b;
+      } else {
+        return (com.google.protobuf.ByteString) ref;
+      }
     }
     /**
-     * <code>int32 index = 1;</code>
+     * <code>string peer_id = 1;</code>
      */
-    public Builder clearIndex() {
-      
-      index_ = 0;
-      onChanged();
-      return this;
-    }
-
-    private int term_ ;
-    /**
-     * <code>int32 term = 2;</code>
-     */
-    public int getTerm() {
-      return term_;
-    }
-    /**
-     * <code>int32 term = 2;</code>
-     */
-    public Builder setTerm(int value) {
-      
-      term_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <code>int32 term = 2;</code>
-     */
-    public Builder clearTerm() {
-      
-      term_ = 0;
-      onChanged();
-      return this;
-    }
-
-    private com.google.protobuf.ByteString data_ = com.google.protobuf.ByteString.EMPTY;
-    /**
-     * <code>bytes data = 3;</code>
-     */
-    public com.google.protobuf.ByteString getData() {
-      return data_;
-    }
-    /**
-     * <code>bytes data = 3;</code>
-     */
-    public Builder setData(com.google.protobuf.ByteString value) {
+    public Builder setPeerId(
+        java.lang.String value) {
       if (value == null) {
     throw new NullPointerException();
   }
   
-      data_ = value;
+      peerId_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>bytes data = 3;</code>
+     * <code>string peer_id = 1;</code>
      */
-    public Builder clearData() {
+    public Builder clearPeerId() {
       
-      data_ = getDefaultInstance().getData();
+      peerId_ = getDefaultInstance().getPeerId();
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>string peer_id = 1;</code>
+     */
+    public Builder setPeerIdBytes(
+        com.google.protobuf.ByteString value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+      
+      peerId_ = value;
       onChanged();
       return this;
     }
 
-    private int type_ = 0;
+    private int action_ = 0;
     /**
-     * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+     * <code>.raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
      */
-    public int getTypeValue() {
-      return type_;
+    public int getActionValue() {
+      return action_;
     }
     /**
-     * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+     * <code>.raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
      */
-    public Builder setTypeValue(int value) {
-      type_ = value;
+    public Builder setActionValue(int value) {
+      action_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+     * <code>.raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
      */
-    public raft.server.proto.LogEntry.EntryType getType() {
-      raft.server.proto.LogEntry.EntryType result = raft.server.proto.LogEntry.EntryType.valueOf(type_);
-      return result == null ? raft.server.proto.LogEntry.EntryType.UNRECOGNIZED : result;
+    public raft.server.proto.ConfigChange.ConfigChangeAction getAction() {
+      raft.server.proto.ConfigChange.ConfigChangeAction result = raft.server.proto.ConfigChange.ConfigChangeAction.valueOf(action_);
+      return result == null ? raft.server.proto.ConfigChange.ConfigChangeAction.UNRECOGNIZED : result;
     }
     /**
-     * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+     * <code>.raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
      */
-    public Builder setType(raft.server.proto.LogEntry.EntryType value) {
+    public Builder setAction(raft.server.proto.ConfigChange.ConfigChangeAction value) {
       if (value == null) {
         throw new NullPointerException();
       }
       
-      type_ = value.getNumber();
+      action_ = value.getNumber();
       onChanged();
       return this;
     }
     /**
-     * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+     * <code>.raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
      */
-    public Builder clearType() {
+    public Builder clearAction() {
       
-      type_ = 0;
+      action_ = 0;
       onChanged();
       return this;
     }
@@ -707,39 +657,39 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:raft.server.proto.LogEntry)
+    // @@protoc_insertion_point(builder_scope:raft.server.proto.ConfigChange)
   }
 
-  // @@protoc_insertion_point(class_scope:raft.server.proto.LogEntry)
-  private static final raft.server.proto.LogEntry DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:raft.server.proto.ConfigChange)
+  private static final raft.server.proto.ConfigChange DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new raft.server.proto.LogEntry();
+    DEFAULT_INSTANCE = new raft.server.proto.ConfigChange();
   }
 
-  public static raft.server.proto.LogEntry getDefaultInstance() {
+  public static raft.server.proto.ConfigChange getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<LogEntry>
-      PARSER = new com.google.protobuf.AbstractParser<LogEntry>() {
-    public LogEntry parsePartialFrom(
+  private static final com.google.protobuf.Parser<ConfigChange>
+      PARSER = new com.google.protobuf.AbstractParser<ConfigChange>() {
+    public ConfigChange parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new LogEntry(input, extensionRegistry);
+      return new ConfigChange(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<LogEntry> parser() {
+  public static com.google.protobuf.Parser<ConfigChange> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<LogEntry> getParserForType() {
+  public com.google.protobuf.Parser<ConfigChange> getParserForType() {
     return PARSER;
   }
 
-  public raft.server.proto.LogEntry getDefaultInstanceForType() {
+  public raft.server.proto.ConfigChange getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

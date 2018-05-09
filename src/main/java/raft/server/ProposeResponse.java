@@ -5,20 +5,20 @@ package raft.server;
  * Date: 18/3/28
  */
 public class ProposeResponse {
-    private String leaderId;
+    private String leaderIdHint;
     private ErrorMsg error;
 
-    public ProposeResponse(String leaderId) {
-        this.leaderId = leaderId;
+    public ProposeResponse(String leaderIdHint) {
+        this.leaderIdHint = leaderIdHint;
     }
 
-    public ProposeResponse(String leaderId, ErrorMsg error) {
-        this.leaderId = leaderId;
+    public ProposeResponse(String leaderIdHint, ErrorMsg error) {
+        this.leaderIdHint = leaderIdHint;
         this.error = error;
     }
 
-    public String getLeaderId() {
-        return leaderId;
+    public String getLeaderIdHint() {
+        return leaderIdHint;
     }
 
     public boolean isSuccess() {

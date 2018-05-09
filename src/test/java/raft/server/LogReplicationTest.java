@@ -37,7 +37,7 @@ public class LogReplicationTest {
         List<byte[]> dataList = TestUtil.newDataList(logCount);
         CompletableFuture<ProposeResponse> resp = leader.propose(dataList);
         ProposeResponse p = resp.get();
-        assertEquals(selfId, p.getLeaderId());
+        assertEquals(selfId, p.getLeaderIdHint());
         assertTrue(p.isSuccess());
         assertNull(p.getError());
 
@@ -106,7 +106,7 @@ public class LogReplicationTest {
         List<byte[]> dataList = TestUtil.newDataList(logCount);
         CompletableFuture<ProposeResponse> resp = leader.propose(dataList);
         ProposeResponse p = resp.get();
-        assertEquals(leaderId, p.getLeaderId());
+        assertEquals(leaderId, p.getLeaderIdHint());
         assertTrue(p.isSuccess());
         assertNull(p.getError());
 

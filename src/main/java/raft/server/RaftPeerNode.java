@@ -80,13 +80,13 @@ class RaftPeerNode {
     }
 
     void decreaseIndexAndResendAppend(int term) {
-        this.nextIndex--;
-        if (this.nextIndex < 1) {
+        nextIndex--;
+        if (nextIndex < 1) {
             logger.warn("nextIndex for {} decreased to 1", this.toString());
-            this.nextIndex = 1;
+            nextIndex = 1;
         }
-        assert this.nextIndex > this.matchIndex;
-        this.sendAppend(term);
+        assert nextIndex > matchIndex: "nextIndex: " + nextIndex + " is not greater than matchIndex: " + matchIndex;
+        sendAppend(term);
     }
 
     void reset(int nextIndex) {

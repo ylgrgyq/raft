@@ -1,10 +1,11 @@
 package raft.server;
 
 import com.google.common.base.Preconditions;
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.proto.LogEntry;
-import raft.server.proto.RaftCommand;
+import raft.server.proto.*;
+import raft.server.proto.ConfigChange;
 
 import java.nio.file.Paths;
 import java.util.*;
@@ -18,7 +19,7 @@ class TestingRaftCluster {
     private static final Logger logger = LoggerFactory.getLogger("TestingRaftCluster");
     private static final String persistentStateDir = "./target/deep/deep/deep/persistent";
 
-    private final Map<String, StateMachine> nodes = new ConcurrentHashMap<>();
+    private final Map<String, TestingStateMachine> nodes = new ConcurrentHashMap<>();
     private final Config.ConfigBuilder configBuilder = Config.newBuilder()
                     .withPersistentStateFileDirPath(persistentStateDir);
 
@@ -38,8 +39,8 @@ class TestingRaftCluster {
         nodes.values().forEach(StateMachine::start);
     }
 
-    StateMachine startPeer(String peerId) {
-        StateMachine n = nodes.get(peerId);
+    TestingStateMachine startPeer(String peerId) {
+        TestingStateMachine n = nodes.get(peerId);
         if (n != null) {
             n.start();
         } else {
@@ -64,14 +65,14 @@ class TestingRaftCluster {
         state.setTermAndVotedFor(0, null);
     }
 
-    StateMachine waitLeaderElected() throws TimeoutException, InterruptedException{
+    TestingStateMachine waitLeaderElected() throws TimeoutException, InterruptedException{
         return this.waitLeaderElected(0);
     }
 
-    StateMachine waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
+    TestingStateMachine waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
         long start = System.currentTimeMillis();
         while (true) {
-            for (StateMachine n : nodes.values()) {
+            for (TestingStateMachine n : nodes.values()) {
                 if (n.isLeader()) {
                     return n;
                 }
@@ -84,21 +85,22 @@ class TestingRaftCluster {
         }
     }
 
-    StateMachine getNodeById(String peerId) {
+    TestingStateMachine getNodeById(String peerId) {
         return nodes.get(peerId);
     }
 
     void shutdownCluster(){
-        for (StateMachine n : nodes.values()) {
+        for (TestingStateMachine n : nodes.values()) {
             n.shutdown();
         }
         nodes.clear();
     }
 
     void shutdownPeer(String peerId) {
-        StateMachine n = nodes.get(peerId);
-        n.shutdown();
-        nodes.remove(peerId);
+        nodes.computeIfPresent(peerId, (k, n) -> {
+            n.shutdown();
+            return null;
+        });
     }
 
     class TestingStateMachine extends AbstractStateMachine{
@@ -118,7 +120,7 @@ class TestingRaftCluster {
         public void onWriteCommand(RaftCommand cmd) {
             logger.debug("node {} write command {}", this.getId(), cmd.toString());
             String to = cmd.getTo();
-            StateMachine toNode = nodes.get(to);
+            TestingStateMachine toNode = nodes.get(to);
             if (toNode != null) {
                 toNode.receiveCommand(cmd);
             }
@@ -126,6 +128,26 @@ class TestingRaftCluster {
 
         @Override
         public void onProposalCommited(List<LogEntry> msgs) {
+            for (LogEntry e : msgs) {
+                if (e.getType() == LogEntry.EntryType.CONFIG) {
+                    try {
+                        ConfigChange change = ConfigChange.parseFrom(e.getData());
+                        String peerId = change.getPeerId();
+                        if (change.getAction() == ConfigChange.ConfigChangeAction.ADD_NODE) {
+                            Config c = configBuilder
+                                    .withPeers(nodes.keySet())
+                                    .withSelfID(peerId)
+                                    .build();
+                            nodes.computeIfAbsent(peerId, k -> new TestingStateMachine(c));
+                            startPeer(peerId);
+                        } else if (change.getAction() == ConfigChange.ConfigChangeAction.REMOVE_NODE) {
+                            shutdownPeer(peerId);
+                        }
+                    } catch (InvalidProtocolBufferException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            }
             applied.addAll(msgs);
         }
 

@@ -30,6 +30,7 @@ private static final long serialVersionUID = 0L;
     lastLogIndex_ = 0;
     lastLogTerm_ = 0;
     voteGranted_ = false;
+    leaderHint_ = "";
   }
 
   @java.lang.Override
@@ -141,6 +142,12 @@ private static final long serialVersionUID = 0L;
             voteGranted_ = input.readBool();
             break;
           }
+          case 122: {
+            java.lang.String s = input.readStringRequireUtf8();
+
+            leaderHint_ = s;
+            break;
+          }
         }
       }
     } catch (com.google.protobuf.InvalidProtocolBufferException e) {
@@ -194,13 +201,29 @@ private static final long serialVersionUID = 0L;
      */
     APPEND_ENTRIES_RESP(4),
     /**
-     * <code>PING = 5;</code>
+     * <code>ADD_SERVER = 5;</code>
      */
-    PING(5),
+    ADD_SERVER(5),
     /**
-     * <code>PONG = 6;</code>
+     * <code>ADD_SERVER_RESP = 6;</code>
      */
-    PONG(6),
+    ADD_SERVER_RESP(6),
+    /**
+     * <code>REMOVE_SERVER = 7;</code>
+     */
+    REMOVE_SERVER(7),
+    /**
+     * <code>REMOVE_SERVER_RESP = 8;</code>
+     */
+    REMOVE_SERVER_RESP(8),
+    /**
+     * <code>PING = 9;</code>
+     */
+    PING(9),
+    /**
+     * <code>PONG = 10;</code>
+     */
+    PONG(10),
     UNRECOGNIZED(-1),
     ;
 
@@ -225,13 +248,29 @@ private static final long serialVersionUID = 0L;
      */
     public static final int APPEND_ENTRIES_RESP_VALUE = 4;
     /**
-     * <code>PING = 5;</code>
+     * <code>ADD_SERVER = 5;</code>
      */
-    public static final int PING_VALUE = 5;
+    public static final int ADD_SERVER_VALUE = 5;
     /**
-     * <code>PONG = 6;</code>
+     * <code>ADD_SERVER_RESP = 6;</code>
      */
-    public static final int PONG_VALUE = 6;
+    public static final int ADD_SERVER_RESP_VALUE = 6;
+    /**
+     * <code>REMOVE_SERVER = 7;</code>
+     */
+    public static final int REMOVE_SERVER_VALUE = 7;
+    /**
+     * <code>REMOVE_SERVER_RESP = 8;</code>
+     */
+    public static final int REMOVE_SERVER_RESP_VALUE = 8;
+    /**
+     * <code>PING = 9;</code>
+     */
+    public static final int PING_VALUE = 9;
+    /**
+     * <code>PONG = 10;</code>
+     */
+    public static final int PONG_VALUE = 10;
 
 
     public final int getNumber() {
@@ -257,8 +296,12 @@ private static final long serialVersionUID = 0L;
         case 2: return REQUEST_VOTE_RESP;
         case 3: return APPEND_ENTRIES;
         case 4: return APPEND_ENTRIES_RESP;
-        case 5: return PING;
-        case 6: return PONG;
+        case 5: return ADD_SERVER;
+        case 6: return ADD_SERVER_RESP;
+        case 7: return REMOVE_SERVER;
+        case 8: return REMOVE_SERVER_RESP;
+        case 9: return PING;
+        case 10: return PONG;
         default: return null;
       }
     }
@@ -546,6 +589,40 @@ private static final long serialVersionUID = 0L;
     return voteGranted_;
   }
 
+  public static final int LEADER_HINT_FIELD_NUMBER = 15;
+  private volatile java.lang.Object leaderHint_;
+  /**
+   * <code>string leader_hint = 15;</code>
+   */
+  public java.lang.String getLeaderHint() {
+    java.lang.Object ref = leaderHint_;
+    if (ref instanceof java.lang.String) {
+      return (java.lang.String) ref;
+    } else {
+      com.google.protobuf.ByteString bs = 
+          (com.google.protobuf.ByteString) ref;
+      java.lang.String s = bs.toStringUtf8();
+      leaderHint_ = s;
+      return s;
+    }
+  }
+  /**
+   * <code>string leader_hint = 15;</code>
+   */
+  public com.google.protobuf.ByteString
+      getLeaderHintBytes() {
+    java.lang.Object ref = leaderHint_;
+    if (ref instanceof java.lang.String) {
+      com.google.protobuf.ByteString b = 
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
+      leaderHint_ = b;
+      return b;
+    } else {
+      return (com.google.protobuf.ByteString) ref;
+    }
+  }
+
   private byte memoizedIsInitialized = -1;
   public final boolean isInitialized() {
     byte isInitialized = memoizedIsInitialized;
@@ -599,6 +676,9 @@ private static final long serialVersionUID = 0L;
     }
     if (voteGranted_ != false) {
       output.writeBool(14, voteGranted_);
+    }
+    if (!getLeaderHintBytes().isEmpty()) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 15, leaderHint_);
     }
     unknownFields.writeTo(output);
   }
@@ -661,6 +741,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(14, voteGranted_);
     }
+    if (!getLeaderHintBytes().isEmpty()) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(15, leaderHint_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -704,6 +787,8 @@ private static final long serialVersionUID = 0L;
         == other.getLastLogTerm());
     result = result && (getVoteGranted()
         == other.getVoteGranted());
+    result = result && getLeaderHint()
+        .equals(other.getLeaderHint());
     result = result && unknownFields.equals(other.unknownFields);
     return result;
   }
@@ -747,6 +832,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + VOTE_GRANTED_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getVoteGranted());
+    hash = (37 * hash) + LEADER_HINT_FIELD_NUMBER;
+    hash = (53 * hash) + getLeaderHint().hashCode();
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -909,6 +996,8 @@ private static final long serialVersionUID = 0L;
 
       voteGranted_ = false;
 
+      leaderHint_ = "";
+
       return this;
     }
 
@@ -955,6 +1044,7 @@ private static final long serialVersionUID = 0L;
       result.lastLogIndex_ = lastLogIndex_;
       result.lastLogTerm_ = lastLogTerm_;
       result.voteGranted_ = voteGranted_;
+      result.leaderHint_ = leaderHint_;
       result.bitField0_ = to_bitField0_;
       onBuilt();
       return result;
@@ -1064,6 +1154,10 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getVoteGranted() != false) {
         setVoteGranted(other.getVoteGranted());
+      }
+      if (!other.getLeaderHint().isEmpty()) {
+        leaderHint_ = other.leaderHint_;
+        onChanged();
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -1814,6 +1908,75 @@ private static final long serialVersionUID = 0L;
     public Builder clearVoteGranted() {
       
       voteGranted_ = false;
+      onChanged();
+      return this;
+    }
+
+    private java.lang.Object leaderHint_ = "";
+    /**
+     * <code>string leader_hint = 15;</code>
+     */
+    public java.lang.String getLeaderHint() {
+      java.lang.Object ref = leaderHint_;
+      if (!(ref instanceof java.lang.String)) {
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
+        java.lang.String s = bs.toStringUtf8();
+        leaderHint_ = s;
+        return s;
+      } else {
+        return (java.lang.String) ref;
+      }
+    }
+    /**
+     * <code>string leader_hint = 15;</code>
+     */
+    public com.google.protobuf.ByteString
+        getLeaderHintBytes() {
+      java.lang.Object ref = leaderHint_;
+      if (ref instanceof String) {
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
+        leaderHint_ = b;
+        return b;
+      } else {
+        return (com.google.protobuf.ByteString) ref;
+      }
+    }
+    /**
+     * <code>string leader_hint = 15;</code>
+     */
+    public Builder setLeaderHint(
+        java.lang.String value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  
+      leaderHint_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>string leader_hint = 15;</code>
+     */
+    public Builder clearLeaderHint() {
+      
+      leaderHint_ = getDefaultInstance().getLeaderHint();
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>string leader_hint = 15;</code>
+     */
+    public Builder setLeaderHintBytes(
+        com.google.protobuf.ByteString value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+      
+      leaderHint_ = value;
       onChanged();
       return this;
     }

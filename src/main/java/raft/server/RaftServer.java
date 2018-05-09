@@ -1,10 +1,13 @@
 package raft.server;
 
 import com.google.common.base.Preconditions;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
+import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
@@ -50,6 +53,7 @@ public class RaftServer implements Runnable {
     private StateMachine stateMachine;
     private Thread workerThread;
     private volatile boolean workerRun = true;
+    private boolean existsPendingConfigChange = false;
 
     RaftServer(Config c, StateMachine stateMachine) {
         Preconditions.checkNotNull(c);
@@ -146,6 +150,7 @@ public class RaftServer implements Runnable {
         status.setLeaderId(this.leaderId);
         status.setVotedFor(meta.getVotedFor());
         status.setState(this.getState());
+        status.setPeerNodeIds(new ArrayList<>(peerNodes.keySet()));
 
         return status;
     }
@@ -155,14 +160,23 @@ public class RaftServer implements Runnable {
     }
 
     CompletableFuture<ProposeResponse> propose(List<byte[]> entries) {
+        return propose(entries, LogEntry.EntryType.LOG);
+    }
+
+    CompletableFuture<ProposeResponse> propose(List<byte[]> entries, LogEntry.EntryType type) {
         String leaderId = this.getLeaderId();
         CompletableFuture<ProposeResponse> future;
         if (this.getState() == State.LEADER) {
             future = new CompletableFuture<>();
-            proposalQueue.add(new Proposal(entries, future));
+            List<LogEntry> logEntries =
+                    entries.stream().map(data -> LogEntry.newBuilder()
+                            .setData(ByteString.copyFrom(data))
+                            .setType(type)
+                            .build()).collect(Collectors.toList());
+            proposalQueue.add(new Proposal(logEntries, future, type == LogEntry.EntryType.CONFIG));
             wakeUpWorker();
         } else {
-            future = CompletableFuture.completedFuture(new ProposeResponse(leaderId, ErrorMsg.NOT_LEADER_NODE));
+            future = CompletableFuture.completedFuture(new ProposeResponse(leaderId, ErrorMsg.NOT_LEADER));
         }
         return future;
     }
@@ -178,7 +192,7 @@ public class RaftServer implements Runnable {
         try {
             stateMachineJobExecutors.submit(() -> stateMachine.onWriteCommand(builder.build()));
         } catch (RejectedExecutionException ex) {
-            logger.error("node {} submit write out command job failed", ex);
+            logger.error("node {} submit write out command job failed", this, ex);
         }
     }
 
@@ -222,7 +236,8 @@ public class RaftServer implements Runnable {
                     }
                 }
             } catch (Throwable t) {
-                logger.error("node {} got unexpected exception", this, t);
+                logger.error("node {} got unexpected exception, self shutdown immediately", this, t);
+                shutdown();
             }
         }
     }
@@ -282,6 +297,15 @@ public class RaftServer implements Runnable {
     private void processReceivedCommand(RaftCommand cmd) {
         final int selfTerm = meta.getTerm();
         if (cmd.getType() == RaftCommand.CmdType.REQUEST_VOTE) {
+            if (leaderId != null && tickCount.get() < electionTimeoutTicks) {
+                // if a server receives a RequestVote request within the minimum election timeout of hearing
+                // from a current leader, it does not update its term or grant its vote
+                logger.info("node {} ignore request vote cmd: {} because it's leader still valid. ticks remain: {}",
+                        this, cmd, electionTimeoutTicks - tickCount.get());
+                return;
+            }
+
+
             logger.debug("node {} received request vote command, request={}", this, cmd);
             final String candidateId = cmd.getFrom();
             boolean isGranted = false;
@@ -338,11 +362,18 @@ public class RaftServer implements Runnable {
         ErrorMsg error = null;
         try {
             if (this.getState() == State.LEADER) {
-                final int term = meta.getTerm();
-                this.raftLog.directAppend(term, proposal.entries);
-                this.broadcastAppendEntries();
+                if (existsPendingConfigChange && proposal.isContainsConfigChange) {
+                    error = ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION;
+                } else {
+                    if (proposal.isContainsConfigChange) {
+                        existsPendingConfigChange = true;
+                    }
+                    final int term = meta.getTerm();
+                    this.raftLog.directAppend(term, proposal.entries);
+                    this.broadcastAppendEntries();
+                }
             } else {
-                error = ErrorMsg.NOT_LEADER_NODE;
+                error = ErrorMsg.NOT_LEADER;
             }
         } catch (Throwable t) {
             logger.error("propose failed on node {}", this, t);
@@ -368,11 +399,80 @@ public class RaftServer implements Runnable {
     }
 
     private void writeOutCommitedLogs(List<LogEntry> commitedLogs) {
+        for (LogEntry e : commitedLogs) {
+            if (e.getType() == LogEntry.EntryType.CONFIG) {
+                try {
+                    ConfigChange change = ConfigChange.parseFrom(e.getData());
+                    String peerId = change.getPeerId();
+                    switch (change.getAction()) {
+                        case ADD_NODE:
+                            addNode(peerId);
+                            break;
+                        case REMOVE_NODE:
+                            removeNode(peerId);
+                            break;
+                        default:
+                            String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
+                                    this, e);
+                            throw new RuntimeException(errorMsg);
+
+                    }
+                } catch (InvalidProtocolBufferException ex) {
+                    String errorMsg = String.format("node %s failed to parse ConfigChange msg: %s", this, e);
+                    throw new RuntimeException(errorMsg, ex);
+                }
+            }
+        }
+
         try {
             stateMachineJobExecutors.submit(() -> this.stateMachine.onProposalCommited(commitedLogs));
         } catch (RejectedExecutionException ex) {
-            logger.error("node {} submit apply proposal job failed", ex);
+            logger.error("node {} submit apply proposal job failed", this, ex);
         }
+    }
+
+    private void addNode(final String peerId) {
+        peerNodes.computeIfAbsent(peerId,
+                k -> new RaftPeerNode(peerId,
+                        this,
+                        this.raftLog,
+                        this.raftLog.getLastIndex() + 1,
+                        RaftServer.this.maxEntriesPerAppend));
+        existsPendingConfigChange = false;
+        logger.info("{} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
+    }
+
+    private void removeNode(final String peerId) {
+        if (peerNodes.remove(peerId) != null) {
+            logger.info("{} remove peerId \"{}\" from cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
+            // quorum has changed, check if there's any pending entries
+            if (getState() == State.LEADER && updateCommit()) {
+                broadcastAppendEntries();
+            }
+        }
+        existsPendingConfigChange = false;
+    }
+
+    private boolean updateCommit() {
+        // kth biggest number
+        int k = RaftServer.this.getQuorum() - 1;
+        List<Integer> matchedIndexes = peerNodes.values().stream()
+                .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
+        int kthMatchedIndexes = matchedIndexes.get(k);
+        Optional<LogEntry> kthLog = RaftServer.this.raftLog.getEntry(kthMatchedIndexes);
+        if (kthLog.isPresent()) {
+            LogEntry e = kthLog.get();
+            // this is a key point. Raft never commits log entries from previous terms by counting replicas
+            // Only log entries from the leader’s current term are committed by counting replicas; once an entry
+            // from the current term has been committed in this way, then all prior entries are committed
+            // indirectly because of the Log Matching Property
+            if (e.getTerm() == RaftServer.this.meta.getTerm()) {
+                RaftServer.this.raftLog.tryCommitTo(kthMatchedIndexes);
+                writeOutCommitedLogs(RaftServer.this.raftLog.getEntriesNeedToApply());
+                return true;
+            }
+        }
+        return false;
     }
 
     private void broadcastPing() {
@@ -518,7 +618,7 @@ public class RaftServer implements Runnable {
         this.stateMachineJobExecutors.shutdown();
         this.workerRun = false;
         wakeUpWorker();
-        logger.info("node {} shutdown");
+        logger.info("node {} shutdown", this);
     }
 
     @Override
@@ -532,12 +632,14 @@ public class RaftServer implements Runnable {
     }
 
     private static class Proposal {
-        private final List<byte[]> entries;
+        private final List<LogEntry> entries;
         private final CompletableFuture<ProposeResponse> future;
+        private final boolean isContainsConfigChange;
 
-        Proposal(List<byte[]> entries, CompletableFuture<ProposeResponse> future) {
+        Proposal(List<LogEntry> entries, CompletableFuture<ProposeResponse> future, boolean isContainsConfigChange) {
             this.entries = new ArrayList<>(entries);
             this.future = future;
+            this.isContainsConfigChange = isContainsConfigChange;
         }
     }
 
@@ -599,28 +701,6 @@ public class RaftServer implements Runnable {
                 default:
                     logger.warn("node {} received unexpected command {}", RaftServer.this, cmd);
             }
-        }
-
-        private boolean updateCommit() {
-            // kth biggest number
-            int k = RaftServer.this.getQuorum() - 1;
-            List<Integer> matchedIndexes = peerNodes.values().stream()
-                    .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
-            int kthMatchedIndexes = matchedIndexes.get(k);
-            Optional<LogEntry> kthLog = RaftServer.this.raftLog.getEntry(kthMatchedIndexes);
-            if (kthLog.isPresent()) {
-                LogEntry e = kthLog.get();
-                // this is a key point. Raft never commits log entries from previous terms by counting replicas
-                // Only log entries from the leader’s current term are committed by counting replicas; once an entry
-                // from the current term has been committed in this way, then all prior entries are committed
-                // indirectly because of the Log Matching Property
-                if (e.getTerm() == RaftServer.this.meta.getTerm()) {
-                    RaftServer.this.raftLog.tryCommitTo(kthMatchedIndexes);
-                    writeOutCommitedLogs(RaftServer.this.raftLog.getEntriesNeedToApply());
-                    return true;
-                }
-            }
-            return false;
         }
     }
 

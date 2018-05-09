@@ -114,4 +114,14 @@ public interface RaftCommandOrBuilder extends
    * <code>bool vote_granted = 14;</code>
    */
   boolean getVoteGranted();
+
+  /**
+   * <code>string leader_hint = 15;</code>
+   */
+  java.lang.String getLeaderHint();
+  /**
+   * <code>string leader_hint = 15;</code>
+   */
+  com.google.protobuf.ByteString
+      getLeaderHintBytes();
 }

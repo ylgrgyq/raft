@@ -1,7 +1,10 @@
 package raft.server;
 
+import raft.server.proto.ConfigChange;
+import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -20,6 +23,35 @@ public abstract class AbstractStateMachine implements StateMachine{
 
     public CompletableFuture<ProposeResponse> propose(List<byte[]> data) {
         return raftServer.propose(data);
+    }
+
+    @Override
+    public CompletableFuture<ProposeResponse> addNode(String newNode) {
+        ConfigChange change = ConfigChange.newBuilder()
+                .setAction(ConfigChange.ConfigChangeAction.ADD_NODE)
+                .setPeerId(newNode)
+                .build();
+
+        ArrayList<byte[]> data = new ArrayList<>();
+        data.add(change.toByteArray());
+        return raftServer.propose(data, LogEntry.EntryType.CONFIG);
+    }
+
+    @Override
+    public CompletableFuture<ProposeResponse> removeNode(String newNode) {
+        ConfigChange change = ConfigChange.newBuilder()
+                .setAction(ConfigChange.ConfigChangeAction.REMOVE_NODE)
+                .setPeerId(newNode)
+                .build();
+
+        if (newNode.equals(raftServer.getLeaderId())) {
+            return CompletableFuture.completedFuture(
+                    new ProposeResponse(raftServer.getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
+        }
+
+        ArrayList<byte[]> data = new ArrayList<>();
+        data.add(change.toByteArray());
+        return raftServer.propose(data, LogEntry.EntryType.CONFIG);
     }
 
     @Override
