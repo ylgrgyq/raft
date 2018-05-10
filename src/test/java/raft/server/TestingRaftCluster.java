@@ -7,10 +7,7 @@ import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 
 /**
@@ -21,92 +18,28 @@ class TestingRaftCluster {
     private static final Logger logger = LoggerFactory.getLogger("TestingRaftCluster");
     private static final String persistentStateDir = "./target/deep/deep/deep/persistent";
 
-    private final Map<String, RaftNode> nodes = new ConcurrentHashMap<>();
+    private final Map<String, TestingNode> nodes = new ConcurrentHashMap<>();
     private final Config.ConfigBuilder configBuilder = Config.newBuilder()
                     .withPersistentStateFileDirPath(persistentStateDir);
     private final TestingBroker broker = new TestingBroker();
-    private final StateMachine stateMachine = new TestingRaftStateMachine();
 
-    class TestingBroker implements RaftCommandBroker {
-        @Override
-        public void onWriteCommand(RaftCommand cmd) {
-            logger.debug("node {} write command {}", cmd.getFrom(), cmd.toString());
-            String to = cmd.getTo();
-            RaftNode toNode = nodes.get(to);
-            if (toNode != null) {
-                toNode.receiveCommand(cmd);
-            }
-        }
-    }
-
-    class TestingRaftStateMachine implements StateMachine{
-        private final Map<String, BlockingQueue<LogEntry>> nodeAppliedLogMap = new ConcurrentHashMap<>();
-        private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
-        private final RaftNode node;
-
-        TestingRaftStateMachine(){
-
-        }
-
-        @Override
-        public void onNodeAdded(String peerId) {
-            Config c = configBuilder
-                    .withPeers(nodes.keySet())
-                    .withSelfID(peerId)
-                    .withRaftCommandBroker(broker)
-                    .withStateMachine(stateMachine)
-                    .build();
-            nodes.computeIfAbsent(peerId, k -> new RaftNode(c));
-            startPeer(peerId);
-        }
-
-        @Override
-        public void onNodeRemoved(String peerId) {
-            shutdownPeer(peerId);
-        }
-
-        @Override
-        public void onProposalCommitted(List<LogEntry> msgs) {
-
-            applied.addAll(msgs);
-        }
-
-        @Override
-        public void onShutdown() {
-
-        }
-    }
 
     TestingRaftCluster(List<String> peers) {
         for (String peerId : peers) {
-            Config c = configBuilder
-                    .withPeers(peers)
-                    .withSelfID(peerId)
-                    .withRaftCommandBroker(broker)
-                    .withStateMachine(stateMachine)
-                    .build();
-
-            RaftNode node = new RaftNode(c);
-            nodes.put(peerId, node);
+            nodes.put(peerId, new TestingNode(peers, peerId));
         }
     }
 
     void startCluster() {
-        nodes.values().forEach(RaftNode::start);
+        nodes.values().forEach(TestingNode::start);
     }
 
-    RaftNode startPeer(String peerId) {
-        RaftNode n = nodes.get(peerId);
+    TestingNode startPeer(String peerId) {
+        TestingNode n = nodes.get(peerId);
         if (n != null) {
             n.start();
         } else {
-            Config c = configBuilder
-                    .withPeers(new ArrayList<>(nodes.keySet()))
-                    .withSelfID(peerId)
-                    .withRaftCommandBroker(broker)
-                    .withStateMachine(stateMachine)
-                    .build();
-            n = new RaftNode(c);
+            n = new TestingNode(nodes.keySet(), peerId);
             nodes.put(peerId, n);
             n.start();
         }
@@ -123,14 +56,14 @@ class TestingRaftCluster {
         state.setTermAndVotedFor(0, null);
     }
 
-    RaftNode waitLeaderElected() throws TimeoutException, InterruptedException{
+    TestingNode waitLeaderElected() throws TimeoutException, InterruptedException{
         return this.waitLeaderElected(0);
     }
 
-    RaftNode waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
+    TestingNode waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
         long start = System.currentTimeMillis();
         while (true) {
-            for (RaftNode n : nodes.values()) {
+            for (TestingNode n : nodes.values()) {
                 if (n.isLeader()) {
                     return n;
                 }
@@ -143,12 +76,12 @@ class TestingRaftCluster {
         }
     }
 
-    RaftNode getNodeById(String peerId) {
+    TestingNode getNodeById(String peerId) {
         return nodes.get(peerId);
     }
 
     void shutdownCluster(){
-        for (RaftNode n : nodes.values()) {
+        for (TestingNode n : nodes.values()) {
             n.shutdown();
         }
         nodes.clear();
@@ -161,57 +94,57 @@ class TestingRaftCluster {
         });
     }
 
-    class TestingRaftNode implements StateMachine{
-        private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
-        private RaftNode node;
+    class TestingNode {
+        private final RaftNode node;
+        private final TestingRaftStateMachine stateMachine;
 
-        TestingRaftNode(Config.ConfigBuilder c){
-            this.node = new RaftNode(c.withRaftCommandBroker(broker).withStateMachine(this).build());
+        TestingNode(Collection<String> peers, String selfId) {
+            stateMachine = new TestingRaftStateMachine();
+
+            Config c = configBuilder
+                    .withPeers(peers)
+                    .withSelfID(selfId)
+                    .withRaftCommandBroker(broker)
+                    .withStateMachine(stateMachine)
+                    .build();
+            node = new RaftNode(c);
         }
 
-        void start () {
+        void start() {
             node.start();
-        }
-
-        void shutdown() {
-            node.shutdown();
-        }
-
-        boolean isLeader() {
-            return node.isLeader();
         }
 
         void receiveCommand(RaftCommand cmd) {
             node.receiveCommand(cmd);
         }
 
-        @Override
-        public void onShutdown() {
-
+        void shutdown() {
+            node.shutdown();
         }
 
-        @Override
-        public void onNodeAdded(String peerId) {
-            Config.ConfigBuilder c = configBuilder
-                    .withPeers(nodes.keySet())
-                    .withSelfID(peerId);
-//            nodes.computeIfAbsent(peerId, k -> new RaftNode(c));
-            startPeer(peerId);
+        RaftStatus getStatus(){
+            return node.getStatus();
         }
 
-        @Override
-        public void onNodeRemoved(String peerId) {
-            shutdownPeer(peerId);
+        boolean isLeader() {
+            return node.isLeader();
         }
 
-        @Override
-        public void onProposalCommitted(List<LogEntry> msgs) {
-            applied.addAll(msgs);
+        String getId() {
+            return node.getId();
+        }
+
+        void appliedTo(int appliedTo) {
+            node.appliedTo(appliedTo);
+        }
+
+        CompletableFuture<ProposeResponse> propose(List<byte[]> data) {
+            return node.propose(data);
         }
 
         List<LogEntry> drainAvailableApplied() {
             List<LogEntry> ret = new ArrayList<>();
-            this.applied.drainTo(ret);
+            stateMachine.getApplied().drainTo(ret);
             return Collections.unmodifiableList(ret);
         }
 
@@ -223,16 +156,16 @@ class TestingRaftCluster {
             Preconditions.checkArgument(atLeastExpect >= 0);
 
             List<LogEntry> ret = new ArrayList<>(atLeastExpect);
-            this.applied.drainTo(ret);
+            stateMachine.getApplied().drainTo(ret);
 
             long start = System.nanoTime();
             long deadline = start + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
             while ((atLeastExpect == 0 || ret.size() < atLeastExpect) && System.nanoTime() < deadline) {
                 try {
                     LogEntry e;
-                    if ((e = this.applied.poll(timeoutMs, TimeUnit.MILLISECONDS)) != null){
+                    if ((e = stateMachine.getApplied().poll(timeoutMs, TimeUnit.MILLISECONDS)) != null){
                         ret.add(e);
-                        this.applied.drainTo(ret);
+                        stateMachine.getApplied().drainTo(ret);
                     }
                 } catch (InterruptedException ex) {
                     // ignore
@@ -256,6 +189,49 @@ class TestingRaftCluster {
                 }
             }
         }
+    }
 
+    class TestingRaftStateMachine implements StateMachine{
+        private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
+
+        TestingRaftStateMachine(){
+        }
+
+        @Override
+        public void onNodeAdded(String peerId) {
+            nodes.computeIfAbsent(peerId, k -> new TestingNode(nodes.keySet(), peerId));
+            startPeer(peerId);
+        }
+
+        @Override
+        public void onNodeRemoved(String peerId) {
+            shutdownPeer(peerId);
+        }
+
+        @Override
+        public void onProposalCommitted(List<LogEntry> msgs) {
+            applied.addAll(msgs);
+        }
+
+        @Override
+        public void onShutdown() {
+
+        }
+
+        BlockingQueue<LogEntry> getApplied() {
+            return applied;
+        }
+    }
+
+    class TestingBroker implements RaftCommandBroker {
+        @Override
+        public void onWriteCommand(RaftCommand cmd) {
+            logger.debug("node {} write command {}", cmd.getFrom(), cmd.toString());
+            String to = cmd.getTo();
+            TestingNode toNode = nodes.get(to);
+            if (toNode != null) {
+                toNode.receiveCommand(cmd);
+            }
+        }
     }
 }
