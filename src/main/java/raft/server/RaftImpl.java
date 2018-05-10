@@ -46,18 +46,18 @@ public class RaftImpl implements Runnable {
     private final long pingIntervalTicks;
     private final long suggestElectionTimeoutTicks;
     private final RaftPersistentState meta;
+    private final StateMachineProxy stateMachine;
+    private final RaftCommandBroker broker;
 
     private String leaderId;
     private RaftState state;
     private long electionTimeoutTicks;
-    private StateMachine stateMachine;
     private Thread workerThread;
     private volatile boolean workerRun = true;
     private boolean existsPendingConfigChange = false;
 
-    RaftImpl(Config c, StateMachine stateMachine) {
+    RaftImpl(Config c) {
         Preconditions.checkNotNull(c);
-        Preconditions.checkNotNull(stateMachine);
 
         this.workerThread = new Thread(this);
         this.raftLog = new RaftLog();
@@ -68,9 +68,10 @@ public class RaftImpl implements Runnable {
         this.tickIntervalMs = c.tickIntervalMs;
         this.suggestElectionTimeoutTicks = c.suggestElectionTimeoutTicks;
         this.pingIntervalTicks = c.pingIntervalTicks;
-        this.stateMachine = stateMachine;
         this.maxEntriesPerAppend = c.maxEntriesPerAppend;
         this.meta = new RaftPersistentState(c.persistentStateFileDirPath, c.selfId);
+        this.stateMachine = new StateMachineProxy(c.stateMachine);
+        this.broker = c.broker;
 
         //TODO consider do not include selfId into peerNodes ?
         for (String peerId : c.peers) {
@@ -190,7 +191,7 @@ public class RaftImpl implements Runnable {
     void writeOutCommand(RaftCommand.Builder builder) {
         builder.setFrom(this.selfId);
         try {
-            stateMachineJobExecutors.submit(() -> stateMachine.onWriteCommand(builder.build()));
+            stateMachineJobExecutors.submit(() -> broker.onWriteCommand(builder.build()));
         } catch (RejectedExecutionException ex) {
             logger.error("node {} submit write out command job failed", this, ex);
         }
@@ -424,11 +425,7 @@ public class RaftImpl implements Runnable {
             }
         }
 
-        try {
-            stateMachineJobExecutors.submit(() -> this.stateMachine.onProposalCommited(commitedLogs));
-        } catch (RejectedExecutionException ex) {
-            logger.error("node {} submit apply proposal job failed", this, ex);
-        }
+        stateMachine.onProposalCommited(commitedLogs);
     }
 
     private void addNode(final String peerId) {
@@ -438,6 +435,9 @@ public class RaftImpl implements Runnable {
                         this.raftLog,
                         this.raftLog.getLastIndex() + 1,
                         RaftImpl.this.maxEntriesPerAppend));
+
+        stateMachine.onNodeAdded(peerId);
+
         existsPendingConfigChange = false;
         logger.info("{} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
     }
@@ -445,11 +445,14 @@ public class RaftImpl implements Runnable {
     private void removeNode(final String peerId) {
         if (peerNodes.remove(peerId) != null) {
             logger.info("{} remove peerId \"{}\" from cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
+            stateMachine.onNodeRemoved(peerId);
+
             // quorum has changed, check if there's any pending entries
             if (getState() == State.LEADER && updateCommit()) {
                 broadcastAppendEntries();
             }
         }
+
         existsPendingConfigChange = false;
     }
 
@@ -610,6 +613,56 @@ public class RaftImpl implements Runnable {
         pong.setSuccess(true);
         writeOutCommand(pong);
         writeOutCommitedLogs(raftLog.getEntriesNeedToApply());
+    }
+
+    static class StateMachineProxy implements StateMachine {
+        private final ExecutorService stateMachineNotifier = Executors.newSingleThreadExecutor();
+        private final StateMachine stateMachine;
+
+        StateMachineProxy(StateMachine stateMachine) {
+            this.stateMachine = stateMachine;
+        }
+
+        private void notifyStateMachine(Runnable job) {
+            try {
+                stateMachineNotifier.submit(job);
+            } catch (RejectedExecutionException ex) {
+                logger.error("submit apply proposal job failed", this, ex);
+            }
+        }
+
+        @Override
+        public void onProposalCommited(List<LogEntry> msgs) {
+            notifyStateMachine(() -> {
+                try {
+                    stateMachine.onProposalCommited(msgs);
+                } catch (Exception ex) {
+                    logger.error("");
+                }
+            });
+        }
+
+        @Override
+        public void onNodeAdded(String peerId) {
+            notifyStateMachine(() -> {
+                try {
+                    stateMachine.onNodeAdded(peerId);
+                } catch (Exception ex) {
+                    logger.error("");
+                }
+            });
+        }
+
+        @Override
+        public void onNodeRemoved(String peerId) {
+            notifyStateMachine(() -> {
+                try {
+                    stateMachine.onNodeRemoved(peerId);
+                } catch (Exception ex) {
+                    logger.error("");
+                }
+            });
+        }
     }
 
     void shutdown() {
@@ -795,7 +848,7 @@ public class RaftImpl implements Runnable {
                                 .setLastLogTerm(e.getTerm())
                                 .setTo(node.getPeerId())
                                 .build();
-                        stateMachine.onWriteCommand(vote);
+                        broker.onWriteCommand(vote);
                     }
                 }
             }

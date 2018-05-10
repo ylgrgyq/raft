@@ -1,6 +1,7 @@
 package raft.server;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -18,6 +19,8 @@ public class Config {
     final List<String> peers;
     final String selfId;
     final String persistentStateFileDirPath;
+    final StateMachine stateMachine;
+    final RaftCommandBroker broker;
 
     private Config(ConfigBuilder builder) {
         this.tickIntervalMs = builder.tickIntervalMs;
@@ -27,6 +30,8 @@ public class Config {
         this.peers = builder.peers;
         this.selfId = builder.selfId;
         this.persistentStateFileDirPath = builder.persistentStateFileDirPath;
+        this.stateMachine = builder.stateMachine;
+        this.broker = builder.broker;
     }
 
     public static ConfigBuilder newBuilder() {
@@ -38,13 +43,15 @@ public class Config {
         private long pingIntervalTicks = 20;
         private long suggestElectionTimeoutTicks = 60;
         private int maxEntriesPerAppend = 16;
-        private String persistentStateFileDirPath;
-
         private List<String> peers = Collections.emptyList();
+
+        private StateMachine stateMachine;
+        private RaftCommandBroker broker;
+        private String persistentStateFileDirPath;
         private String selfId;
 
         public ConfigBuilder withSelfID(String selfId) {
-            this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
+            this.selfId = selfId;
             return this;
         }
 
@@ -75,14 +82,26 @@ public class Config {
         }
 
         public ConfigBuilder withPersistentStateFileDirPath(String path) {
-            Preconditions.checkNotNull(path);
             this.persistentStateFileDirPath = path;
             return this;
         }
 
+        public ConfigBuilder withStateMachine(StateMachine stateMachine) {
+            this.stateMachine = stateMachine;
+            return this;
+        }
+
+        public ConfigBuilder withRaftCommandBroker(RaftCommandBroker broker) {
+            this.broker = broker;
+            return this;
+        }
+
         public Config build() {
-            Preconditions.checkNotNull(selfId, "Must provide self Id");
-            Preconditions.checkNotNull(persistentStateFileDirPath, "Must provide directory path to save raft persistent state");
+            Preconditions.checkArgument(! Strings.isNullOrEmpty(selfId), "Must provide non-empty self Id");
+            Preconditions.checkArgument(! Strings.isNullOrEmpty(persistentStateFileDirPath),
+                    "Must provide a non-empty directory path to save raft persistent state");
+            Preconditions.checkNotNull(stateMachine, "Must provide a state machine implementation");
+            Preconditions.checkNotNull(broker, "Must provide a broker to transfer raft command between raft nodes");
 
             if (peers.stream().noneMatch(p -> p.equals(selfId))) {
                 peers.add(selfId);

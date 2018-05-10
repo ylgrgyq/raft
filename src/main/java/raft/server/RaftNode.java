@@ -14,18 +14,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Date: 18/3/30
  */
 @SuppressWarnings("WeakerAccess")
-public abstract class AbstractStateMachine implements StateMachine{
+public class RaftNode{
     private final AtomicBoolean started = new AtomicBoolean(false);
     protected final RaftImpl raft;
-    public AbstractStateMachine(Config c) {
-        this.raft = new RaftImpl(c, this);
+    public RaftNode(Config c) {
+        this.raft = new RaftImpl(c);
     }
 
     public CompletableFuture<ProposeResponse> propose(List<byte[]> data) {
         return raft.propose(data);
     }
 
-    @Override
     public CompletableFuture<ProposeResponse> addNode(String newNode) {
         ConfigChange change = ConfigChange.newBuilder()
                 .setAction(ConfigChange.ConfigChangeAction.ADD_NODE)
@@ -37,7 +36,6 @@ public abstract class AbstractStateMachine implements StateMachine{
         return raft.propose(data, LogEntry.EntryType.CONFIG);
     }
 
-    @Override
     public CompletableFuture<ProposeResponse> removeNode(String newNode) {
         ConfigChange change = ConfigChange.newBuilder()
                 .setAction(ConfigChange.ConfigChangeAction.REMOVE_NODE)
@@ -54,12 +52,10 @@ public abstract class AbstractStateMachine implements StateMachine{
         return raft.propose(data, LogEntry.EntryType.CONFIG);
     }
 
-    @Override
     public void appliedTo(int appliedTo) {
         raft.appliedTo(appliedTo);
     }
 
-    @Override
     public void receiveCommand(RaftCommand cmd) {
         raft.queueReceivedCommand(cmd);
     }
@@ -76,13 +72,16 @@ public abstract class AbstractStateMachine implements StateMachine{
         return raft.isLeader();
     }
 
+    public State getState() {
+        return raft.getState();
+    }
+
     public void start() {
         if (started.compareAndSet(false, true)) {
             raft.start();
         }
     }
 
-    @Override
     public void shutdown() {
         if (started.compareAndSet(true, false)) {
             raft.shutdown();
