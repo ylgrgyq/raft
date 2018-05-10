@@ -46,7 +46,7 @@ public class RaftImpl implements Runnable {
     private final long pingIntervalTicks;
     private final long suggestElectionTimeoutTicks;
     private final RaftPersistentState meta;
-    private final StateMachineProxy stateMachine;
+    private final AsyncNotifyStateMachineProxy stateMachine;
     private final RaftCommandBroker broker;
 
     private String leaderId;
@@ -70,7 +70,7 @@ public class RaftImpl implements Runnable {
         this.pingIntervalTicks = c.pingIntervalTicks;
         this.maxEntriesPerAppend = c.maxEntriesPerAppend;
         this.meta = new RaftPersistentState(c.persistentStateFileDirPath, c.selfId);
-        this.stateMachine = new StateMachineProxy(c.stateMachine);
+        this.stateMachine = new AsyncNotifyStateMachineProxy(c.stateMachine);
         this.broker = c.broker;
 
         //TODO consider do not include selfId into peerNodes ?
@@ -425,7 +425,7 @@ public class RaftImpl implements Runnable {
             }
         }
 
-        stateMachine.onProposalCommited(commitedLogs);
+        stateMachine.onProposalCommitted(commitedLogs);
     }
 
     private void addNode(final String peerId) {
@@ -613,56 +613,6 @@ public class RaftImpl implements Runnable {
         pong.setSuccess(true);
         writeOutCommand(pong);
         writeOutCommitedLogs(raftLog.getEntriesNeedToApply());
-    }
-
-    static class StateMachineProxy implements StateMachine {
-        private final ExecutorService stateMachineNotifier = Executors.newSingleThreadExecutor();
-        private final StateMachine stateMachine;
-
-        StateMachineProxy(StateMachine stateMachine) {
-            this.stateMachine = stateMachine;
-        }
-
-        private void notifyStateMachine(Runnable job) {
-            try {
-                stateMachineNotifier.submit(job);
-            } catch (RejectedExecutionException ex) {
-                logger.error("submit apply proposal job failed", this, ex);
-            }
-        }
-
-        @Override
-        public void onProposalCommited(List<LogEntry> msgs) {
-            notifyStateMachine(() -> {
-                try {
-                    stateMachine.onProposalCommited(msgs);
-                } catch (Exception ex) {
-                    logger.error("");
-                }
-            });
-        }
-
-        @Override
-        public void onNodeAdded(String peerId) {
-            notifyStateMachine(() -> {
-                try {
-                    stateMachine.onNodeAdded(peerId);
-                } catch (Exception ex) {
-                    logger.error("");
-                }
-            });
-        }
-
-        @Override
-        public void onNodeRemoved(String peerId) {
-            notifyStateMachine(() -> {
-                try {
-                    stateMachine.onNodeRemoved(peerId);
-                } catch (Exception ex) {
-                    logger.error("");
-                }
-            });
-        }
     }
 
     void shutdown() {

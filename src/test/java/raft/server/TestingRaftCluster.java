@@ -1,14 +1,16 @@
 package raft.server;
 
 import com.google.common.base.Preconditions;
-import com.google.protobuf.InvalidProtocolBufferException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.proto.*;
-import raft.server.proto.ConfigChange;
+import raft.server.proto.LogEntry;
+import raft.server.proto.RaftCommand;
 
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 
 /**
@@ -153,7 +155,7 @@ class TestingRaftCluster {
         }
 
         @Override
-        public void onProposalCommited(List<LogEntry> msgs) {
+        public void onProposalCommitted(List<LogEntry> msgs) {
             applied.addAll(msgs);
         }
 
