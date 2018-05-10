@@ -21,47 +21,92 @@ class TestingRaftCluster {
     private static final Logger logger = LoggerFactory.getLogger("TestingRaftCluster");
     private static final String persistentStateDir = "./target/deep/deep/deep/persistent";
 
-    private final Map<String, TestingRaftNode> nodes = new ConcurrentHashMap<>();
+    private final Map<String, RaftNode> nodes = new ConcurrentHashMap<>();
     private final Config.ConfigBuilder configBuilder = Config.newBuilder()
                     .withPersistentStateFileDirPath(persistentStateDir);
     private final TestingBroker broker = new TestingBroker();
+    private final StateMachine stateMachine = new TestingRaftStateMachine();
 
     class TestingBroker implements RaftCommandBroker {
         @Override
         public void onWriteCommand(RaftCommand cmd) {
             logger.debug("node {} write command {}", cmd.getFrom(), cmd.toString());
             String to = cmd.getTo();
-            TestingRaftNode toNode = nodes.get(to);
+            RaftNode toNode = nodes.get(to);
             if (toNode != null) {
                 toNode.receiveCommand(cmd);
             }
         }
     }
 
+    class TestingRaftStateMachine implements StateMachine{
+        private final Map<String, BlockingQueue<LogEntry>> nodeAppliedLogMap = new ConcurrentHashMap<>();
+        private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
+        private final RaftNode node;
+
+        TestingRaftStateMachine(){
+
+        }
+
+        @Override
+        public void onNodeAdded(String peerId) {
+            Config c = configBuilder
+                    .withPeers(nodes.keySet())
+                    .withSelfID(peerId)
+                    .withRaftCommandBroker(broker)
+                    .withStateMachine(stateMachine)
+                    .build();
+            nodes.computeIfAbsent(peerId, k -> new RaftNode(c));
+            startPeer(peerId);
+        }
+
+        @Override
+        public void onNodeRemoved(String peerId) {
+            shutdownPeer(peerId);
+        }
+
+        @Override
+        public void onProposalCommitted(List<LogEntry> msgs) {
+
+            applied.addAll(msgs);
+        }
+
+        @Override
+        public void onShutdown() {
+
+        }
+    }
+
     TestingRaftCluster(List<String> peers) {
         for (String peerId : peers) {
-            Config.ConfigBuilder c = configBuilder
+            Config c = configBuilder
                     .withPeers(peers)
-                    .withSelfID(peerId);
+                    .withSelfID(peerId)
+                    .withRaftCommandBroker(broker)
+                    .withStateMachine(stateMachine)
+                    .build();
 
-            TestingRaftNode node = new TestingRaftNode(c);
+            RaftNode node = new RaftNode(c);
             nodes.put(peerId, node);
         }
     }
 
     void startCluster() {
-        nodes.values().forEach(TestingRaftNode::start);
+        nodes.values().forEach(RaftNode::start);
     }
 
-    TestingRaftNode startPeer(String peerId) {
-        TestingRaftNode n = nodes.get(peerId);
+    RaftNode startPeer(String peerId) {
+        RaftNode n = nodes.get(peerId);
         if (n != null) {
             n.start();
         } else {
-            Config.ConfigBuilder c = configBuilder
+            Config c = configBuilder
                     .withPeers(new ArrayList<>(nodes.keySet()))
-                    .withSelfID(peerId);
-            n = new TestingRaftNode(c);
+                    .withSelfID(peerId)
+                    .withRaftCommandBroker(broker)
+                    .withStateMachine(stateMachine)
+                    .build();
+            n = new RaftNode(c);
             nodes.put(peerId, n);
             n.start();
         }
@@ -78,14 +123,14 @@ class TestingRaftCluster {
         state.setTermAndVotedFor(0, null);
     }
 
-    TestingRaftNode waitLeaderElected() throws TimeoutException, InterruptedException{
+    RaftNode waitLeaderElected() throws TimeoutException, InterruptedException{
         return this.waitLeaderElected(0);
     }
 
-    TestingRaftNode waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
+    RaftNode waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
         long start = System.currentTimeMillis();
         while (true) {
-            for (TestingRaftNode n : nodes.values()) {
+            for (RaftNode n : nodes.values()) {
                 if (n.isLeader()) {
                     return n;
                 }
@@ -98,12 +143,12 @@ class TestingRaftCluster {
         }
     }
 
-    TestingRaftNode getNodeById(String peerId) {
+    RaftNode getNodeById(String peerId) {
         return nodes.get(peerId);
     }
 
     void shutdownCluster(){
-        for (TestingRaftNode n : nodes.values()) {
+        for (RaftNode n : nodes.values()) {
             n.shutdown();
         }
         nodes.clear();
@@ -141,11 +186,16 @@ class TestingRaftCluster {
         }
 
         @Override
+        public void onShutdown() {
+
+        }
+
+        @Override
         public void onNodeAdded(String peerId) {
             Config.ConfigBuilder c = configBuilder
                     .withPeers(nodes.keySet())
                     .withSelfID(peerId);
-            nodes.computeIfAbsent(peerId, k -> new TestingRaftNode(c));
+//            nodes.computeIfAbsent(peerId, k -> new RaftNode(c));
             startPeer(peerId);
         }
 

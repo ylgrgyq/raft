@@ -2,73 +2,64 @@ package raft.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.ThreadFactoryImpl;
 import raft.server.proto.LogEntry;
 
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.*;
 
 /**
  * Author: ylgrgyq
  * Date: 18/5/10
  */
-class AsyncNotifyStateMachineProxy implements StateMachine{
+class AsyncNotifyStateMachineProxy implements StateMachine {
     private static final Logger logger = LoggerFactory.getLogger(AsyncNotifyStateMachineProxy.class.getName());
 
-    private final ExecutorService stateMachineNotifier = Executors.newSingleThreadExecutor();
+    private final ExecutorService stateMachineNotifier;
     private final StateMachine stateMachine;
     private volatile boolean unexpectedStateMachineException = false;
 
     AsyncNotifyStateMachineProxy(StateMachine stateMachine) {
+        this.stateMachineNotifier = new ThreadPoolExecutor(
+                1, 1, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(), new ThreadFactoryImpl("StateMachineProxy-"));
         this.stateMachine = stateMachine;
     }
 
-    private void notifyStateMachine(Runnable job) {
+    private CompletableFuture<Void> notifyStateMachine(Runnable job) {
         if (!unexpectedStateMachineException) {
-            try {
-                stateMachineNotifier.submit(job);
-            } catch (RejectedExecutionException ex) {
-                throw new RuntimeException("submit apply proposal job failed", ex);
-            }
+            return CompletableFuture
+                    .runAsync(job, stateMachineNotifier)
+                    .whenComplete((r, ex) -> {
+                        if (ex != null) {
+                            logger.error("notify state machine failed, will not accept any new notification job immediately, " +
+                                    "and will shutdown entire node shortly", ex);
+                            unexpectedStateMachineException = true;
+                        }
+                    });
         } else {
             throw new RuntimeException("StateMachine shutdown due to unexpected exception, please check log to debug");
         }
     }
 
     @Override
-    public void onProposalCommitted(List<LogEntry> msgs) {
-        notifyStateMachine(() -> {
-            try {
-                stateMachine.onProposalCommitted(msgs);
-            } catch (Exception ex) {
-                logger.error("onProposalCommitted notify failed", ex);
-                unexpectedStateMachineException = true;
-            }
-        });
+    public void onProposalCommitted(final List<LogEntry> msgs) {
+        notifyStateMachine(() -> stateMachine.onProposalCommitted(msgs));
     }
 
     @Override
-    public void onNodeAdded(String peerId) {
-        notifyStateMachine(() -> {
-            try {
-                stateMachine.onNodeAdded(peerId);
-            } catch (Exception ex) {
-                logger.error("onNodeAdded notify failed", ex);
-                unexpectedStateMachineException = true;
-            }
-        });
+    public void onNodeAdded(final String peerId) {
+        notifyStateMachine(() -> stateMachine.onNodeAdded(peerId));
     }
 
     @Override
-    public void onNodeRemoved(String peerId) {
-        notifyStateMachine(() -> {
-            try {
-                stateMachine.onNodeRemoved(peerId);
-            } catch (Exception ex) {
-                logger.error("onNodeRemoved notify failed", ex);
-                unexpectedStateMachineException = true;
-            }
-        });
+    public void onNodeRemoved(final String peerId) {
+        notifyStateMachine(() -> stateMachine.onNodeRemoved(peerId));
+    }
+
+    @Override
+    public void onShutdown() {
+        notifyStateMachine(stateMachine::onShutdown)
+                .whenComplete((r, ex) -> stateMachineNotifier.shutdown());
     }
 }

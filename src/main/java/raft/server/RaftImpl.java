@@ -617,10 +617,11 @@ public class RaftImpl implements Runnable {
 
     void shutdown() {
         logger.info("shutting down node {} ...", this);
-        this.tickGenerator.shutdown();
-        this.stateMachineJobExecutors.shutdown();
-        this.workerRun = false;
+        tickGenerator.shutdown();
+        stateMachineJobExecutors.shutdown();
+        workerRun = false;
         wakeUpWorker();
+        stateMachine.onShutdown();
         logger.info("node {} shutdown", this);
     }
 

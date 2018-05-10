@@ -12,4 +12,5 @@ public interface StateMachine {
     void onProposalCommitted(List<LogEntry> msgs);
     void onNodeAdded(String peerId);
     void onNodeRemoved(String peerId);
+    void onShutdown();
 }
