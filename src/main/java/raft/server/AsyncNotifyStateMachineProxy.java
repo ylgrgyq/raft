@@ -20,9 +20,13 @@ class AsyncNotifyStateMachineProxy implements StateMachine {
     private volatile boolean unexpectedStateMachineException = false;
 
     AsyncNotifyStateMachineProxy(StateMachine stateMachine) {
-        this.stateMachineNotifier = new ThreadPoolExecutor(
+        this(stateMachine, new ThreadPoolExecutor(
                 1, 1, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(), new ThreadFactoryImpl("StateMachineProxy-"));
+                new LinkedBlockingQueue<>(), new ThreadFactoryImpl("StateMachineProxy-")));
+    }
+
+    AsyncNotifyStateMachineProxy(StateMachine stateMachine, ExecutorService stateMachineNotifier) {
+        this.stateMachineNotifier = stateMachineNotifier;
         this.stateMachine = stateMachine;
     }
 
@@ -32,8 +36,7 @@ class AsyncNotifyStateMachineProxy implements StateMachine {
                     .runAsync(job, stateMachineNotifier)
                     .whenComplete((r, ex) -> {
                         if (ex != null) {
-                            logger.error("notify state machine failed, will not accept any new notification job immediately, " +
-                                    "and will shutdown entire node shortly", ex);
+                            logger.error("notify state machine failed, will not accept any new notification job afterward", ex);
                             unexpectedStateMachineException = true;
                         }
                     });

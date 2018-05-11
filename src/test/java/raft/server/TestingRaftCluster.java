@@ -18,7 +18,8 @@ class TestingRaftCluster {
     private static final Logger logger = LoggerFactory.getLogger("TestingRaftCluster");
     private static final String persistentStateDir = "./target/deep/deep/deep/persistent";
 
-    private final Map<String, TestingNode> nodes = new ConcurrentHashMap<>();
+    private final Map<String, RaftNode> nodes = new ConcurrentHashMap<>();
+    private final Map<String, TestingRaftStateMachine> stateMachines = new ConcurrentHashMap<>();
     private final Config.ConfigBuilder configBuilder = Config.newBuilder()
                     .withPersistentStateFileDirPath(persistentStateDir);
     private final TestingBroker broker = new TestingBroker();
@@ -26,25 +27,27 @@ class TestingRaftCluster {
 
     TestingRaftCluster(List<String> peers) {
         for (String peerId : peers) {
-            nodes.put(peerId, new TestingNode(peers, peerId));
+            addTestingNode(peerId, peers);
         }
+    }
+
+    RaftNode addTestingNode(String selfId, Collection<String> peers) {
+        TestingRaftStateMachine stateMachine = new TestingRaftStateMachine();
+
+        Config c = configBuilder
+                .withPeers(peers)
+                .withSelfID(selfId)
+                .withRaftCommandBroker(broker)
+                .withStateMachine(stateMachine)
+                .build();
+        RaftNode n = new RaftNode(c);
+        stateMachines.put(selfId, stateMachine);
+        nodes.put(selfId, n);
+        return n;
     }
 
     void startCluster() {
-        nodes.values().forEach(TestingNode::start);
-    }
-
-    TestingNode startPeer(String peerId) {
-        TestingNode n = nodes.get(peerId);
-        if (n != null) {
-            n.start();
-        } else {
-            n = new TestingNode(nodes.keySet(), peerId);
-            nodes.put(peerId, n);
-            n.start();
-        }
-
-        return n;
+        nodes.values().forEach(RaftNode::start);
     }
 
     void clearClusterPreviousPersistentState() {
@@ -56,14 +59,14 @@ class TestingRaftCluster {
         state.setTermAndVotedFor(0, null);
     }
 
-    TestingNode waitLeaderElected() throws TimeoutException, InterruptedException{
+    RaftNode waitLeaderElected() throws TimeoutException, InterruptedException{
         return this.waitLeaderElected(0);
     }
 
-    TestingNode waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
+    RaftNode waitLeaderElected(long timeoutMs) throws TimeoutException, InterruptedException{
         long start = System.currentTimeMillis();
         while (true) {
-            for (TestingNode n : nodes.values()) {
+            for (RaftNode n : nodes.values()) {
                 if (n.isLeader()) {
                     return n;
                 }
@@ -76,12 +79,20 @@ class TestingRaftCluster {
         }
     }
 
-    TestingNode getNodeById(String peerId) {
+    RaftNode getNodeById(String peerId) {
         return nodes.get(peerId);
     }
 
+    TestingRaftStateMachine getStateMachineById(String peerId) {
+        TestingRaftStateMachine stateMachine = stateMachines.get(peerId);
+        if (stateMachine != null) {
+            return stateMachine;
+        }
+        throw new RuntimeException("no state machine for " + peerId);
+    }
+
     void shutdownCluster(){
-        for (TestingNode n : nodes.values()) {
+        for (RaftNode n : nodes.values()) {
             n.shutdown();
         }
         nodes.clear();
@@ -94,99 +105,55 @@ class TestingRaftCluster {
         });
     }
 
-    class TestingNode {
-        private final RaftNode node;
-        private final TestingRaftStateMachine stateMachine;
+    List<LogEntry> drainAvailableApplied(String peerId) {
+        List<LogEntry> ret = new ArrayList<>();
 
-        TestingNode(Collection<String> peers, String selfId) {
-            stateMachine = new TestingRaftStateMachine();
+        TestingRaftStateMachine stateMachine = getStateMachineById(peerId);
+        stateMachine.getApplied().drainTo(ret);
 
-            Config c = configBuilder
-                    .withPeers(peers)
-                    .withSelfID(selfId)
-                    .withRaftCommandBroker(broker)
-                    .withStateMachine(stateMachine)
-                    .build();
-            node = new RaftNode(c);
-        }
+        return Collections.unmodifiableList(ret);
+    }
 
-        void start() {
-            node.start();
-        }
+    List<LogEntry> waitApplied(String peerId, long timeoutMs){
+        return waitApplied(peerId, 0, timeoutMs);
+    }
 
-        void receiveCommand(RaftCommand cmd) {
-            node.receiveCommand(cmd);
-        }
+    List<LogEntry> waitApplied(String peerId, int atLeastExpect, long timeoutMs) {
+        Preconditions.checkArgument(atLeastExpect >= 0);
 
-        void shutdown() {
-            node.shutdown();
-        }
+        List<LogEntry> ret = new ArrayList<>(atLeastExpect);
+        TestingRaftStateMachine stateMachine = getStateMachineById(peerId);
+        stateMachine.getApplied().drainTo(ret);
 
-        RaftStatus getStatus(){
-            return node.getStatus();
-        }
-
-        boolean isLeader() {
-            return node.isLeader();
-        }
-
-        String getId() {
-            return node.getId();
-        }
-
-        void appliedTo(int appliedTo) {
-            node.appliedTo(appliedTo);
-        }
-
-        CompletableFuture<ProposeResponse> propose(List<byte[]> data) {
-            return node.propose(data);
-        }
-
-        List<LogEntry> drainAvailableApplied() {
-            List<LogEntry> ret = new ArrayList<>();
-            stateMachine.getApplied().drainTo(ret);
-            return Collections.unmodifiableList(ret);
-        }
-
-        List<LogEntry> waitApplied(long timeoutMs){
-            return waitApplied(0, timeoutMs);
-        }
-
-        List<LogEntry> waitApplied(int atLeastExpect, long timeoutMs) {
-            Preconditions.checkArgument(atLeastExpect >= 0);
-
-            List<LogEntry> ret = new ArrayList<>(atLeastExpect);
-            stateMachine.getApplied().drainTo(ret);
-
-            long start = System.nanoTime();
-            long deadline = start + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
-            while ((atLeastExpect == 0 || ret.size() < atLeastExpect) && System.nanoTime() < deadline) {
-                try {
-                    LogEntry e;
-                    if ((e = stateMachine.getApplied().poll(timeoutMs, TimeUnit.MILLISECONDS)) != null){
-                        ret.add(e);
-                        stateMachine.getApplied().drainTo(ret);
-                    }
-                } catch (InterruptedException ex) {
-                    // ignore
+        long start = System.nanoTime();
+        long deadline = start + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while ((atLeastExpect == 0 || ret.size() < atLeastExpect) && System.nanoTime() < deadline) {
+            try {
+                LogEntry e;
+                if ((e = stateMachine.getApplied().poll(timeoutMs, TimeUnit.MILLISECONDS)) != null){
+                    ret.add(e);
+                    stateMachine.getApplied().drainTo(ret);
                 }
+            } catch (InterruptedException ex) {
+                // ignore
+            }
+        }
+
+        return Collections.unmodifiableList(ret);
+    }
+
+    void waitBecomeFollower(String peerId, long timeoutMs) throws TimeoutException, InterruptedException{
+        long start = System.currentTimeMillis();
+        while (true) {
+            RaftNode node = getNodeById(peerId);
+            if (node.getState() == State.FOLLOWER) {
+                return;
             }
 
-            return Collections.unmodifiableList(ret);
-        }
-
-        void waitBecomeFollower(long timeoutMs) throws TimeoutException, InterruptedException{
-            long start = System.currentTimeMillis();
-            while (true) {
-                if (node.getState() == State.FOLLOWER) {
-                    return;
-                }
-
-                if (System.currentTimeMillis() - start > timeoutMs) {
-                    throw new TimeoutException();
-                } else {
-                    Thread.sleep(200);
-                }
+            if (System.currentTimeMillis() - start > timeoutMs) {
+                throw new TimeoutException();
+            } else {
+                Thread.sleep(200);
             }
         }
     }
@@ -199,8 +166,8 @@ class TestingRaftCluster {
 
         @Override
         public void onNodeAdded(String peerId) {
-            nodes.computeIfAbsent(peerId, k -> new TestingNode(nodes.keySet(), peerId));
-            startPeer(peerId);
+            RaftNode n = nodes.computeIfAbsent(peerId, (k) -> addTestingNode(peerId, nodes.keySet()));
+            n.start();
         }
 
         @Override
@@ -228,7 +195,7 @@ class TestingRaftCluster {
         public void onWriteCommand(RaftCommand cmd) {
             logger.debug("node {} write command {}", cmd.getFrom(), cmd.toString());
             String to = cmd.getTo();
-            TestingNode toNode = nodes.get(to);
+            RaftNode toNode = nodes.get(to);
             if (toNode != null) {
                 toNode.receiveCommand(cmd);
             }
