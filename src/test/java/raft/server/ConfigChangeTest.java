@@ -15,7 +15,7 @@ import static org.junit.Assert.*;
  * Author: ylgrgyq
  * Date: 18/5/7
  */
-public class ConfigChange {
+public class ConfigChangeTest {
     private TestingRaftCluster cluster;
     private HashSet<String> peerIdSet;
     @Before
