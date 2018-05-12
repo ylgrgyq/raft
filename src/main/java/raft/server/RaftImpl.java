@@ -31,8 +31,10 @@ public class RaftImpl implements Runnable {
     private final RaftState candidate = new Candidate();
     private final RaftState follower = new Follower();
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
-    private final AtomicLong tickCount = new AtomicLong();
-    private final AtomicBoolean tickerTimeout = new AtomicBoolean();
+    private final AtomicLong electionTickCounter = new AtomicLong();
+    private final AtomicBoolean electionTickerTimeout = new AtomicBoolean();
+    private final AtomicLong pingTickCounter = new AtomicLong();
+    private final AtomicBoolean pingTickerTimeout = new AtomicBoolean();
     private final AtomicBoolean wakenUp = new AtomicBoolean();
     private final BlockingQueue<Proposal> proposalQueue = new LinkedBlockingQueue<>(1000);
     private final BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>(1000);
@@ -85,10 +87,20 @@ public class RaftImpl implements Runnable {
         this.reset(meta.getTerm());
 
         tickGenerator.scheduleWithFixedDelay(() -> {
-            long tick = tickCount.incrementAndGet();
-            if (state.isTickTimeout(tick)) {
-                clearTickCount();
-                markTickerTimeout();
+            boolean wakeup = false;
+            if (electionTickCounter.incrementAndGet() >= electionTimeoutTicks) {
+                electionTickCounter.set(0);
+                electionTickerTimeout.compareAndSet(false, true);
+                wakeup = true;
+            }
+
+            if (pingTickCounter.incrementAndGet() >= pingIntervalTicks) {
+                pingTickCounter.set(0);
+                pingTickerTimeout.compareAndSet(false, true);
+                wakeup = true;
+            }
+
+            if (wakeup) {
                 wakeUpWorker();
             }
 
@@ -106,14 +118,6 @@ public class RaftImpl implements Runnable {
                         "raftLog={}\n",
                 this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, tickIntervalMs, pingIntervalTicks,
                 suggestElectionTimeoutTicks, raftLog);
-    }
-
-    private void markTickerTimeout() {
-        tickerTimeout.compareAndSet(false, true);
-    }
-
-    private void clearTickCount() {
-        tickCount.set(0);
     }
 
     boolean isLeader() {
@@ -270,12 +274,12 @@ public class RaftImpl implements Runnable {
     }
 
     private void processTickTimeout() {
-        if (tickerTimeout.compareAndSet(true, false)) {
-            try {
-                this.state.onTickTimeout();
-            } catch (Throwable t) {
-                logger.error("process tick timeout failed on node {}", this, t);
-            }
+        if (electionTickerTimeout.compareAndSet(true, false)) {
+            state.onElectionTimeout();
+        }
+
+        if (pingTickerTimeout.compareAndSet(true, false)) {
+            state.onPingTimeout();
         }
     }
 
@@ -324,11 +328,11 @@ public class RaftImpl implements Runnable {
     private void processReceivedCommand(RaftCommand cmd) {
         final int selfTerm = meta.getTerm();
         if (cmd.getType() == RaftCommand.CmdType.REQUEST_VOTE) {
-            if (leaderId != null && tickCount.get() < electionTimeoutTicks) {
+            if (leaderId != null && electionTickCounter.get() < electionTimeoutTicks) {
                 // if a server receives a RequestVote request within the minimum election timeout of hearing
                 // from a current leader, it does not update its term or grant its vote
                 logger.info("node {} ignore request vote cmd: {} because it's leader still valid. ticks remain: {}",
-                        this, cmd, electionTimeoutTicks - tickCount.get());
+                        this, cmd, electionTimeoutTicks - electionTickCounter.get());
                 return;
             }
 
@@ -420,6 +424,7 @@ public class RaftImpl implements Runnable {
 
                             logger.info("node {} start transfer leadership to {}", this, transereeId);
 
+                            electionTickCounter.set(0);
                             this.transfereeId = transereeId;
                             RaftPeerNode n = peerNodes.get(transereeId);
                             if (n.getMatchIndex() == raftLog.getLastIndex()) {
@@ -612,13 +617,20 @@ public class RaftImpl implements Runnable {
             meta.setTermAndVotedFor(term, null);
         }
 
-        this.leaderId = null;
-        this.clearTickCount();
-        this.tickerTimeout.getAndSet(false);
+        leaderId = null;
+        transfereeId = null;
+        clearTickCounters();
+        electionTickerTimeout.getAndSet(false);
+        pingTickerTimeout.getAndSet(false);
 
         // we need to reset election timeout on every time state changed and every
         // reelection in candidate state to avoid split vote
-        this.electionTimeoutTicks = RaftImpl.generateElectionTimeoutTicks(RaftImpl.this.suggestElectionTimeoutTicks);
+        electionTimeoutTicks = RaftImpl.generateElectionTimeoutTicks(RaftImpl.this.suggestElectionTimeoutTicks);
+    }
+
+    private void clearTickCounters() {
+        electionTickCounter.set(0);
+        pingTickCounter.set(0);
     }
 
     private static long generateElectionTimeoutTicks(long suggestElectionTimeoutTicks) {
@@ -743,12 +755,15 @@ public class RaftImpl implements Runnable {
         }
 
         @Override
-        public boolean isTickTimeout(long currentTick) {
-            return currentTick >= RaftImpl.this.pingIntervalTicks;
+        public void onElectionTimeout() {
+            if (transfereeId != null) {
+                logger.info("node {} abort transfer leadership to {} due to timeout", RaftImpl.this, transfereeId);
+                transfereeId = null;
+            }
         }
 
         @Override
-        public void onTickTimeout() {
+        public void onPingTimeout() {
             RaftImpl.this.broadcastPing();
         }
 
@@ -810,12 +825,7 @@ public class RaftImpl implements Runnable {
         }
 
         @Override
-        public boolean isTickTimeout(long currentTick) {
-            return currentTick >= RaftImpl.this.electionTimeoutTicks;
-        }
-
-        @Override
-        public void onTickTimeout() {
+        public void onElectionTimeout() {
             logger.info("election timeout, node {} become candidate", RaftImpl.this);
 
             RaftImpl.this.tryBecomeCandidate();
@@ -825,12 +835,12 @@ public class RaftImpl implements Runnable {
         void process(RaftCommand cmd) {
             switch (cmd.getType()) {
                 case APPEND_ENTRIES:
-                    RaftImpl.this.clearTickCount();
+                    RaftImpl.this.clearTickCounters();
                     RaftImpl.this.leaderId = cmd.getLeaderId();
                     RaftImpl.this.processAppendEntries(cmd);
                     break;
                 case PING:
-                    RaftImpl.this.clearTickCount();
+                    RaftImpl.this.clearTickCounters();
                     RaftImpl.this.leaderId = cmd.getFrom();
                     RaftImpl.this.processHeartbeat(cmd);
                     break;
@@ -932,12 +942,7 @@ public class RaftImpl implements Runnable {
         }
 
         @Override
-        public boolean isTickTimeout(long currentTick) {
-            return currentTick >= RaftImpl.this.electionTimeoutTicks;
-        }
-
-        @Override
-        public void onTickTimeout() {
+        public void onElectionTimeout() {
             RaftImpl.this.tryBecomeCandidate();
         }
     }
