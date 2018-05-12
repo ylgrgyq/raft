@@ -95,6 +95,11 @@ public class AsyncNotifyStateMachineProxyTest {
         }
 
         @Override
+        public void onLeader() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void onNodeAdded(String peerId) {
             throw new UnsupportedOperationException();
         }

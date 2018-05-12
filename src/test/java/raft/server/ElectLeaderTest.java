@@ -19,10 +19,10 @@ public class ElectLeaderTest {
         List<String> peers = new ArrayList<>();
         peers.add(selfId);
 
-        TestingRaftCluster cluster = new TestingRaftCluster(peers);
-        cluster.clearClusterPreviousPersistentState();
-        cluster.startCluster();
-        RaftNode leader = cluster.waitLeaderElected(2000);
+        TestingRaftCluster.init(peers);
+        TestingRaftCluster.clearClusterPreviousPersistentState();
+        TestingRaftCluster.startCluster();
+        RaftNode leader = TestingRaftCluster.waitGetLeader();
 
         RaftStatus status = leader.getStatus();
         assertEquals(selfId, status.getId());
@@ -33,7 +33,7 @@ public class ElectLeaderTest {
         assertEquals(selfId, status.getLeaderId());
         assertEquals(selfId, status.getVotedFor());
 
-        cluster.shutdownCluster();
+        TestingRaftCluster.shutdownCluster();
     }
 
     @Test
@@ -42,10 +42,10 @@ public class ElectLeaderTest {
         peers.add("double node 001");
         peers.add("double node 002");
 
-        TestingRaftCluster cluster = new TestingRaftCluster(peers);
-        cluster.clearClusterPreviousPersistentState();
-        cluster.startCluster();
-        RaftNode leader = cluster.waitLeaderElected();
+        TestingRaftCluster.init(peers);
+        TestingRaftCluster.clearClusterPreviousPersistentState();
+        TestingRaftCluster.startCluster();
+        RaftNode leader = TestingRaftCluster.waitGetLeader();
 
         RaftStatus leaderStatus = leader.getStatus();
         assertEquals(State.LEADER, leaderStatus.getState());
@@ -55,8 +55,8 @@ public class ElectLeaderTest {
         assertEquals(leader.getId(), leaderStatus.getVotedFor());
 
         String followerId = leader.getId().equals(peers.get(0)) ? peers.get(1) : peers.get(0);
-        RaftNode follower = cluster.getNodeById(followerId);
-        cluster.waitBecomeFollower(followerId, 2000);
+        RaftNode follower = TestingRaftCluster.getNodeById(followerId);
+        TestingRaftCluster.waitBecomeFollower(followerId, 2000);
 
         RaftStatus status = follower.getStatus();
         assertEquals(State.FOLLOWER, status.getState());
@@ -65,7 +65,7 @@ public class ElectLeaderTest {
         assertEquals(leaderStatus.getTerm(), status.getTerm());
         assertEquals(leader.getId(), status.getLeaderId());
 
-        cluster.shutdownCluster();
+        TestingRaftCluster.shutdownCluster();
     }
 
     @Test
@@ -75,10 +75,10 @@ public class ElectLeaderTest {
         peerIdSet.add("triple node 002");
         peerIdSet.add("triple node 003");
 
-        TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        cluster.clearClusterPreviousPersistentState();
-        cluster.startCluster();
-        RaftNode leader = cluster.waitLeaderElected(5000);
+        TestingRaftCluster.init(new ArrayList<>(peerIdSet));
+        TestingRaftCluster.clearClusterPreviousPersistentState();
+        TestingRaftCluster.startCluster();
+        RaftNode leader = TestingRaftCluster.waitGetLeader();
 
         String leaderId = leader.getId();
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
@@ -94,8 +94,8 @@ public class ElectLeaderTest {
         assertEquals(leaderId, leaderStatus.getVotedFor());
 
         for (String id : followerIds) {
-            RaftNode follower = cluster.getNodeById(id);
-            cluster.waitBecomeFollower(id, 2000);
+            RaftNode follower = TestingRaftCluster.getNodeById(id);
+            TestingRaftCluster.waitBecomeFollower(id, 2000);
 
             RaftStatus status = follower.getStatus();
             assertEquals(State.FOLLOWER, status.getState());
@@ -110,7 +110,7 @@ public class ElectLeaderTest {
                     || (status.getId().equals(status.getVotedFor())));
         }
 
-        cluster.shutdownCluster();
+        TestingRaftCluster.shutdownCluster();
     }
 
     @Test
@@ -120,16 +120,16 @@ public class ElectLeaderTest {
         peerIdSet.add("triple node 002");
         peerIdSet.add("triple node 003");
 
-        TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        cluster.clearClusterPreviousPersistentState();
-        cluster.startCluster();
-        RaftNode leader = cluster.waitLeaderElected(5000);
+        TestingRaftCluster.init(new ArrayList<>(peerIdSet));
+        TestingRaftCluster.clearClusterPreviousPersistentState();
+        TestingRaftCluster.startCluster();
+        RaftNode leader = TestingRaftCluster.waitGetLeader(5000);
 
         String leaderId = leader.getId();
-        cluster.shutdownPeer(leaderId);
+        TestingRaftCluster.shutdownPeer(leaderId);
         peerIdSet.remove(leaderId);
 
-        leader = cluster.waitLeaderElected(5000);
+        leader = TestingRaftCluster.waitGetLeader(5000);
         leaderId = leader.getId();
         RaftStatus leaderStatus = leader.getStatus();
         assertEquals(leaderId, leaderStatus.getId());
@@ -143,8 +143,8 @@ public class ElectLeaderTest {
         peerIdSet.remove(leaderId);
 
         for (String id : peerIdSet) {
-            RaftNode follower = cluster.getNodeById(id);
-            cluster.waitBecomeFollower(id, 2000);
+            RaftNode follower = TestingRaftCluster.getNodeById(id);
+            TestingRaftCluster.waitBecomeFollower(id, 2000);
 
             RaftStatus status = follower.getStatus();
             assertEquals(State.FOLLOWER, status.getState());
@@ -159,7 +159,7 @@ public class ElectLeaderTest {
                     || (status.getId().equals(status.getVotedFor())));
         }
 
-        cluster.shutdownCluster();
+        TestingRaftCluster.shutdownCluster();
     }
 
     // test leader lost then reelect a new leader then old leader comes back

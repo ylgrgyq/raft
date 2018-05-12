@@ -38,6 +38,11 @@ class AsyncNotifyStateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
+    public void onLeader() {
+        notify(stateMachine::onLeader);
+    }
+
+    @Override
     public void onShutdown() {
         notify(stateMachine::onShutdown);
     }

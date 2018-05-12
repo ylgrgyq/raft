@@ -749,6 +749,7 @@ public class RaftImpl implements Runnable {
         public void start() {
             logger.debug("node {} start leader", RaftImpl.this);
             RaftImpl.this.broadcastPing();
+            stateMachine.onLeader();
         }
 
         public void finish() {
