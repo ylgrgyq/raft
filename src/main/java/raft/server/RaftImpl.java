@@ -239,7 +239,7 @@ public class RaftImpl implements Runnable {
     @Override
     public void run() {
         // init state
-        RaftImpl.this.state.start();
+        RaftImpl.this.state.start(new Context());
 
         while (workerRun) {
             try {
@@ -328,9 +328,11 @@ public class RaftImpl implements Runnable {
     private void processReceivedCommand(RaftCommand cmd) {
         final int selfTerm = meta.getTerm();
         if (cmd.getType() == RaftCommand.CmdType.REQUEST_VOTE) {
-            if (leaderId != null && electionTickCounter.get() < electionTimeoutTicks) {
+            if (! cmd.getForceElection() && leaderId != null && electionTickCounter.get() < electionTimeoutTicks) {
                 // if a server receives a RequestVote request within the minimum election timeout of hearing
-                // from a current leader, it does not update its term or grant its vote
+                // from a current leader, it does not update its term or grant its vote except the force election mark
+                // is set which indicate that this REQUEST_VOTE command is from a legitimate server during leader
+                // transfer operation
                 logger.info("node {} ignore request vote cmd: {} because it's leader still valid. ticks remain: {}",
                         this, cmd, electionTimeoutTicks - electionTickCounter.get());
                 return;
@@ -641,9 +643,9 @@ public class RaftImpl implements Runnable {
     private void transitState(RaftState nextState) {
         assert Thread.currentThread() == workerThread;
 
-        state.finish();
+        Context cxt = state.finish();
         state = nextState;
-        nextState.start();
+        nextState.start(cxt);
     }
 
     private void processAppendEntries(RaftCommand cmd) {
@@ -741,19 +743,27 @@ public class RaftImpl implements Runnable {
         }
     }
 
+    static class Context {
+        boolean receiveTimeoutOnTrasferLeader = false;
+    }
+
     private class Leader extends RaftState {
+        private Context cxt;
+
         Leader() {
             super(State.LEADER);
         }
 
-        public void start() {
+        public void start(Context cxt) {
             logger.debug("node {} start leader", RaftImpl.this);
+            this.cxt = cxt;
             RaftImpl.this.broadcastPing();
-            stateMachine.onLeader();
+            stateMachine.onLeaderStart();
         }
 
-        public void finish() {
+        public Context finish() {
             logger.debug("node {} finish leader", RaftImpl.this);
+            return cxt;
         }
 
         @Override
@@ -814,16 +824,20 @@ public class RaftImpl implements Runnable {
     }
 
     private class Follower extends RaftState {
+        private Context cxt;
+
         Follower() {
             super(State.FOLLOWER);
         }
 
-        public void start() {
+        public void start(Context cxt) {
             logger.debug("node {} start follower", RaftImpl.this);
+            this.cxt = cxt;
         }
 
-        public void finish() {
+        public Context finish() {
             logger.debug("node {} finish follower", RaftImpl.this);
+            return cxt;
         }
 
         @Override
@@ -848,6 +862,7 @@ public class RaftImpl implements Runnable {
                     break;
                 case TIMEOUT_NOW:
                     if (peerNodes.containsKey(selfId)) {
+                        cxt.receiveTimeoutOnTrasferLeader = true;
                         RaftImpl.this.tryBecomeCandidate();
                     } else {
                         logger.info("node {} receive timeout but it was removed from cluster already. currentPeers: {}",
@@ -861,22 +876,28 @@ public class RaftImpl implements Runnable {
     }
 
     private class Candidate extends RaftState {
+        private Context cxt;
         private volatile ConcurrentHashMap<String, Boolean> votesGot = new ConcurrentHashMap<>();
 
         Candidate() {
             super(State.CANDIDATE);
         }
 
-        public void start() {
+        public void start(Context cxt) {
             logger.debug("node {} start candidate", RaftImpl.this);
+            this.cxt = cxt;
             startElection();
         }
 
-        public void finish() {
+        public Context finish() {
             logger.debug("node {} finish candidate", RaftImpl.this);
+            return cxt;
         }
 
         private void startElection() {
+            boolean forceElection = cxt.receiveTimeoutOnTrasferLeader;
+            cxt.receiveTimeoutOnTrasferLeader = false;
+
             votesGot = new ConcurrentHashMap<>();
             RaftImpl.this.meta.setVotedFor(RaftImpl.this.selfId);
             assert RaftImpl.this.getState() == State.CANDIDATE;
@@ -906,6 +927,7 @@ public class RaftImpl implements Runnable {
                                 .setLastLogIndex(e.getIndex())
                                 .setLastLogTerm(e.getTerm())
                                 .setTo(node.getPeerId())
+                                .setForceElection(forceElection)
                                 .build();
                         broker.onWriteCommand(vote);
                     }

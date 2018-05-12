@@ -124,4 +124,9 @@ public interface RaftCommandOrBuilder extends
    */
   com.google.protobuf.ByteString
       getLeaderHintBytes();
+
+  /**
+   * <code>bool force_election = 16;</code>
+   */
+  boolean getForceElection();
 }

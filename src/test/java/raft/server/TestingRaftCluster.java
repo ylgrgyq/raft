@@ -9,6 +9,7 @@ import raft.server.proto.RaftCommand;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Author: ylgrgyq
@@ -23,7 +24,6 @@ class TestingRaftCluster {
     private static final Map<String, RaftNode> nodes = new ConcurrentHashMap<>();
     private static final Map<String, TestingRaftStateMachine> stateMachines = new ConcurrentHashMap<>();
     private static final TestingBroker broker = new TestingBroker();
-    private static Class stateMachineClass;
 
     static void init(List<String> peers) {
         for (String peerId : peers) {
@@ -31,25 +31,12 @@ class TestingRaftCluster {
         }
     }
 
-    static void setStateMachineClass(Class stateMachineClass) {
-        TestingRaftCluster.stateMachineClass = stateMachineClass;
-    }
-
     static RaftNode addTestingNode(String selfId, Collection<String> peers) {
         return nodes.computeIfAbsent(selfId, k -> createTestingNode(selfId, peers));
     }
 
     private static RaftNode createTestingNode(String selfId, Collection<String> peers) {
-        if (stateMachineClass == null) {
-            stateMachineClass = TestingRaftStateMachine.class;
-        }
-
-        TestingRaftStateMachine stateMachine;
-        try {
-            stateMachine = (TestingRaftStateMachine)stateMachineClass.newInstance();
-        } catch (Throwable t) {
-            throw new RuntimeException(t);
-        }
+        TestingRaftStateMachine stateMachine = new TestingRaftStateMachine();
         stateMachines.put(selfId, stateMachine);
 
         Config c = configBuilder
@@ -187,6 +174,8 @@ class TestingRaftCluster {
 
     static class TestingRaftStateMachine implements StateMachine{
         private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
+        private AtomicBoolean isLeader = new AtomicBoolean(false);
+        private CompletableFuture<Void> waitLeaderFuture;
 
         @Override
         public void onNodeAdded(String peerId) {
@@ -205,7 +194,26 @@ class TestingRaftCluster {
         }
 
         @Override
-        public void onLeader() {}
+        public void onLeaderStart() {
+            isLeader.set(true);
+            if (waitLeaderFuture != null) {
+                waitLeaderFuture.complete(null);
+            }
+        }
+
+        @Override
+        public void onLeaderFinish() {
+            isLeader.set(false);
+        }
+
+        CompletableFuture<Void> waitBecomeLeader() {
+            if (isLeader.get()) {
+                return CompletableFuture.completedFuture(null);
+            } else {
+                waitLeaderFuture = new CompletableFuture<>();
+                return waitLeaderFuture;
+            }
+        }
 
         @Override
         public void onShutdown() {

@@ -95,7 +95,12 @@ public class AsyncNotifyStateMachineProxyTest {
         }
 
         @Override
-        public void onLeader() {
+        public void onLeaderStart() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void onLeaderFinish() {
             throw new UnsupportedOperationException();
         }
 

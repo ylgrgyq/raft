@@ -63,4 +63,5 @@ message RaftCommand {
     int32 last_log_term = 13;
     bool vote_granted = 14;
     string leader_hint = 15;
+    bool force_election = 16;
 }
