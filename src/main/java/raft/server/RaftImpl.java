@@ -38,7 +38,6 @@ public class RaftImpl implements Runnable {
     private final BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>(1000);
 
     private final ScheduledExecutorService tickGenerator;
-    private final ExecutorService stateMachineJobExecutors;
     private final String selfId;
     private final RaftLog raftLog;
     private final long tickIntervalMs;
@@ -47,7 +46,7 @@ public class RaftImpl implements Runnable {
     private final long suggestElectionTimeoutTicks;
     private final RaftPersistentState meta;
     private final AsyncNotifyStateMachineProxy stateMachine;
-    private final RaftCommandBroker broker;
+    private final AsyncRaftCommandBrokerProxy broker;
 
     private String leaderId;
     private RaftState state;
@@ -61,7 +60,6 @@ public class RaftImpl implements Runnable {
 
         this.workerThread = new Thread(this);
         this.raftLog = new RaftLog();
-        this.stateMachineJobExecutors = Executors.newFixedThreadPool(8, new ThreadFactoryImpl("state-machine-executors-"));
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
         this.selfId = c.selfId;
@@ -71,7 +69,7 @@ public class RaftImpl implements Runnable {
         this.maxEntriesPerAppend = c.maxEntriesPerAppend;
         this.meta = new RaftPersistentState(c.persistentStateFileDirPath, c.selfId);
         this.stateMachine = new AsyncNotifyStateMachineProxy(c.stateMachine);
-        this.broker = c.broker;
+        this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
 
         //TODO consider do not include selfId into peerNodes ?
         for (String peerId : c.peers) {
@@ -190,11 +188,7 @@ public class RaftImpl implements Runnable {
 
     void writeOutCommand(RaftCommand.Builder builder) {
         builder.setFrom(this.selfId);
-        try {
-            stateMachineJobExecutors.submit(() -> broker.onWriteCommand(builder.build()));
-        } catch (RejectedExecutionException ex) {
-            logger.error("node {} submit write out command job failed", this, ex);
-        }
+        broker.onWriteCommand(builder.build());
     }
 
     void queueReceivedCommand(RaftCommand cmd) {
@@ -623,10 +617,11 @@ public class RaftImpl implements Runnable {
     void shutdown() {
         logger.info("shutting down node {} ...", this);
         tickGenerator.shutdown();
-        stateMachineJobExecutors.shutdown();
         workerRun = false;
         wakeUpWorker();
+        broker.shutdown();
         stateMachine.onShutdown();
+        stateMachine.shutdown();
         logger.info("node {} shutdown", this);
     }
 

@@ -16,27 +16,27 @@ import java.util.concurrent.*;
 class AsyncNotifyStateMachineProxy implements StateMachine {
     private static final Logger logger = LoggerFactory.getLogger(AsyncNotifyStateMachineProxy.class.getName());
 
-    private final ExecutorService stateMachineNotifier;
+    private final ExecutorService notifier;
     private final StateMachine stateMachine;
     private volatile boolean unexpectedStateMachineException = false;
 
     AsyncNotifyStateMachineProxy(StateMachine stateMachine) {
-        this(stateMachine, new ThreadPoolExecutor(
-                1, 1, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(), new ThreadFactoryImpl("StateMachineProxy-")));
+        this(stateMachine, Executors.newSingleThreadExecutor(
+                new ThreadFactoryImpl("StateMachineProxy-")));
     }
 
-    AsyncNotifyStateMachineProxy(StateMachine stateMachine, ExecutorService stateMachineNotifier) {
+    AsyncNotifyStateMachineProxy(StateMachine stateMachine, ExecutorService notifier) {
         Preconditions.checkNotNull(stateMachine);
+        Preconditions.checkNotNull(notifier);
 
-        this.stateMachineNotifier = stateMachineNotifier;
+        this.notifier = notifier;
         this.stateMachine = stateMachine;
     }
 
     private CompletableFuture<Void> notifyStateMachine(Runnable job) {
         if (!unexpectedStateMachineException) {
             return CompletableFuture
-                    .runAsync(job, stateMachineNotifier)
+                    .runAsync(job, notifier)
                     .whenComplete((r, ex) -> {
                         if (ex != null) {
                             logger.error("notify state machine failed, will not accept any new notification job afterward", ex);
@@ -65,7 +65,10 @@ class AsyncNotifyStateMachineProxy implements StateMachine {
 
     @Override
     public void onShutdown() {
-        notifyStateMachine(stateMachine::onShutdown)
-                .whenComplete((r, ex) -> stateMachineNotifier.shutdown());
+        notifyStateMachine(stateMachine::onShutdown);
+    }
+
+    void shutdown() {
+        notifier.shutdown();
     }
 }
