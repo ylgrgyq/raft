@@ -1,5 +1,7 @@
 package raft.server;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -14,55 +16,45 @@ import static org.junit.Assert.*;
  * Date: 18/5/7
  */
 public class ConfigChange {
-    @Test
-    public void testAddNodeToFollower() throws Exception {
-        HashSet<String> peerIdSet = new HashSet<>();
+    private TestingRaftCluster cluster;
+    private HashSet<String> peerIdSet;
+    @Before
+    public void before() throws Exception {
+        peerIdSet = new HashSet<>();
         peerIdSet.add("triple node 001");
         peerIdSet.add("triple node 002");
         peerIdSet.add("triple node 003");
 
-        TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
+        cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
         cluster.clearClusterPreviousPersistentState();
         cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(5000);
+    }
 
-        String leaderId = leader.getId();
-        HashSet<String> followerIds = new HashSet<>(peerIdSet);
-        followerIds.remove(leaderId);
+    @After
+    public void after() throws Exception {
+        cluster.shutdownCluster();
+    }
 
+    @Test
+    public void testAddNodeToFollower() throws Exception {
         String newNode = "new node 004";
-        StateMachine follower = cluster.getNodeById(followerIds.iterator().next());
+        RaftNode follower = cluster.getFollowers().get(0);
         CompletableFuture<ProposeResponse> f = follower.addNode(newNode);
         ProposeResponse resp = f.get();
         assertFalse(resp.isSuccess());
         assertEquals(ErrorMsg.NOT_LEADER, resp.getError());
 
-        peerIdSet.forEach(id -> {
-            StateMachine node = cluster.getNodeById(id);
+        peerIdSet.stream().map(cluster::getNodeById).forEach(node -> {
             RaftStatus status = node.getStatus();
             List<String> peerIds = status.getPeerNodeIds();
             assertEquals(peerIdSet.size(), peerIds.size());
             assertTrue(peerIdSet.containsAll(peerIds));
         });
-
-        cluster.shutdownCluster();
     }
 
     @Test
     public void testAddNode() throws Exception {
-        HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
-
-        TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        cluster.clearClusterPreviousPersistentState();
-        cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(5000);
-
-        String leaderId = leader.getId();
-        HashSet<String> followerIds = new HashSet<>(peerIdSet);
-        followerIds.remove(leaderId);
+        RaftNode leader = cluster.waitLeaderElected();
 
         String newNode = "new node 004";
         CompletableFuture<ProposeResponse> f = leader.addNode(newNode);
@@ -71,34 +63,20 @@ public class ConfigChange {
         assertNull(resp.getError());
 
         peerIdSet.add(newNode);
-        peerIdSet.forEach(id -> {
-            TestingRaftCluster.TestingStateMachine node = cluster.getNodeById(id);
-            node.waitApplied(1, 5000);
+        peerIdSet.stream().map(cluster::getNodeById).forEach(node -> {
+            assertNotNull(node);
+            cluster.waitApplied(node.getId(), 1);
 
             RaftStatus status = node.getStatus();
             List<String> peerIds = status.getPeerNodeIds();
             assertEquals(peerIdSet.size(), peerIds.size());
             assertTrue(peerIdSet.containsAll(peerIds));
         });
-
-        cluster.shutdownCluster();
     }
 
     @Test
     public void testAddNodeSuccessively() throws Exception {
-        HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
-
-        TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        cluster.clearClusterPreviousPersistentState();
-        cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(5000);
-
-        String leaderId = leader.getId();
-        HashSet<String> followerIds = new HashSet<>(peerIdSet);
-        followerIds.remove(leaderId);
+        RaftNode leader = cluster.waitLeaderElected();
 
         String successNewNode = "success new node 004";
         String failedNewNode = "failed new node 005";
@@ -112,34 +90,20 @@ public class ConfigChange {
         assertEquals(ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION, resp.getError());
 
         peerIdSet.add(successNewNode);
-        peerIdSet.forEach(id -> {
-            TestingRaftCluster.TestingStateMachine node = cluster.getNodeById(id);
-            node.waitApplied(1, 5000);
+        peerIdSet.stream().map(cluster::getNodeById).forEach(node -> {
+            assertNotNull(node);
+            cluster.waitApplied(node.getId(), 1);
 
             RaftStatus status = node.getStatus();
             List<String> peerIds = status.getPeerNodeIds();
             assertEquals(peerIdSet.size(), peerIds.size());
             assertTrue(peerIdSet.containsAll(peerIds));
         });
-
-        cluster.shutdownCluster();
     }
 
     @Test
     public void testRemoveNotExistsNode() throws Exception {
-        HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
-
-        TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        cluster.clearClusterPreviousPersistentState();
-        cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(5000);
-
-        String leaderId = leader.getId();
-        HashSet<String> followerIds = new HashSet<>(peerIdSet);
-        followerIds.remove(leaderId);
+        RaftNode leader = cluster.waitLeaderElected();
 
         String removePeerId = "not exists node";
         CompletableFuture<ProposeResponse> f = leader.removeNode(removePeerId);
@@ -147,45 +111,31 @@ public class ConfigChange {
         assertTrue(resp.isSuccess());
         assertNull(resp.getError());
 
-        peerIdSet.forEach(id -> {
-            TestingRaftCluster.TestingStateMachine node = cluster.getNodeById(id);
-            node.waitApplied(1, 2000);
+        peerIdSet.stream().map(cluster::getNodeById).forEach(node -> {
+            assertNotNull(node);
+            cluster.waitApplied(node.getId(), 1);
 
             RaftStatus status = node.getStatus();
             List<String> peerIds = status.getPeerNodeIds();
             assertEquals(peerIdSet.size(), peerIds.size());
             assertTrue(peerIdSet.containsAll(peerIds));
         });
-
-        cluster.shutdownCluster();
     }
 
     @Test
     public void testRemoveFollower() throws Exception {
-        HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
+        RaftNode leader = cluster.waitLeaderElected();
 
-        TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        cluster.clearClusterPreviousPersistentState();
-        cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(5000);
-
-        String leaderId = leader.getId();
-        HashSet<String> followerIds = new HashSet<>(peerIdSet);
-        followerIds.remove(leaderId);
-
-        String removePeerId = followerIds.iterator().next();
+        String removePeerId = cluster.getFollowers().get(0).getId();
         CompletableFuture<ProposeResponse> f = leader.removeNode(removePeerId);
         ProposeResponse resp = f.get();
         assertTrue(resp.isSuccess());
         assertNull(resp.getError());
 
         peerIdSet.remove(removePeerId);
-        peerIdSet.forEach(id -> {
-            TestingRaftCluster.TestingStateMachine node = cluster.getNodeById(id);
-            node.waitApplied(1, 5000);
+        peerIdSet.stream().map(cluster::getNodeById).forEach(node -> {
+            assertNotNull(node);
+            cluster.waitApplied(node.getId(), 1);
 
             RaftStatus status = node.getStatus();
             List<String> peerIds = status.getPeerNodeIds();
@@ -194,32 +144,17 @@ public class ConfigChange {
         });
 
         assertNull(cluster.getNodeById(removePeerId));
-
-        cluster.shutdownCluster();
     }
 
     @Test
     public void testRemoveLeader() throws Exception {
-        HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
-
-        TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
-        cluster.clearClusterPreviousPersistentState();
-        cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(5000);
+        RaftNode leader = cluster.waitLeaderElected();
 
         String leaderId = leader.getId();
-        HashSet<String> followerIds = new HashSet<>(peerIdSet);
-        followerIds.remove(leaderId);
-
         CompletableFuture<ProposeResponse> f = leader.removeNode(leaderId);
         ProposeResponse resp = f.get();
         assertFalse(resp.isSuccess());
         assertEquals(ErrorMsg.FORBID_REMOVE_LEADER, resp.getError());
-
-        cluster.shutdownCluster();
     }
 
 }

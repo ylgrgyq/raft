@@ -30,7 +30,7 @@ public class LogReplicationTest {
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
         cluster.clearClusterPreviousPersistentState();
         cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(2000);
+        RaftNode leader = cluster.waitLeaderElected(2000);
 
         // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
@@ -52,7 +52,7 @@ public class LogReplicationTest {
         assertEquals(selfId, status.getVotedFor());
 
         // this is a single node raft so proposed logs will be applied immediately so we can get applied logs from StateMachine
-        List<LogEntry> applied = ((TestingRaftCluster.TestingStateMachine)leader).drainAvailableApplied();
+        List<LogEntry> applied = cluster.drainAvailableApplied(selfId);
         for (LogEntry e : applied) {
             assertEquals(status.getTerm(), e.getTerm());
             assertArrayEquals(dataList.get(e.getIndex() - 1), e.getData().toByteArray());
@@ -66,8 +66,8 @@ public class LogReplicationTest {
         cluster.shutdownCluster();
     }
 
-    private static void checkAppliedLogs(TestingRaftCluster.TestingStateMachine node, int logCount, List<byte[]> sourceDataList) {
-        List<LogEntry> applied = node.waitApplied(logCount, 5000);
+    private static void checkAppliedLogs(TestingRaftCluster cluster, RaftNode node, int logCount, List<byte[]> sourceDataList) {
+        List<LogEntry> applied = cluster.waitApplied(node.getId(), logCount, 5000);
 
         // check node status after logs proposed
         RaftStatus status = node.getStatus();
@@ -95,7 +95,7 @@ public class LogReplicationTest {
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
         cluster.clearClusterPreviousPersistentState();
         cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(5000);
+        RaftNode leader = cluster.waitLeaderElected(5000);
 
         String leaderId = leader.getId();
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
@@ -110,10 +110,10 @@ public class LogReplicationTest {
         assertTrue(p.isSuccess());
         assertNull(p.getError());
 
-        checkAppliedLogs((TestingRaftCluster.TestingStateMachine)leader, logCount, dataList);
+        checkAppliedLogs(cluster, leader, logCount, dataList);
         for (String id : followerIds) {
-            StateMachine node = cluster.getNodeById(id);
-            checkAppliedLogs((TestingRaftCluster.TestingStateMachine)node, logCount, dataList);
+            RaftNode node = cluster.getNodeById(id);
+            checkAppliedLogs(cluster, node, logCount, dataList);
         }
 
         cluster.shutdownCluster();

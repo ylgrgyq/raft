@@ -22,7 +22,7 @@ public class ElectLeaderTest {
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
         cluster.clearClusterPreviousPersistentState();
         cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(2000);
+        RaftNode leader = cluster.waitLeaderElected(2000);
 
         RaftStatus status = leader.getStatus();
         assertEquals(selfId, status.getId());
@@ -45,7 +45,7 @@ public class ElectLeaderTest {
         TestingRaftCluster cluster = new TestingRaftCluster(peers);
         cluster.clearClusterPreviousPersistentState();
         cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected();
+        RaftNode leader = cluster.waitLeaderElected();
 
         RaftStatus leaderStatus = leader.getStatus();
         assertEquals(State.LEADER, leaderStatus.getState());
@@ -55,8 +55,8 @@ public class ElectLeaderTest {
         assertEquals(leader.getId(), leaderStatus.getVotedFor());
 
         String followerId = leader.getId().equals(peers.get(0)) ? peers.get(1) : peers.get(0);
-        StateMachine follower = cluster.getNodeById(followerId);
-        ((TestingRaftCluster.TestingStateMachine)follower).waitBecomeFollower(2000);
+        RaftNode follower = cluster.getNodeById(followerId);
+        cluster.waitBecomeFollower(followerId, 2000);
 
         RaftStatus status = follower.getStatus();
         assertEquals(State.FOLLOWER, status.getState());
@@ -78,7 +78,7 @@ public class ElectLeaderTest {
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
         cluster.clearClusterPreviousPersistentState();
         cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(5000);
+        RaftNode leader = cluster.waitLeaderElected(5000);
 
         String leaderId = leader.getId();
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
@@ -94,8 +94,8 @@ public class ElectLeaderTest {
         assertEquals(leaderId, leaderStatus.getVotedFor());
 
         for (String id : followerIds) {
-            TestingRaftCluster.TestingStateMachine follower = (TestingRaftCluster.TestingStateMachine)cluster.getNodeById(id);
-            follower.waitBecomeFollower(2000);
+            RaftNode follower = cluster.getNodeById(id);
+            cluster.waitBecomeFollower(id, 2000);
 
             RaftStatus status = follower.getStatus();
             assertEquals(State.FOLLOWER, status.getState());
@@ -123,7 +123,7 @@ public class ElectLeaderTest {
         TestingRaftCluster cluster = new TestingRaftCluster(new ArrayList<>(peerIdSet));
         cluster.clearClusterPreviousPersistentState();
         cluster.startCluster();
-        StateMachine leader = cluster.waitLeaderElected(5000);
+        RaftNode leader = cluster.waitLeaderElected(5000);
 
         String leaderId = leader.getId();
         cluster.shutdownPeer(leaderId);
@@ -143,8 +143,8 @@ public class ElectLeaderTest {
         peerIdSet.remove(leaderId);
 
         for (String id : peerIdSet) {
-            TestingRaftCluster.TestingStateMachine follower = (TestingRaftCluster.TestingStateMachine)cluster.getNodeById(id);
-            follower.waitBecomeFollower(2000);
+            RaftNode follower = cluster.getNodeById(id);
+            cluster.waitBecomeFollower(id, 2000);
 
             RaftStatus status = follower.getStatus();
             assertEquals(State.FOLLOWER, status.getState());

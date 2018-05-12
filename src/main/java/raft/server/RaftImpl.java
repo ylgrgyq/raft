@@ -46,18 +46,18 @@ public class RaftImpl implements Runnable {
     private final long pingIntervalTicks;
     private final long suggestElectionTimeoutTicks;
     private final RaftPersistentState meta;
+    private final AsyncNotifyStateMachineProxy stateMachine;
+    private final RaftCommandBroker broker;
 
     private String leaderId;
     private RaftState state;
     private long electionTimeoutTicks;
-    private StateMachine stateMachine;
     private Thread workerThread;
     private volatile boolean workerRun = true;
     private boolean existsPendingConfigChange = false;
 
-    RaftImpl(Config c, StateMachine stateMachine) {
+    RaftImpl(Config c) {
         Preconditions.checkNotNull(c);
-        Preconditions.checkNotNull(stateMachine);
 
         this.workerThread = new Thread(this);
         this.raftLog = new RaftLog();
@@ -68,9 +68,10 @@ public class RaftImpl implements Runnable {
         this.tickIntervalMs = c.tickIntervalMs;
         this.suggestElectionTimeoutTicks = c.suggestElectionTimeoutTicks;
         this.pingIntervalTicks = c.pingIntervalTicks;
-        this.stateMachine = stateMachine;
         this.maxEntriesPerAppend = c.maxEntriesPerAppend;
         this.meta = new RaftPersistentState(c.persistentStateFileDirPath, c.selfId);
+        this.stateMachine = new AsyncNotifyStateMachineProxy(c.stateMachine);
+        this.broker = c.broker;
 
         //TODO consider do not include selfId into peerNodes ?
         for (String peerId : c.peers) {
@@ -190,7 +191,7 @@ public class RaftImpl implements Runnable {
     void writeOutCommand(RaftCommand.Builder builder) {
         builder.setFrom(this.selfId);
         try {
-            stateMachineJobExecutors.submit(() -> stateMachine.onWriteCommand(builder.build()));
+            stateMachineJobExecutors.submit(() -> broker.onWriteCommand(builder.build()));
         } catch (RejectedExecutionException ex) {
             logger.error("node {} submit write out command job failed", this, ex);
         }
@@ -399,57 +400,64 @@ public class RaftImpl implements Runnable {
     }
 
     private void writeOutCommitedLogs(List<LogEntry> commitedLogs) {
-        for (LogEntry e : commitedLogs) {
-            if (e.getType() == LogEntry.EntryType.CONFIG) {
-                try {
-                    ConfigChange change = ConfigChange.parseFrom(e.getData());
-                    String peerId = change.getPeerId();
-                    switch (change.getAction()) {
-                        case ADD_NODE:
-                            addNode(peerId);
-                            break;
-                        case REMOVE_NODE:
-                            removeNode(peerId);
-                            break;
-                        default:
-                            String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
-                                    this, e);
-                            throw new RuntimeException(errorMsg);
+        assert commitedLogs != null;
+        if (! commitedLogs.isEmpty()) {
+            for (LogEntry e : commitedLogs) {
+                if (e.getType() == LogEntry.EntryType.CONFIG) {
+                    try {
+                        ConfigChange change = ConfigChange.parseFrom(e.getData());
+                        String peerId = change.getPeerId();
+                        switch (change.getAction()) {
+                            case ADD_NODE:
+                                addNode(peerId);
+                                break;
+                            case REMOVE_NODE:
+                                removeNode(peerId);
+                                break;
+                            default:
+                                String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
+                                        this, e);
+                                throw new RuntimeException(errorMsg);
 
+                        }
+                    } catch (InvalidProtocolBufferException ex) {
+                        String errorMsg = String.format("node %s failed to parse ConfigChange msg: %s", this, e);
+                        throw new RuntimeException(errorMsg, ex);
                     }
-                } catch (InvalidProtocolBufferException ex) {
-                    String errorMsg = String.format("node %s failed to parse ConfigChange msg: %s", this, e);
-                    throw new RuntimeException(errorMsg, ex);
                 }
             }
-        }
 
-        try {
-            stateMachineJobExecutors.submit(() -> this.stateMachine.onProposalCommited(commitedLogs));
-        } catch (RejectedExecutionException ex) {
-            logger.error("node {} submit apply proposal job failed", this, ex);
+            stateMachine.onProposalCommitted(commitedLogs);
         }
     }
 
     private void addNode(final String peerId) {
-        peerNodes.computeIfAbsent(peerId,
-                k -> new RaftPeerNode(peerId,
-                        this,
-                        this.raftLog,
-                        this.raftLog.getLastIndex() + 1,
-                        RaftImpl.this.maxEntriesPerAppend));
+        if (! peerNodes.containsKey(peerId)) {
+            peerNodes.computeIfAbsent(peerId,
+                    k -> new RaftPeerNode(peerId,
+                            this,
+                            this.raftLog,
+                            this.raftLog.getLastIndex() + 1,
+                            RaftImpl.this.maxEntriesPerAppend));
+
+            logger.info("{} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
+            stateMachine.onNodeAdded(peerId);
+        }
+
         existsPendingConfigChange = false;
-        logger.info("{} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
     }
 
     private void removeNode(final String peerId) {
         if (peerNodes.remove(peerId) != null) {
             logger.info("{} remove peerId \"{}\" from cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
+            stateMachine.onNodeRemoved(peerId);
+
             // quorum has changed, check if there's any pending entries
             if (getState() == State.LEADER && updateCommit()) {
                 broadcastAppendEntries();
             }
         }
+
         existsPendingConfigChange = false;
     }
 
@@ -614,10 +622,11 @@ public class RaftImpl implements Runnable {
 
     void shutdown() {
         logger.info("shutting down node {} ...", this);
-        this.tickGenerator.shutdown();
-        this.stateMachineJobExecutors.shutdown();
-        this.workerRun = false;
+        tickGenerator.shutdown();
+        stateMachineJobExecutors.shutdown();
+        workerRun = false;
         wakeUpWorker();
+        stateMachine.onShutdown();
         logger.info("node {} shutdown", this);
     }
 
@@ -795,7 +804,7 @@ public class RaftImpl implements Runnable {
                                 .setLastLogTerm(e.getTerm())
                                 .setTo(node.getPeerId())
                                 .build();
-                        stateMachine.onWriteCommand(vote);
+                        broker.onWriteCommand(vote);
                     }
                 }
             }
