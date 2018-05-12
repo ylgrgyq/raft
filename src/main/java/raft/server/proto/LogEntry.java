@@ -111,6 +111,10 @@ private static final long serialVersionUID = 0L;
      * <code>CONFIG = 1;</code>
      */
     CONFIG(1),
+    /**
+     * <code>TRANSFER_LEADER = 2;</code>
+     */
+    TRANSFER_LEADER(2),
     UNRECOGNIZED(-1),
     ;
 
@@ -122,6 +126,10 @@ private static final long serialVersionUID = 0L;
      * <code>CONFIG = 1;</code>
      */
     public static final int CONFIG_VALUE = 1;
+    /**
+     * <code>TRANSFER_LEADER = 2;</code>
+     */
+    public static final int TRANSFER_LEADER_VALUE = 2;
 
 
     public final int getNumber() {
@@ -144,6 +152,7 @@ private static final long serialVersionUID = 0L;
       switch (value) {
         case 0: return LOG;
         case 1: return CONFIG;
+        case 2: return TRANSFER_LEADER;
         default: return null;
       }
     }

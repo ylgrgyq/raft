@@ -59,8 +59,17 @@ class RaftPeerNode {
         RaftCommand.Builder msg = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.PING)
                 .setTerm(term)
-                .setLeaderId(this.raft.getLeaderId())
-                .setLeaderCommit(Math.min(this.matchIndex, serverLog.getCommitIndex()))
+                .setLeaderId(raft.getLeaderId())
+                .setLeaderCommit(Math.min(matchIndex, serverLog.getCommitIndex()))
+                .setTo(peerId);
+        raft.writeOutCommand(msg);
+    }
+
+    void sendTimeout(int term) {
+        RaftCommand.Builder msg = RaftCommand.newBuilder()
+                .setType(RaftCommand.CmdType.TIMEOUT_NOW)
+                .setTerm(term)
+                .setLeaderId(raft.getLeaderId())
                 .setTo(peerId);
         raft.writeOutCommand(msg);
     }

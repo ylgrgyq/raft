@@ -32,11 +32,11 @@ public class LogReplicationTest {
         cluster.startCluster();
         RaftNode leader = cluster.waitLeaderElected(2000);
 
-        // propose some logs
+        // proposeConfigChange some logs
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
-        CompletableFuture<ProposeResponse> resp = leader.propose(dataList);
-        ProposeResponse p = resp.get();
+        CompletableFuture<RaftResponse> resp = leader.propose(dataList);
+        RaftResponse p = resp.get();
         assertEquals(selfId, p.getLeaderIdHint());
         assertTrue(p.isSuccess());
         assertNull(p.getError());
@@ -101,11 +101,11 @@ public class LogReplicationTest {
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
         followerIds.remove(leaderId);
 
-        // propose some logs
+        // proposeConfigChange some logs
         int logCount = ThreadLocalRandom.current().nextInt(1, 10);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
-        CompletableFuture<ProposeResponse> resp = leader.propose(dataList);
-        ProposeResponse p = resp.get();
+        CompletableFuture<RaftResponse> resp = leader.propose(dataList);
+        RaftResponse p = resp.get();
         assertEquals(leaderId, p.getLeaderIdHint());
         assertTrue(p.isSuccess());
         assertNull(p.getError());

@@ -39,8 +39,8 @@ public class ConfigChange {
     public void testAddNodeToFollower() throws Exception {
         String newNode = "new node 004";
         RaftNode follower = cluster.getFollowers().get(0);
-        CompletableFuture<ProposeResponse> f = follower.addNode(newNode);
-        ProposeResponse resp = f.get();
+        CompletableFuture<RaftResponse> f = follower.addNode(newNode);
+        RaftResponse resp = f.get();
         assertFalse(resp.isSuccess());
         assertEquals(ErrorMsg.NOT_LEADER, resp.getError());
 
@@ -57,8 +57,8 @@ public class ConfigChange {
         RaftNode leader = cluster.waitLeaderElected();
 
         String newNode = "new node 004";
-        CompletableFuture<ProposeResponse> f = leader.addNode(newNode);
-        ProposeResponse resp = f.get();
+        CompletableFuture<RaftResponse> f = leader.addNode(newNode);
+        RaftResponse resp = f.get();
         assertTrue(resp.isSuccess());
         assertNull(resp.getError());
 
@@ -80,9 +80,9 @@ public class ConfigChange {
 
         String successNewNode = "success new node 004";
         String failedNewNode = "failed new node 005";
-        CompletableFuture<ProposeResponse> f1 = leader.addNode(successNewNode);
-        CompletableFuture<ProposeResponse> f2 = leader.addNode(failedNewNode);
-        ProposeResponse resp = f1.get();
+        CompletableFuture<RaftResponse> f1 = leader.addNode(successNewNode);
+        CompletableFuture<RaftResponse> f2 = leader.addNode(failedNewNode);
+        RaftResponse resp = f1.get();
         assertTrue(resp.isSuccess());
         assertNull(resp.getError());
         resp = f2.get();
@@ -106,8 +106,8 @@ public class ConfigChange {
         RaftNode leader = cluster.waitLeaderElected();
 
         String removePeerId = "not exists node";
-        CompletableFuture<ProposeResponse> f = leader.removeNode(removePeerId);
-        ProposeResponse resp = f.get();
+        CompletableFuture<RaftResponse> f = leader.removeNode(removePeerId);
+        RaftResponse resp = f.get();
         assertTrue(resp.isSuccess());
         assertNull(resp.getError());
 
@@ -127,8 +127,8 @@ public class ConfigChange {
         RaftNode leader = cluster.waitLeaderElected();
 
         String removePeerId = cluster.getFollowers().get(0).getId();
-        CompletableFuture<ProposeResponse> f = leader.removeNode(removePeerId);
-        ProposeResponse resp = f.get();
+        CompletableFuture<RaftResponse> f = leader.removeNode(removePeerId);
+        RaftResponse resp = f.get();
         assertTrue(resp.isSuccess());
         assertNull(resp.getError());
 
@@ -151,8 +151,8 @@ public class ConfigChange {
         RaftNode leader = cluster.waitLeaderElected();
 
         String leaderId = leader.getId();
-        CompletableFuture<ProposeResponse> f = leader.removeNode(leaderId);
-        ProposeResponse resp = f.get();
+        CompletableFuture<RaftResponse> f = leader.removeNode(leaderId);
+        RaftResponse resp = f.get();
         assertFalse(resp.isSuccess());
         assertEquals(ErrorMsg.FORBID_REMOVE_LEADER, resp.getError());
     }

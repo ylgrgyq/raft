@@ -224,6 +224,14 @@ private static final long serialVersionUID = 0L;
      * <code>PONG = 10;</code>
      */
     PONG(10),
+    /**
+     * <code>TIMEOUT_NOW = 11;</code>
+     */
+    TIMEOUT_NOW(11),
+    /**
+     * <code>TRANSFER_LEADER = 12;</code>
+     */
+    TRANSFER_LEADER(12),
     UNRECOGNIZED(-1),
     ;
 
@@ -271,6 +279,14 @@ private static final long serialVersionUID = 0L;
      * <code>PONG = 10;</code>
      */
     public static final int PONG_VALUE = 10;
+    /**
+     * <code>TIMEOUT_NOW = 11;</code>
+     */
+    public static final int TIMEOUT_NOW_VALUE = 11;
+    /**
+     * <code>TRANSFER_LEADER = 12;</code>
+     */
+    public static final int TRANSFER_LEADER_VALUE = 12;
 
 
     public final int getNumber() {
@@ -302,6 +318,8 @@ private static final long serialVersionUID = 0L;
         case 8: return REMOVE_SERVER_RESP;
         case 9: return PING;
         case 10: return PONG;
+        case 11: return TIMEOUT_NOW;
+        case 12: return TRANSFER_LEADER;
         default: return null;
       }
     }
