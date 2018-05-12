@@ -1,5 +1,6 @@
 package raft.server;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
@@ -26,6 +27,8 @@ class AsyncNotifyStateMachineProxy implements StateMachine {
     }
 
     AsyncNotifyStateMachineProxy(StateMachine stateMachine, ExecutorService stateMachineNotifier) {
+        Preconditions.checkNotNull(stateMachine);
+
         this.stateMachineNotifier = stateMachineNotifier;
         this.stateMachine = stateMachine;
     }
@@ -46,7 +49,7 @@ class AsyncNotifyStateMachineProxy implements StateMachine {
     }
 
     @Override
-    public void onProposalCommitted(final List<LogEntry> msgs) {
+    public void onProposalCommitted(List<LogEntry> msgs) {
         notifyStateMachine(() -> stateMachine.onProposalCommitted(msgs));
     }
 

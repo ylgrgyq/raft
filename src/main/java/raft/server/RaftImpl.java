@@ -400,46 +400,51 @@ public class RaftImpl implements Runnable {
     }
 
     private void writeOutCommitedLogs(List<LogEntry> commitedLogs) {
-        for (LogEntry e : commitedLogs) {
-            if (e.getType() == LogEntry.EntryType.CONFIG) {
-                try {
-                    ConfigChange change = ConfigChange.parseFrom(e.getData());
-                    String peerId = change.getPeerId();
-                    switch (change.getAction()) {
-                        case ADD_NODE:
-                            addNode(peerId);
-                            break;
-                        case REMOVE_NODE:
-                            removeNode(peerId);
-                            break;
-                        default:
-                            String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
-                                    this, e);
-                            throw new RuntimeException(errorMsg);
+        assert commitedLogs != null;
+        if (! commitedLogs.isEmpty()) {
+            for (LogEntry e : commitedLogs) {
+                if (e.getType() == LogEntry.EntryType.CONFIG) {
+                    try {
+                        ConfigChange change = ConfigChange.parseFrom(e.getData());
+                        String peerId = change.getPeerId();
+                        switch (change.getAction()) {
+                            case ADD_NODE:
+                                addNode(peerId);
+                                break;
+                            case REMOVE_NODE:
+                                removeNode(peerId);
+                                break;
+                            default:
+                                String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
+                                        this, e);
+                                throw new RuntimeException(errorMsg);
 
+                        }
+                    } catch (InvalidProtocolBufferException ex) {
+                        String errorMsg = String.format("node %s failed to parse ConfigChange msg: %s", this, e);
+                        throw new RuntimeException(errorMsg, ex);
                     }
-                } catch (InvalidProtocolBufferException ex) {
-                    String errorMsg = String.format("node %s failed to parse ConfigChange msg: %s", this, e);
-                    throw new RuntimeException(errorMsg, ex);
                 }
             }
-        }
 
-        stateMachine.onProposalCommitted(commitedLogs);
+            stateMachine.onProposalCommitted(commitedLogs);
+        }
     }
 
     private void addNode(final String peerId) {
-        peerNodes.computeIfAbsent(peerId,
-                k -> new RaftPeerNode(peerId,
-                        this,
-                        this.raftLog,
-                        this.raftLog.getLastIndex() + 1,
-                        RaftImpl.this.maxEntriesPerAppend));
+        if (! peerNodes.containsKey(peerId)) {
+            peerNodes.computeIfAbsent(peerId,
+                    k -> new RaftPeerNode(peerId,
+                            this,
+                            this.raftLog,
+                            this.raftLog.getLastIndex() + 1,
+                            RaftImpl.this.maxEntriesPerAppend));
 
-        stateMachine.onNodeAdded(peerId);
+            logger.info("{} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
+            stateMachine.onNodeAdded(peerId);
+        }
 
         existsPendingConfigChange = false;
-        logger.info("{} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
     }
 
     private void removeNode(final String peerId) {
