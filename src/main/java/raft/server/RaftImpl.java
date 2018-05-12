@@ -400,9 +400,10 @@ public class RaftImpl implements Runnable {
                         case CONFIG:
                             if (existsPendingConfigChange) {
                                 error = ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION;
-                            } else {
-                                existsPendingConfigChange = true;
+                                break;
                             }
+
+                            existsPendingConfigChange = true;
                             // fall through
                         case LOG:
                             final int term = meta.getTerm();
