@@ -83,6 +83,7 @@ public class AsyncNotifyStateMachineProxyTest {
                 new LinkedBlockingQueue<>(), new ThreadFactoryImpl("StateMachineProxy-"));
         AsyncNotifyStateMachineProxy proxy = new AsyncNotifyStateMachineProxy(stateMachine, pool);
         proxy.onShutdown();
+        proxy.shutdown();
         assertTrue(pool.awaitTermination(2000, TimeUnit.SECONDS));
         assertTrue(shutdownCalled.get());
     }
