@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
+import raft.server.log.RaftLogImpl;
 import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
@@ -62,7 +63,7 @@ public class RaftImpl implements Runnable {
         Preconditions.checkNotNull(c);
 
         this.workerThread = new Thread(this);
-        this.raftLog = new RaftLog();
+        this.raftLog = new RaftLogImpl();
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
         this.selfId = c.selfId;

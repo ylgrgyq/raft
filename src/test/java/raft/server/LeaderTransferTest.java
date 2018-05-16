@@ -99,6 +99,8 @@ public class LeaderTransferTest {
         assertEquals(State.LEADER, newLeader.getState());
     }
 
+
+
     @Test
     public void testTimeoutAfterCatchUp() throws Exception {
         RaftNode oldLeader = TestingRaftCluster.waitGetLeader();

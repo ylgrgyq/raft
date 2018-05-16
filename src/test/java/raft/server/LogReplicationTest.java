@@ -41,7 +41,6 @@ public class LogReplicationTest {
         assertEquals(selfId, status.getId());
         assertEquals(State.LEADER, status.getState());
         assertEquals(logCount, status.getCommitIndex());
-        assertEquals(0, status.getAppliedIndex());
         assertEquals(1, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
         assertEquals(selfId, status.getVotedFor());
@@ -66,7 +65,6 @@ public class LogReplicationTest {
         // check node status after logs proposed
         RaftStatus status = node.getStatus();
         assertEquals(logCount, status.getCommitIndex());
-        assertEquals(0, status.getAppliedIndex());
 
         for (LogEntry e : applied) {
             assertEquals(status.getTerm(), e.getTerm());

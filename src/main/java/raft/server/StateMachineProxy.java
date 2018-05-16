@@ -30,11 +30,13 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     void onProposalCommitted() {
         notify(() -> {
             final List<LogEntry> msgs = raftLog.getEntriesNeedToApply();
-            final List<LogEntry> msgsWithouConfigLog = msgs
+            final List<LogEntry> msgsWithoutConfigLog = msgs
                     .stream()
                     .filter(e -> (e.getType() != LogEntry.EntryType.CONFIG))
                     .collect(Collectors.toList());
-            stateMachine.onProposalCommitted(msgsWithouConfigLog);
+            if (! msgsWithoutConfigLog.isEmpty()) {
+                stateMachine.onProposalCommitted(msgsWithoutConfigLog);
+            }
             LogEntry lastE = msgs.get(msgs.size() - 1);
             raftLog.appliedTo(lastE.getIndex());
         });

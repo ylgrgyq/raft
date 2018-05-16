@@ -3,6 +3,7 @@ package raft.server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.log.RaftLog;
+import raft.server.log.RaftLogImpl;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
