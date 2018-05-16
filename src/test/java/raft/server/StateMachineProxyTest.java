@@ -2,6 +2,7 @@ package raft.server;
 
 import org.junit.Test;
 import raft.ThreadFactoryImpl;
+import raft.server.log.RaftLog;
 import raft.server.proto.LogEntry;
 
 import java.util.List;
@@ -14,7 +15,9 @@ import static org.junit.Assert.assertTrue;
  * Author: ylgrgyq
  * Date: 18/5/10
  */
-public class AsyncNotifyStateMachineProxyTest {
+public class StateMachineProxyTest {
+    private final RaftLog raftLog = new RaftLog();
+
     @Test
     public void testNormalCase() throws Exception {
         String expectPeerId = "peerId1";
@@ -27,7 +30,7 @@ public class AsyncNotifyStateMachineProxyTest {
             }
         };
 
-        AsyncNotifyStateMachineProxy proxy = new AsyncNotifyStateMachineProxy(stateMachine);
+        StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog);
         proxy.onNodeAdded(expectPeerId);
         assertTrue(stateMachineCalled.get());
     }
@@ -48,7 +51,7 @@ public class AsyncNotifyStateMachineProxyTest {
         ExecutorService pool = new ThreadPoolExecutor(
                 1, 1, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(1), new ThreadFactoryImpl("StateMachineProxy-"));
-        AsyncNotifyStateMachineProxy proxy = new AsyncNotifyStateMachineProxy(stateMachine, pool);
+        StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog, pool);
         proxy.onNodeAdded("peerId1");
         proxy.onNodeAdded("peerId2");
         proxy.onNodeAdded("peerId2");
@@ -63,7 +66,7 @@ public class AsyncNotifyStateMachineProxyTest {
             }
         };
 
-        AsyncNotifyStateMachineProxy proxy = new AsyncNotifyStateMachineProxy(stateMachine);
+        StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog);
         proxy.onNodeAdded("peerId1");
         proxy.onNodeAdded("peerId2");
     }
@@ -81,7 +84,7 @@ public class AsyncNotifyStateMachineProxyTest {
         ExecutorService pool = new ThreadPoolExecutor(
                 1, 1, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(), new ThreadFactoryImpl("StateMachineProxy-"));
-        AsyncNotifyStateMachineProxy proxy = new AsyncNotifyStateMachineProxy(stateMachine, pool);
+        StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog, pool);
         proxy.onShutdown();
         proxy.shutdown();
         assertTrue(pool.awaitTermination(2000, TimeUnit.SECONDS));

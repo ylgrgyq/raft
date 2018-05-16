@@ -187,15 +187,16 @@ public class RaftLog {
         return this.appliedIndex;
     }
 
-    public synchronized boolean tryCommitTo(int commitTo) {
+    public synchronized List<LogEntry> tryCommitTo(int commitTo) {
         checkArgument(commitTo <= this.getLastIndex(),
                 "try commit to %s but last index in log is %s", commitTo, this.getLastIndex());
-        if (commitTo > this.getCommitIndex()) {
+        int oldCommit = this.getCommitIndex();
+        if (commitTo > oldCommit) {
             this.commitIndex = commitTo;
-            return true;
+            return this.getEntries(oldCommit + 1, commitTo + 1);
         }
 
-        return false;
+        return Collections.emptyList();
     }
 
     public synchronized List<LogEntry> getEntriesNeedToApply() {

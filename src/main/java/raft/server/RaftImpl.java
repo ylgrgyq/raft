@@ -47,7 +47,7 @@ public class RaftImpl implements Runnable {
     private final long pingIntervalTicks;
     private final long suggestElectionTimeoutTicks;
     private final RaftPersistentState meta;
-    private final AsyncNotifyStateMachineProxy stateMachine;
+    private final StateMachineProxy stateMachine;
     private final AsyncRaftCommandBrokerProxy broker;
 
     private String leaderId;
@@ -71,7 +71,7 @@ public class RaftImpl implements Runnable {
         this.pingIntervalTicks = c.pingIntervalTicks;
         this.maxEntriesPerAppend = c.maxEntriesPerAppend;
         this.meta = new RaftPersistentState(c.persistentStateFileDirPath, c.selfId);
-        this.stateMachine = new AsyncNotifyStateMachineProxy(c.stateMachine);
+        this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
         this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
 
         //TODO consider do not include selfId into peerNodes ?
@@ -454,9 +454,8 @@ public class RaftImpl implements Runnable {
 
     private void broadcastAppendEntries() {
         if (peerNodes.size() == 1) {
-            raftLog.tryCommitTo(raftLog.getLastIndex());
-            List<LogEntry> committedLogs = raftLog.getEntriesNeedToApply();
-            writeOutCommitedLogs(committedLogs);
+            List<LogEntry> newCommitedLogs = raftLog.tryCommitTo(raftLog.getLastIndex());
+            processNewCommitedLogs(newCommitedLogs);
         } else {
             final int selfTerm = meta.getTerm();
             for (final RaftPeerNode peer : peerNodes.values()) {
@@ -467,7 +466,7 @@ public class RaftImpl implements Runnable {
         }
     }
 
-    private void writeOutCommitedLogs(List<LogEntry> commitedLogs) {
+    private void processNewCommitedLogs(List<LogEntry> commitedLogs) {
         assert commitedLogs != null;
         if (! commitedLogs.isEmpty()) {
             for (LogEntry e : commitedLogs) {
@@ -495,7 +494,7 @@ public class RaftImpl implements Runnable {
                 }
             }
 
-            stateMachine.onProposalCommitted(commitedLogs);
+            stateMachine.onProposalCommitted();
         }
     }
 
@@ -550,8 +549,8 @@ public class RaftImpl implements Runnable {
             // from the current term has been committed in this way, then all prior entries are committed
             // indirectly because of the Log Matching Property
             if (e.getTerm() == RaftImpl.this.meta.getTerm()) {
-                RaftImpl.this.raftLog.tryCommitTo(kthMatchedIndexes);
-                writeOutCommitedLogs(RaftImpl.this.raftLog.getEntriesNeedToApply());
+                List<LogEntry> newCommitedLogs = RaftImpl.this.raftLog.tryCommitTo(kthMatchedIndexes);
+                processNewCommitedLogs(newCommitedLogs);
                 return true;
             }
         }
@@ -661,7 +660,6 @@ public class RaftImpl implements Runnable {
             if (matchIndex != 0) {
                 resp.setSuccess(true);
                 resp.setMatchIndex(matchIndex);
-                writeOutCommitedLogs(raftLog.getEntriesNeedToApply());
             }
         }
         writeOutCommand(resp);
@@ -696,10 +694,10 @@ public class RaftImpl implements Runnable {
                 .setTo(cmd.getFrom())
                 .setSuccess(true)
                 .setTerm(meta.getTerm());
-        raftLog.tryCommitTo(cmd.getLeaderCommit());
+        List<LogEntry> newCommitedLogs = raftLog.tryCommitTo(cmd.getLeaderCommit());
         pong.setSuccess(true);
         writeOutCommand(pong);
-        writeOutCommitedLogs(raftLog.getEntriesNeedToApply());
+        processNewCommitedLogs(newCommitedLogs);
     }
 
     void shutdown() {
