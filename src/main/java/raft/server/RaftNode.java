@@ -42,10 +42,6 @@ public class RaftNode{
         return raft.proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.REMOVE_NODE);
     }
 
-    public void appliedTo(int appliedTo) {
-        raft.appliedTo(appliedTo);
-    }
-
     public void receiveCommand(RaftCommand cmd) {
         raft.queueReceivedCommand(cmd);
     }

@@ -159,10 +159,6 @@ public class RaftImpl implements Runnable {
         return status;
     }
 
-    void appliedTo(int appliedTo) {
-        raftLog.appliedTo(appliedTo);
-    }
-
     CompletableFuture<RaftResponse> proposeData(List<byte[]> entries) {
         List<LogEntry> logEntries =
                 entries.stream().map(data ->

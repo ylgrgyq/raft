@@ -54,7 +54,6 @@ public class LogReplicationTest {
         }
 
         // check new raft status
-        leader.appliedTo(logCount);
         RaftStatus newStatus = leader.getStatus();
         assertEquals(logCount, newStatus.getAppliedIndex());
 
@@ -74,7 +73,6 @@ public class LogReplicationTest {
             assertArrayEquals(sourceDataList.get(e.getIndex() - 1), e.getData().toByteArray());
         }
 
-        node.appliedTo(logCount);
         // check node status after applied
         RaftStatus newStatus = node.getStatus();
         assertEquals(logCount, newStatus.getAppliedIndex());
