@@ -31,8 +31,8 @@ class TestingRaftCluster {
         }
     }
 
-    static RaftNode addTestingNode(String selfId, Collection<String> peers) {
-        return nodes.computeIfAbsent(selfId, k -> createTestingNode(selfId, peers));
+    static RaftNode addTestingNode(String peerId, Collection<String> peers) {
+        return nodes.computeIfAbsent(peerId, k -> createTestingNode(peerId, peers));
     }
 
     private static RaftNode createTestingNode(String selfId, Collection<String> peers) {
@@ -61,11 +61,11 @@ class TestingRaftCluster {
         state.setTermAndVotedFor(0, null);
     }
 
-    static RaftNode waitGetLeader() throws TimeoutException, InterruptedException{
+    static RaftNode waitGetLeader() throws TimeoutException, InterruptedException {
         return waitGetLeader(defaultTimeoutMs);
     }
 
-    static RaftNode waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException{
+    static RaftNode waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException {
         long start = System.currentTimeMillis();
         while (true) {
             for (RaftNode n : nodes.values()) {
@@ -81,12 +81,12 @@ class TestingRaftCluster {
         }
     }
 
-    static List<RaftNode> getFollowers() throws TimeoutException, InterruptedException{
+    static List<RaftNode> getFollowers() throws TimeoutException, InterruptedException {
         waitGetLeader();
         ArrayList<RaftNode> followers = new ArrayList<>();
         for (Map.Entry<String, RaftNode> e : nodes.entrySet()) {
             RaftNode n = e.getValue();
-            if (! n.isLeader()) {
+            if (!n.isLeader()) {
                 followers.add(e.getValue());
             }
         }
@@ -105,7 +105,7 @@ class TestingRaftCluster {
         throw new RuntimeException("no state machine for " + peerId);
     }
 
-    static void shutdownCluster(){
+    static void shutdownCluster() {
         for (RaftNode n : nodes.values()) {
             n.shutdown();
         }
@@ -128,7 +128,7 @@ class TestingRaftCluster {
         return Collections.unmodifiableList(ret);
     }
 
-    static List<LogEntry> waitApplied(String peerId, int atLeastExpect){
+    static List<LogEntry> waitApplied(String peerId, int atLeastExpect) {
         return waitApplied(peerId, atLeastExpect, defaultTimeoutMs);
     }
 
@@ -144,7 +144,7 @@ class TestingRaftCluster {
         while (atLeastExpect != 0 && ret.size() < atLeastExpect && System.nanoTime() < deadline) {
             try {
                 LogEntry e;
-                if ((e = stateMachine.getApplied().poll(timeoutMs, TimeUnit.MILLISECONDS)) != null){
+                if ((e = stateMachine.getApplied().poll(timeoutMs, TimeUnit.MILLISECONDS)) != null) {
                     ret.add(e);
                     stateMachine.getApplied().drainTo(ret);
                 }
@@ -156,7 +156,7 @@ class TestingRaftCluster {
         return Collections.unmodifiableList(ret);
     }
 
-    static void waitBecomeFollower(String peerId, long timeoutMs) throws TimeoutException, InterruptedException{
+    static void waitBecomeFollower(String peerId, long timeoutMs) throws TimeoutException, InterruptedException {
         long start = System.currentTimeMillis();
         while (true) {
             RaftNode node = getNodeById(peerId);
@@ -172,24 +172,29 @@ class TestingRaftCluster {
         }
     }
 
-    static class TestingRaftStateMachine implements StateMachine{
+    static class TestingRaftStateMachine implements StateMachine {
         private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
         private AtomicBoolean isLeader = new AtomicBoolean(false);
         private CompletableFuture<Void> waitLeaderFuture;
+        private BlockingQueue<String> nodeAdded = new LinkedBlockingQueue<>();
+        private BlockingQueue<String> nodeRemoved = new LinkedBlockingQueue<>();
 
         @Override
         public void onNodeAdded(String peerId) {
+            logger.info("on node added called " + peerId);
+            nodeAdded.add(peerId);
             addTestingNode(peerId, nodes.keySet()).start();
         }
 
         @Override
         public void onNodeRemoved(String peerId) {
+            nodeRemoved.add(peerId);
             shutdownPeer(peerId);
         }
 
         @Override
         public void onProposalCommitted(List<LogEntry> msgs) {
-            assert msgs != null && ! msgs.isEmpty(): "msgs is null:" + (msgs == null);
+            assert msgs != null && !msgs.isEmpty() : "msgs is null:" + (msgs == null);
             applied.addAll(msgs);
         }
 
@@ -222,6 +227,54 @@ class TestingRaftCluster {
 
         BlockingQueue<LogEntry> getApplied() {
             return applied;
+        }
+
+        private boolean doWaitNodeChanged(String expectPeerId, BlockingQueue<String> queue) {
+            assert expectPeerId != null && !expectPeerId.isEmpty();
+
+            try {
+                String id = queue.poll(defaultTimeoutMs, TimeUnit.MILLISECONDS);
+                return expectPeerId.equals(id);
+            } catch (InterruptedException ex) {
+                // ignore
+            }
+
+            return false;
+        }
+
+        boolean waitNodeAdded(String expectPeerId) {
+            return doWaitNodeChanged(expectPeerId, nodeAdded);
+        }
+
+        boolean waitNodeRemoved(String expectPeerId) {
+            return doWaitNodeChanged(expectPeerId, nodeRemoved);
+        }
+
+        List<LogEntry> waitApplied(int atLeastExpect) {
+            return waitApplied(atLeastExpect, defaultTimeoutMs);
+        }
+
+        List<LogEntry> waitApplied(int atLeastExpect, long timeoutMs) {
+            assert atLeastExpect >= 0 : "actual" + atLeastExpect;
+
+            List<LogEntry> ret = new ArrayList<>(atLeastExpect);
+            getApplied().drainTo(ret);
+
+            long start = System.nanoTime();
+            long deadline = start + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+            while (atLeastExpect != 0 && ret.size() < atLeastExpect && System.nanoTime() < deadline) {
+                try {
+                    LogEntry e;
+                    if ((e = getApplied().poll(timeoutMs, TimeUnit.MILLISECONDS)) != null) {
+                        ret.add(e);
+                        getApplied().drainTo(ret);
+                    }
+                } catch (InterruptedException ex) {
+                    // ignore
+                }
+            }
+
+            return Collections.unmodifiableList(ret);
         }
     }
 

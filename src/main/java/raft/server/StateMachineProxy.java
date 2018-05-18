@@ -6,7 +6,6 @@ import raft.server.proto.LogEntry;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
-import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -27,18 +26,12 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
         this.raftLog = Objects.requireNonNull(raftLog);
     }
 
-    void onProposalCommitted() {
+    void onProposalCommitted(List<LogEntry> msgs, int lastIndex) {
         notify(() -> {
-            final List<LogEntry> msgs = raftLog.getEntriesNeedToApply();
-            final List<LogEntry> msgsWithoutConfigLog = msgs
-                    .stream()
-                    .filter(e -> (e.getType() != LogEntry.EntryType.CONFIG))
-                    .collect(Collectors.toList());
-            if (! msgsWithoutConfigLog.isEmpty()) {
-                stateMachine.onProposalCommitted(msgsWithoutConfigLog);
+            if (! msgs.isEmpty()) {
+                stateMachine.onProposalCommitted(msgs);
             }
-            LogEntry lastE = msgs.get(msgs.size() - 1);
-            raftLog.appliedTo(lastE.getIndex());
+            raftLog.appliedTo(lastIndex);
         });
     }
 

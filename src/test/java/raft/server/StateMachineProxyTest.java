@@ -164,7 +164,10 @@ public class StateMachineProxyTest {
         };
 
         StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog);
-        proxy.onProposalCommitted();
+        proxy.onProposalCommitted(originMsgs
+                .stream()
+                .filter(e -> (e.getType() != LogEntry.EntryType.CONFIG))
+                .collect(Collectors.toList()), originMsgs.get(originMsgs.size() - 1).getIndex());
         appliedCalled.await();
         assertTrue(stateMachineCalledOnce.get());
     }
@@ -196,7 +199,7 @@ public class StateMachineProxyTest {
         }
 
         @Override
-        public int tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
+        public int tryAppendEntries(int prevIndex, int prevTerm, List<LogEntry> entries) {
             throw new UnsupportedOperationException();
         }
 

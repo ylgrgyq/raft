@@ -101,18 +101,18 @@ public class RaftLogImpl implements RaftLog {
         return this.getLastIndex();
     }
 
-    public synchronized int tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries) {
+    public synchronized int tryAppendEntries(int prevIndex, int prevTerm, List<LogEntry> entries) {
         // entries can be empty when leader just want to update follower's commit index
 
         if (prevIndex < this.offset) {
             logger.warn("try append entries with truncated prevIndex: {}. " +
-                            "prevTerm: {}, leaderCommitIndex: {}, current offset: {}",
-                    prevIndex, prevTerm, leaderCommitIndex, this.offset);
+                            "prevTerm: {}, current offset: {}",
+                    prevIndex, prevTerm, this.offset);
             return 0;
         } else if (prevIndex > this.getLastIndex()) {
             logger.warn("try append entries with out of range prevIndex: {}. " +
-                            "prevTerm: {}, leaderCommitIndex: {}, current lastIndex: {}",
-                    prevIndex, prevTerm, leaderCommitIndex, this.getLastIndex());
+                            "prevTerm: {}, current lastIndex: {}",
+                    prevIndex, prevTerm, this.getLastIndex());
             return 0;
         }
 
@@ -135,13 +135,6 @@ public class RaftLogImpl implements RaftLog {
                         this.logs.set(index, e);
                     }
                 }
-
-                if (logger.isDebugEnabled()) {
-                    logger.info("try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
-                            Math.min(leaderCommitIndex, lastIndex), this.commitIndex, this.getLastIndex());
-                }
-
-                this.tryCommitTo(Math.min(leaderCommitIndex, lastIndex));
             }
             return lastIndex;
         }

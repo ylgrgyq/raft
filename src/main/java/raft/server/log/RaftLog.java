@@ -20,7 +20,7 @@ public interface RaftLog {
 
     int directAppend(int term, List<LogEntry> entries);
 
-    int tryAppendEntries(int prevIndex, int prevTerm, int leaderCommitIndex, List<LogEntry> entries);
+    int tryAppendEntries(int prevIndex, int prevTerm, List<LogEntry> entries);
 
     boolean isUpToDate(int term, int index);
 

@@ -61,15 +61,18 @@ public class ConfigChangeTest {
         assertTrue(resp.isSuccess());
         assertNull(resp.getError());
 
-        peerIdSet.add(newNode);
+        HashSet<String> newPeerIds = new HashSet<>(peerIdSet);
+        newPeerIds.add(newNode);
         peerIdSet.stream().map(TestingRaftCluster::getNodeById).forEach(node -> {
             assertNotNull(node);
-            TestingRaftCluster.waitApplied(node.getId(), 1);
+            TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(node.getId());
+
+            assertTrue(stateMachine.waitNodeAdded(newNode));
 
             RaftStatus status = node.getStatus();
             List<String> peerIds = status.getPeerNodeIds();
-            assertEquals(peerIdSet.size(), peerIds.size());
-            assertTrue(peerIdSet.containsAll(peerIds));
+            assertEquals(newPeerIds.size(), peerIds.size());
+            assertTrue(newPeerIds.containsAll(peerIds));
         });
     }
 
@@ -91,7 +94,9 @@ public class ConfigChangeTest {
         peerIdSet.add(successNewNode);
         peerIdSet.stream().map(TestingRaftCluster::getNodeById).forEach(node -> {
             assertNotNull(node);
-            TestingRaftCluster.waitApplied(node.getId(), 1);
+            TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(node.getId());
+            System.out.println(node.getId() + " start to wait node added");
+            stateMachine.waitNodeAdded(successNewNode);
 
             RaftStatus status = node.getStatus();
             List<String> peerIds = status.getPeerNodeIds();
@@ -112,7 +117,8 @@ public class ConfigChangeTest {
 
         peerIdSet.stream().map(TestingRaftCluster::getNodeById).forEach(node -> {
             assertNotNull(node);
-            TestingRaftCluster.waitApplied(node.getId(), 1);
+            TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(node.getId());
+            stateMachine.waitNodeRemoved(removePeerId);
 
             RaftStatus status = node.getStatus();
             List<String> peerIds = status.getPeerNodeIds();
@@ -134,7 +140,8 @@ public class ConfigChangeTest {
         peerIdSet.remove(removePeerId);
         peerIdSet.stream().map(TestingRaftCluster::getNodeById).forEach(node -> {
             assertNotNull(node);
-            TestingRaftCluster.waitApplied(node.getId(), 1);
+            TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(node.getId());
+            stateMachine.waitNodeRemoved(removePeerId);
 
             RaftStatus status = node.getStatus();
             List<String> peerIds = status.getPeerNodeIds();
