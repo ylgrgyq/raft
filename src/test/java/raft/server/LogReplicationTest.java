@@ -27,7 +27,7 @@ public class LogReplicationTest {
         TestingRaftCluster.startCluster();
         RaftNode leader = TestingRaftCluster.waitGetLeader();
 
-        // proposeConfigChange some logs
+        // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
         CompletableFuture<RaftResponse> resp = leader.propose(dataList);
@@ -92,7 +92,7 @@ public class LogReplicationTest {
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
         followerIds.remove(leaderId);
 
-        // proposeConfigChange some logs
+        // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(1, 10);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
         CompletableFuture<RaftResponse> resp = leader.propose(dataList);

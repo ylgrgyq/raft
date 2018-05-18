@@ -299,6 +299,10 @@ public class RaftImpl implements Runnable {
             processTickTimeout();
         }
 
+        // we must set wake up mark to prevent receiving interrupt during block writing persistent state to file
+        // because if that happens we will get an unexpected java.nio.channels.ClosedByInterruptException
+        wakenUp.getAndSet(true);
+
         int i = 0;
         while (i < 1000 && (cmd = RaftImpl.this.receivedCmdQueue.poll()) != null) {
             if (!initialed) {
@@ -803,7 +807,7 @@ public class RaftImpl implements Runnable {
                             if (transfereeId != null
                                     && transfereeId.equals(cmd.getFrom())
                                     && node.getMatchIndex() == raftLog.getLastIndex()) {
-                                logger.info("node {} send timeout to {} after it has up to date logs", this, cmd.getFrom());
+                                logger.info("node {} send timeout to {} after it has up to date logs", RaftImpl.this, cmd.getFrom());
                                 node.sendTimeout(selfTerm);
                             }
                         } else {
