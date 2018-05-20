@@ -6,7 +6,7 @@ import raft.server.proto.RaftCommand;
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-abstract class RaftState implements TickTimeoutProcessor, LifeCycle {
+abstract class RaftState implements LifeCycle {
     private final State state;
 
     RaftState(State state){
@@ -18,4 +18,8 @@ abstract class RaftState implements TickTimeoutProcessor, LifeCycle {
     }
 
     abstract void process(RaftCommand cmd);
+
+    public void onElectionTimeout() {}
+
+    public void onPingTimeout() {}
 }

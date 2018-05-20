@@ -8,7 +8,10 @@ public enum ErrorMsg {
     INTERNAL_ERROR(1, "Internal error"),
     NOT_LEADER(0, "This node is not leader"),
     EXISTS_UNAPPLIED_CONFIGURATION(2, "There's a pending unapplied configuration"),
-    FORBID_REMOVE_LEADER(3, "Need transfer leadership first then remove previous leader node");
+    FORBID_REMOVE_LEADER(3, "Need transfer leadership first then remove previous leader node"),
+    ALLREADY_LEADER(4, "Transferee is a leader already"),
+    LEADER_TRANSFERRING(5, "Transferring leadership to another node"),
+    UNKNOWN_TRANSFEREEID(6, "Transfer leadership to a unknown node");
 
     private int code;
     private String msg;

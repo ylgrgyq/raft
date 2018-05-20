@@ -21,39 +21,25 @@ public class RaftNode{
         this.raft = new RaftImpl(c);
     }
 
-    public CompletableFuture<ProposeResponse> propose(List<byte[]> data) {
-        return raft.propose(data);
+    public CompletableFuture<RaftResponse> transferLeader(String transfereeId) {
+        return raft.proposeTransferLeader(transfereeId);
     }
 
-    public CompletableFuture<ProposeResponse> addNode(String newNode) {
-        ConfigChange change = ConfigChange.newBuilder()
-                .setAction(ConfigChange.ConfigChangeAction.ADD_NODE)
-                .setPeerId(newNode)
-                .build();
-
-        ArrayList<byte[]> data = new ArrayList<>();
-        data.add(change.toByteArray());
-        return raft.propose(data, LogEntry.EntryType.CONFIG);
+    public CompletableFuture<RaftResponse> propose(List<byte[]> data) {
+        return raft.proposeData(data);
     }
 
-    public CompletableFuture<ProposeResponse> removeNode(String newNode) {
-        ConfigChange change = ConfigChange.newBuilder()
-                .setAction(ConfigChange.ConfigChangeAction.REMOVE_NODE)
-                .setPeerId(newNode)
-                .build();
+    public CompletableFuture<RaftResponse> addNode(String newNode) {
+        return raft.proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.ADD_NODE);
+    }
 
+    public CompletableFuture<RaftResponse> removeNode(String newNode) {
         if (newNode.equals(raft.getLeaderId())) {
             return CompletableFuture.completedFuture(
-                    new ProposeResponse(raft.getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
+                    new RaftResponse(raft.getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
         }
 
-        ArrayList<byte[]> data = new ArrayList<>();
-        data.add(change.toByteArray());
-        return raft.propose(data, LogEntry.EntryType.CONFIG);
-    }
-
-    public void appliedTo(int appliedTo) {
-        raft.appliedTo(appliedTo);
+        return raft.proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.REMOVE_NODE);
     }
 
     public void receiveCommand(RaftCommand cmd) {

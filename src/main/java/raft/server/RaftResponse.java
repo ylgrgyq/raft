@@ -4,15 +4,15 @@ package raft.server;
  * Author: ylgrgyq
  * Date: 18/3/28
  */
-public class ProposeResponse {
+public class RaftResponse {
     private String leaderIdHint;
     private ErrorMsg error;
 
-    public ProposeResponse(String leaderIdHint) {
+    public RaftResponse(String leaderIdHint) {
         this.leaderIdHint = leaderIdHint;
     }
 
-    public ProposeResponse(String leaderIdHint, ErrorMsg error) {
+    public RaftResponse(String leaderIdHint, ErrorMsg error) {
         this.leaderIdHint = leaderIdHint;
         this.error = error;
     }

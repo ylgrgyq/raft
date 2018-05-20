@@ -11,6 +11,7 @@ message LogEntry {
     enum EntryType {
         LOG = 0;
         CONFIG = 1;
+        TRANSFER_LEADER = 2;
     }
 
     int32 index = 1;
@@ -43,6 +44,8 @@ message RaftCommand {
         REMOVE_SERVER_RESP = 8;
         PING = 9;
         PONG = 10;
+        TIMEOUT_NOW = 11;
+        TRANSFER_LEADER = 12;
     }
 
     CmdType type = 1;
@@ -60,4 +63,5 @@ message RaftCommand {
     int32 last_log_term = 13;
     bool vote_granted = 14;
     string leader_hint = 15;
+    bool force_election = 16;
 }

@@ -5,7 +5,7 @@ package raft.server;
  * Date: 17/12/14
  */
 interface LifeCycle {
-    void start();
+    void start(RaftImpl.Context ctx);
 
-    void finish();
+    RaftImpl.Context finish();
 }

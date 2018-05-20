@@ -31,6 +31,7 @@ private static final long serialVersionUID = 0L;
     lastLogTerm_ = 0;
     voteGranted_ = false;
     leaderHint_ = "";
+    forceElection_ = false;
   }
 
   @java.lang.Override
@@ -148,6 +149,11 @@ private static final long serialVersionUID = 0L;
             leaderHint_ = s;
             break;
           }
+          case 128: {
+
+            forceElection_ = input.readBool();
+            break;
+          }
         }
       }
     } catch (com.google.protobuf.InvalidProtocolBufferException e) {
@@ -224,6 +230,14 @@ private static final long serialVersionUID = 0L;
      * <code>PONG = 10;</code>
      */
     PONG(10),
+    /**
+     * <code>TIMEOUT_NOW = 11;</code>
+     */
+    TIMEOUT_NOW(11),
+    /**
+     * <code>TRANSFER_LEADER = 12;</code>
+     */
+    TRANSFER_LEADER(12),
     UNRECOGNIZED(-1),
     ;
 
@@ -271,6 +285,14 @@ private static final long serialVersionUID = 0L;
      * <code>PONG = 10;</code>
      */
     public static final int PONG_VALUE = 10;
+    /**
+     * <code>TIMEOUT_NOW = 11;</code>
+     */
+    public static final int TIMEOUT_NOW_VALUE = 11;
+    /**
+     * <code>TRANSFER_LEADER = 12;</code>
+     */
+    public static final int TRANSFER_LEADER_VALUE = 12;
 
 
     public final int getNumber() {
@@ -302,6 +324,8 @@ private static final long serialVersionUID = 0L;
         case 8: return REMOVE_SERVER_RESP;
         case 9: return PING;
         case 10: return PONG;
+        case 11: return TIMEOUT_NOW;
+        case 12: return TRANSFER_LEADER;
         default: return null;
       }
     }
@@ -623,6 +647,15 @@ private static final long serialVersionUID = 0L;
     }
   }
 
+  public static final int FORCE_ELECTION_FIELD_NUMBER = 16;
+  private boolean forceElection_;
+  /**
+   * <code>bool force_election = 16;</code>
+   */
+  public boolean getForceElection() {
+    return forceElection_;
+  }
+
   private byte memoizedIsInitialized = -1;
   public final boolean isInitialized() {
     byte isInitialized = memoizedIsInitialized;
@@ -679,6 +712,9 @@ private static final long serialVersionUID = 0L;
     }
     if (!getLeaderHintBytes().isEmpty()) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 15, leaderHint_);
+    }
+    if (forceElection_ != false) {
+      output.writeBool(16, forceElection_);
     }
     unknownFields.writeTo(output);
   }
@@ -744,6 +780,10 @@ private static final long serialVersionUID = 0L;
     if (!getLeaderHintBytes().isEmpty()) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(15, leaderHint_);
     }
+    if (forceElection_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(16, forceElection_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -789,6 +829,8 @@ private static final long serialVersionUID = 0L;
         == other.getVoteGranted());
     result = result && getLeaderHint()
         .equals(other.getLeaderHint());
+    result = result && (getForceElection()
+        == other.getForceElection());
     result = result && unknownFields.equals(other.unknownFields);
     return result;
   }
@@ -834,6 +876,9 @@ private static final long serialVersionUID = 0L;
         getVoteGranted());
     hash = (37 * hash) + LEADER_HINT_FIELD_NUMBER;
     hash = (53 * hash) + getLeaderHint().hashCode();
+    hash = (37 * hash) + FORCE_ELECTION_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getForceElection());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -998,6 +1043,8 @@ private static final long serialVersionUID = 0L;
 
       leaderHint_ = "";
 
+      forceElection_ = false;
+
       return this;
     }
 
@@ -1045,6 +1092,7 @@ private static final long serialVersionUID = 0L;
       result.lastLogTerm_ = lastLogTerm_;
       result.voteGranted_ = voteGranted_;
       result.leaderHint_ = leaderHint_;
+      result.forceElection_ = forceElection_;
       result.bitField0_ = to_bitField0_;
       onBuilt();
       return result;
@@ -1158,6 +1206,9 @@ private static final long serialVersionUID = 0L;
       if (!other.getLeaderHint().isEmpty()) {
         leaderHint_ = other.leaderHint_;
         onChanged();
+      }
+      if (other.getForceElection() != false) {
+        setForceElection(other.getForceElection());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -1977,6 +2028,32 @@ private static final long serialVersionUID = 0L;
   checkByteStringIsUtf8(value);
       
       leaderHint_ = value;
+      onChanged();
+      return this;
+    }
+
+    private boolean forceElection_ ;
+    /**
+     * <code>bool force_election = 16;</code>
+     */
+    public boolean getForceElection() {
+      return forceElection_;
+    }
+    /**
+     * <code>bool force_election = 16;</code>
+     */
+    public Builder setForceElection(boolean value) {
+      
+      forceElection_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>bool force_election = 16;</code>
+     */
+    public Builder clearForceElection() {
+      
+      forceElection_ = false;
       onChanged();
       return this;
     }
