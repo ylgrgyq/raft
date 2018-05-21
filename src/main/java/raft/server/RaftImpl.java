@@ -765,7 +765,8 @@ public class RaftImpl implements Runnable {
             logger.debug("node {} start leader", RaftImpl.this);
             this.cxt = cxt;
             RaftImpl.this.broadcastPing();
-            stateMachine.onLeaderStart();
+            final int selfTerm = RaftImpl.this.meta.getTerm();
+            stateMachine.onLeaderStart(selfTerm);
         }
 
         public Context finish() {
@@ -841,7 +842,8 @@ public class RaftImpl implements Runnable {
         public void start(Context cxt) {
             logger.debug("node {} start follower", RaftImpl.this);
             this.cxt = cxt;
-            stateMachine.onFollowerStart();
+            final int selfTerm = RaftImpl.this.meta.getTerm();
+            stateMachine.onFollowerStart(selfTerm, RaftImpl.this.getLeaderId());
         }
 
         public Context finish() {

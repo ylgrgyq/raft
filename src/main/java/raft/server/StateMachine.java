@@ -12,9 +12,9 @@ public interface StateMachine {
     void onProposalCommitted(List<LogEntry> msgs);
     void onNodeAdded(String peerId);
     void onNodeRemoved(String peerId);
-    void onLeaderStart();
+    void onLeaderStart(int term);
     void onLeaderFinish();
-    void onFollowerStart();
+    void onFollowerStart(int term, String leaderId);
     void onFollowerFinish();
     void onShutdown();
 }

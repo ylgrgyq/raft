@@ -241,7 +241,7 @@ public class StateMachineProxyTest {
         }
 
         @Override
-        public void onLeaderStart() {
+        public void onLeaderStart(int term) {
             throw new UnsupportedOperationException();
         }
 
@@ -251,7 +251,7 @@ public class StateMachineProxyTest {
         }
 
         @Override
-        public void onFollowerStart() {
+        public void onFollowerStart(int term, String leaderId) {
             throw new UnsupportedOperationException();
         }
 

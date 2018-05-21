@@ -51,8 +51,8 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
-    public void onLeaderStart() {
-        notify(stateMachine::onLeaderStart);
+    public void onLeaderStart(int term) {
+        notify(() -> stateMachine.onLeaderStart(term));
     }
 
     @Override
@@ -61,8 +61,8 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
-    public void onFollowerStart() {
-        notify(stateMachine::onFollowerStart);
+    public void onFollowerStart(int term, String leaderId) {
+        notify(() -> stateMachine.onFollowerStart(term, leaderId));
     }
 
     @Override
