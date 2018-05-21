@@ -55,9 +55,10 @@ public class ElectLeaderTest {
         assertEquals(leader.getId(), leaderStatus.getVotedFor());
 
         String followerId = leader.getId().equals(peers.get(0)) ? peers.get(1) : peers.get(0);
-        RaftNode follower = TestingRaftCluster.getNodeById(followerId);
-        TestingRaftCluster.waitBecomeFollower(followerId, 2000);
+        TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(followerId);
+        stateMachine.waitBecomeFollower().get();
 
+        RaftNode follower = TestingRaftCluster.getNodeById(followerId);
         RaftStatus status = follower.getStatus();
         assertEquals(State.FOLLOWER, status.getState());
         assertEquals(0, status.getCommitIndex());
@@ -94,9 +95,10 @@ public class ElectLeaderTest {
         assertEquals(leaderId, leaderStatus.getVotedFor());
 
         for (String id : followerIds) {
-            RaftNode follower = TestingRaftCluster.getNodeById(id);
-            TestingRaftCluster.waitBecomeFollower(id, 2000);
+            TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(id);
+            stateMachine.waitBecomeFollower().get();
 
+            RaftNode follower = TestingRaftCluster.getNodeById(id);
             RaftStatus status = follower.getStatus();
             assertEquals(State.FOLLOWER, status.getState());
             assertEquals(0, status.getCommitIndex());
@@ -143,9 +145,10 @@ public class ElectLeaderTest {
         peerIdSet.remove(leaderId);
 
         for (String id : peerIdSet) {
-            RaftNode follower = TestingRaftCluster.getNodeById(id);
-            TestingRaftCluster.waitBecomeFollower(id, 2000);
+            TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(id);
+            stateMachine.waitBecomeFollower().get();
 
+            RaftNode follower = TestingRaftCluster.getNodeById(id);
             RaftStatus status = follower.getStatus();
             assertEquals(State.FOLLOWER, status.getState());
             assertEquals(0, status.getCommitIndex());

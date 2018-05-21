@@ -156,26 +156,12 @@ class TestingRaftCluster {
         return Collections.unmodifiableList(ret);
     }
 
-    static void waitBecomeFollower(String peerId, long timeoutMs) throws TimeoutException, InterruptedException {
-        long start = System.currentTimeMillis();
-        while (true) {
-            RaftNode node = getNodeById(peerId);
-            if (node.getState() == State.FOLLOWER) {
-                return;
-            }
-
-            if (System.currentTimeMillis() - start > timeoutMs) {
-                throw new TimeoutException();
-            } else {
-                Thread.sleep(200);
-            }
-        }
-    }
-
     static class TestingRaftStateMachine implements StateMachine {
         private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
         private AtomicBoolean isLeader = new AtomicBoolean(false);
+        private AtomicBoolean isFollower = new AtomicBoolean(false);
         private CompletableFuture<Void> waitLeaderFuture;
+        private CompletableFuture<Void> waitFollowerFuture;
         private BlockingQueue<String> nodeAdded = new LinkedBlockingQueue<>();
         private BlockingQueue<String> nodeRemoved = new LinkedBlockingQueue<>();
 
@@ -217,6 +203,28 @@ class TestingRaftCluster {
             } else {
                 waitLeaderFuture = new CompletableFuture<>();
                 return waitLeaderFuture;
+            }
+        }
+
+        @Override
+        public void onFollowerStart() {
+            isFollower.set(true);
+            if (waitFollowerFuture != null) {
+                waitFollowerFuture.complete(null);
+            }
+        }
+
+        @Override
+        public void onFollowerFinish() {
+            isFollower.set(false);
+        }
+
+        CompletableFuture<Void> waitBecomeFollower() {
+            if (isFollower.get()) {
+                return CompletableFuture.completedFuture(null);
+            } else {
+                waitFollowerFuture = new CompletableFuture<>();
+                return waitFollowerFuture;
             }
         }
 

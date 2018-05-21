@@ -251,6 +251,16 @@ public class StateMachineProxyTest {
         }
 
         @Override
+        public void onFollowerStart() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void onFollowerFinish() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void onNodeAdded(String peerId) {
             throw new UnsupportedOperationException();
         }

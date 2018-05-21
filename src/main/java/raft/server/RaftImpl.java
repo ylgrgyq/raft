@@ -770,6 +770,7 @@ public class RaftImpl implements Runnable {
 
         public Context finish() {
             logger.debug("node {} finish leader", RaftImpl.this);
+            stateMachine.onLeaderFinish();
             return cxt;
         }
 
@@ -840,10 +841,12 @@ public class RaftImpl implements Runnable {
         public void start(Context cxt) {
             logger.debug("node {} start follower", RaftImpl.this);
             this.cxt = cxt;
+            stateMachine.onFollowerStart();
         }
 
         public Context finish() {
             logger.debug("node {} finish follower", RaftImpl.this);
+            stateMachine.onFollowerFinish();
             return cxt;
         }
 

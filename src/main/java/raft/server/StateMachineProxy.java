@@ -61,6 +61,16 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
+    public void onFollowerStart() {
+        notify(stateMachine::onFollowerStart);
+    }
+
+    @Override
+    public void onFollowerFinish() {
+        notify(stateMachine::onFollowerFinish);
+    }
+
+    @Override
     public void onShutdown() {
         notify(stateMachine::onShutdown);
     }

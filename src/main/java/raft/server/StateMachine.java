@@ -14,5 +14,7 @@ public interface StateMachine {
     void onNodeRemoved(String peerId);
     void onLeaderStart();
     void onLeaderFinish();
+    void onFollowerStart();
+    void onFollowerFinish();
     void onShutdown();
 }
