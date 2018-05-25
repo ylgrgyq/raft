@@ -20,6 +20,12 @@ message LogEntry {
     EntryType type = 4;
 }
 
+message Snapshot {
+	bytes data = 1;
+	int32 index = 2;
+    int32 term = 3;
+    repeated string peer_ids = 4;
+}
 
 message ConfigChange {
     enum ConfigChangeAction {
