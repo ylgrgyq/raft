@@ -37,12 +37,17 @@ public class MemoryFakePersistentStorage implements PersistentStorage{
     }
 
     @Override
-    public synchronized Optional<Integer> getTerm(int index) {
-        if (index < offset || index > this.getLastIndex()) {
-            return Optional.empty();
+    public synchronized int getTerm(int index){
+        if (index < offset) {
+            throw new LogsCompactedException();
         }
 
-        return Optional.of(logs.get(index - offset).getTerm());
+        int lastIndex = getLastIndex();
+        checkArgument(index <= lastIndex,
+                "index: %s out of bound, lastIndex: %s",
+                index, lastIndex);
+
+        return logs.get(index - offset).getTerm();
     }
 
     @Override
@@ -51,8 +56,12 @@ public class MemoryFakePersistentStorage implements PersistentStorage{
     }
 
     @Override
-    public synchronized List<LogEntry> getEntries(int start, int end) {
-        checkArgument(start >= this.offset && start < end, "invalid start and end: %s %s", start, end);
+    public synchronized List<LogEntry> getEntries(int start, int end){
+        checkArgument(start < end, "invalid start and end: %s %s", start, end);
+
+        if (start < offset) {
+            throw new LogsCompactedException();
+        }
 
         start = start - this.offset;
         end = end - this.offset;
@@ -86,9 +95,9 @@ public class MemoryFakePersistentStorage implements PersistentStorage{
                 "compactIndex: %s should lower than last index: %s",
                 compactIndex, getLastIndex());
 
-        checkArgument(compactIndex >= getFirstIndex(),
-                "compactIndex: %s should greater than first index: %s",
-                compactIndex, getFirstIndex());
+        if (compactIndex < getFirstIndex()) {
+            throw new LogsCompactedException();
+        }
 
         if (compactIndex > offset) {
             // always at least keep last log entry in buffer

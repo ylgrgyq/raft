@@ -33,8 +33,6 @@ public interface RaftLog {
 
     List<LogEntry> tryCommitTo(int commitTo);
 
-    List<LogEntry> getEntriesNeedToApply();
-
     void appliedTo(int appliedTo);
 
     void shutdown();

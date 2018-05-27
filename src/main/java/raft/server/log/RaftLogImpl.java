@@ -61,7 +61,7 @@ public class RaftLogImpl implements RaftLog {
         return buffer.getLastIndex();
     }
 
-    public Optional<Integer> getTerm(int index) {
+    public synchronized Optional<Integer> getTerm(int index){
         if (index < storage.getFirstIndex() || index > getLastIndex()) {
             return Optional.empty();
         }
@@ -70,10 +70,10 @@ public class RaftLogImpl implements RaftLog {
             return Optional.of(buffer.getTerm(index));
         }
 
-        return storage.getTerm(index);
+        return Optional.of(storage.getTerm(index));
     }
 
-    public Optional<LogEntry> getEntry(int index) {
+    public Optional<LogEntry> getEntry(int index){
         List<LogEntry> entries = getEntries(index, index + 1);
 
         if (entries.isEmpty()) {
@@ -83,20 +83,15 @@ public class RaftLogImpl implements RaftLog {
         }
     }
 
-    public List<LogEntry> getEntries(int start, int end) {
+    public synchronized List<LogEntry> getEntries(int start, int end){
         checkArgument(start <= end, "invalid start and end: %s %s", start, end);
 
-        int firstIndex = storage.getFirstIndex();
+        if (start < storage.getFirstIndex()) {
+            throw new LogsCompactedException();
+        }
+
         int lastIndex = getLastIndex();
-        checkArgument(start >= firstIndex,
-                "start index %s out of bound %s",
-                start, firstIndex);
-
-        checkArgument(end <= lastIndex,
-                "end index %s out of bound %s",
-                start, lastIndex);
-
-        if (start == end) {
+        if (start == end || end > lastIndex) {
             return Collections.emptyList();
         }
 
@@ -114,13 +109,13 @@ public class RaftLogImpl implements RaftLog {
         return entries;
     }
 
-    public synchronized CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries) {
+    public CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries) {
         if (entries.size() == 0) {
-            return CompletableFuture.completedFuture(this.getLastIndex());
+            return CompletableFuture.completedFuture(getLastIndex());
         }
 
         final ArrayList<LogEntry> preparedEntries = new ArrayList<>(entries.size());
-        int i = this.getLastIndex();
+        int i = getLastIndex();
         for (LogEntry entry : entries) {
             ++i;
             LogEntry e = LogEntry.newBuilder(entry)
@@ -130,24 +125,26 @@ public class RaftLogImpl implements RaftLog {
             preparedEntries.add(e);
         }
 
-        // add logs to buffer first so we can read these new entries immediately during broadcasting logs to
-        // followers afterwards and don't need to wait them to persistent in storage
-        buffer.append(preparedEntries);
-        return CompletableFuture.supplyAsync(() -> {
-            storage.append(preparedEntries);
-            return this.getLastIndex();
-        }, pool);
+        synchronized(this) {
+            // add logs to buffer first so we can read these new entries immediately during broadcasting logs to
+            // followers afterwards and don't need to wait them to persistent in storage
+            buffer.append(preparedEntries);
+            return CompletableFuture.supplyAsync(() -> {
+                storage.append(preparedEntries);
+                return getLastIndex();
+            }, pool);
+        }
     }
 
     public synchronized int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries) {
-        if (this.match(prevTerm, prevIndex)) {
+        if (match(prevTerm, prevIndex)) {
             int conflictIndex = searchConflict(entries);
             int lastIndex = prevIndex + entries.size();
             if (conflictIndex != 0) {
-                if (conflictIndex <= this.commitIndex) {
+                if (conflictIndex <= commitIndex) {
                     logger.error("try append entries conflict with committed entry on index: {}, " +
                                     "new entry: {}, committed entry: {}",
-                            conflictIndex, entries.get(conflictIndex - prevIndex - 1), this.getEntry(conflictIndex));
+                            conflictIndex, entries.get(conflictIndex - prevIndex - 1), getEntry(conflictIndex));
                     throw new IllegalStateException();
                 }
 
@@ -163,10 +160,10 @@ public class RaftLogImpl implements RaftLog {
 
     private int searchConflict(List<LogEntry> entries) {
         for (LogEntry entry : entries) {
-            if (!this.match(entry.getTerm(), entry.getIndex())) {
-                if (entry.getIndex() <= this.getLastIndex()) {
+            if (!match(entry.getTerm(), entry.getIndex())) {
+                if (entry.getIndex() <= getLastIndex()) {
                     logger.warn("found conflict entry at index {}, existing term: {}, conflicting term: {}",
-                            entry.getIndex(), this.getTerm(entry.getIndex()), entry.getTerm());
+                            entry.getIndex(), getTerm(entry.getIndex()), entry.getTerm());
                 }
                 return entry.getIndex();
             }
@@ -176,13 +173,13 @@ public class RaftLogImpl implements RaftLog {
     }
 
     private boolean match(int term, int index) {
-        Optional<Integer> storedTerm = this.getTerm(index);
+        Optional<Integer> storedTerm = getTerm(index);
 
         return storedTerm.isPresent() && term == storedTerm.get();
     }
 
     public synchronized boolean isUpToDate(int term, int index) {
-        Optional<LogEntry> lastEntryOnServerOpt = this.getEntry(this.getLastIndex());
+        Optional<LogEntry> lastEntryOnServerOpt = getEntry(getLastIndex());
         assert lastEntryOnServerOpt.isPresent();
 
         LogEntry lastEntryOnServer = lastEntryOnServerOpt.get();
@@ -192,36 +189,23 @@ public class RaftLogImpl implements RaftLog {
     }
 
     public synchronized int getCommitIndex() {
-        return this.commitIndex;
+        return commitIndex;
     }
 
     public synchronized int getAppliedIndex() {
-        return this.appliedIndex;
+        return appliedIndex;
     }
 
     public synchronized List<LogEntry> tryCommitTo(int commitTo) {
-        checkArgument(commitTo <= this.getLastIndex(),
-                "try commit to %s but last index in log is %s", commitTo, this.getLastIndex());
-        int oldCommit = this.getCommitIndex();
+        checkArgument(commitTo <= getLastIndex(),
+                "try commit to %s but last index in log is %s", commitTo, getLastIndex());
+        int oldCommit = getCommitIndex();
         if (commitTo > oldCommit) {
-            this.commitIndex = commitTo;
-            return this.getEntries(oldCommit + 1, commitTo + 1);
+            commitIndex = commitTo;
+            return getEntries(oldCommit + 1, commitTo + 1);
         }
 
         return Collections.emptyList();
-    }
-
-    public synchronized List<LogEntry> getEntriesNeedToApply() {
-        int start = this.appliedIndex + 1;
-        int end = this.getCommitIndex() + 1;
-
-        assert start <= end : "start " + start + " end " + end;
-
-        if (start == end) {
-            return Collections.emptyList();
-        } else {
-            return this.getEntries(this.appliedIndex + 1, this.getCommitIndex() + 1);
-        }
     }
 
     public synchronized void appliedTo(int appliedTo) {
@@ -242,7 +226,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return "{" +
                 "commitIndex=" + commitIndex +
                 ", appliedIndex=" + appliedIndex +

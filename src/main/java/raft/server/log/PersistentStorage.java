@@ -23,7 +23,7 @@ public interface PersistentStorage {
      */
     int getLastIndex();
 
-    Optional<Integer> getTerm(int index);
+    int getTerm(int index);
 
     /**
      * Get the index of the first entry in the storage. Please note that the first entry should be retrievable
