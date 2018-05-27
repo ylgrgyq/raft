@@ -3,12 +3,17 @@ package raft.server.log;
 import com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.ThreadFactoryImpl;
 import raft.server.proto.LogEntry;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -18,6 +23,9 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class RaftLogImpl implements RaftLog {
     private static final Logger logger = LoggerFactory.getLogger(RaftLogImpl.class.getName());
+    private static final ThreadFactory defaultThreadFactory = new ThreadFactoryImpl("RaftLogAsyncAppender-");
+    private final ExecutorService pool = Executors.newSingleThreadExecutor(defaultThreadFactory);
+
     static final LogEntry sentinel = LogEntry.newBuilder().setTerm(0).setIndex(0).setData(ByteString.EMPTY).build();
 
     private int commitIndex;
@@ -83,9 +91,9 @@ public class RaftLogImpl implements RaftLog {
         return new ArrayList<>(this.logs.subList(start, Math.min(end, this.logs.size())));
     }
 
-    public synchronized int directAppend(int term, List<LogEntry> entries) {
+    public synchronized CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries) {
         if (entries.size() == 0) {
-            return this.getLastIndex();
+            return CompletableFuture.completedFuture(this.getLastIndex());
         }
 
         int i = this.getLastIndex();
@@ -98,10 +106,15 @@ public class RaftLogImpl implements RaftLog {
             this.logs.add(e);
         }
 
-        return this.getLastIndex();
+        return CompletableFuture.supplyAsync(() -> {
+
+            // 异步的将 entries 写入 storage
+
+            return this.getLastIndex();
+        }, pool);
     }
 
-    public synchronized int tryAppendEntries(int prevIndex, int prevTerm, List<LogEntry> entries) {
+    public synchronized int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries) {
         // entries can be empty when leader just want to update follower's commit index
 
         if (prevIndex < this.offset) {
@@ -214,6 +227,16 @@ public class RaftLogImpl implements RaftLog {
                 "try applied log to %s but applied index in log is %s", appliedTo, appliedIndex);
 
         this.appliedIndex = appliedTo;
+    }
+
+    @Override
+    public void init() {
+
+    }
+
+    @Override
+    public void shutdown() {
+        pool.shutdown();
     }
 
     @Override

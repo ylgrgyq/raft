@@ -6,6 +6,7 @@ import raft.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
 import raft.server.log.RaftLogImpl;
 import raft.server.proto.LogEntry;
+import raft.server.proto.Snapshot;
 
 import java.util.List;
 import java.util.Optional;
@@ -174,6 +175,16 @@ public class StateMachineProxyTest {
 
     static abstract class AbstractTestingRaftLog implements RaftLog {
         @Override
+        public void init() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void shutdown() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public int getLastIndex() {
             throw new UnsupportedOperationException();
         }
@@ -194,12 +205,12 @@ public class StateMachineProxyTest {
         }
 
         @Override
-        public int directAppend(int term, List<LogEntry> entries) {
+        public CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public int tryAppendEntries(int prevIndex, int prevTerm, List<LogEntry> entries) {
+        public int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries) {
             throw new UnsupportedOperationException();
         }
 
@@ -272,6 +283,16 @@ public class StateMachineProxyTest {
 
         @Override
         public void onShutdown() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void saveSnapshot(Snapshot snap) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Snapshot generateSnapshot() {
             throw new UnsupportedOperationException();
         }
     }

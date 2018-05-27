@@ -74,10 +74,10 @@ public class RaftLogImplTest {
     public void testPlainAppend() throws Exception {
         RaftLogImpl log = new RaftLogImpl();
 
-        // directAppend some logs
+        // leaderAsyncAppend some logs
         int logsCount = ThreadLocalRandom.current().nextInt(1, 100);
         List<LogEntry> entries = RaftLogImplTest.newDataList(logsCount);
-        log.directAppend(initTerm, entries);
+        log.leaderAsyncAppend(initTerm, entries);
         assertEquals(logsCount, log.getLastIndex());
 
         // check appended logs
@@ -97,19 +97,19 @@ public class RaftLogImplTest {
     public void testTruncate() throws Exception {
         RaftLogImpl log = new RaftLogImpl();
 
-        // directAppend some logs
+        // leaderAsyncAppend some logs
         int logsCount = ThreadLocalRandom.current().nextInt(1, 100);
         List<LogEntry> entries = RaftLogImplTest.newDataList(logsCount);
-        log.directAppend(initTerm, entries);
+        log.leaderAsyncAppend(initTerm, entries);
         assertEquals(logsCount, log.getLastIndex());
         log.tryCommitTo(logsCount);
 
         log.truncate(logsCount);
 
-        // directAppend more logs
+        // leaderAsyncAppend more logs
         int moreLogsCount = ThreadLocalRandom.current().nextInt(1, 100);
         List<LogEntry> moreEntries = RaftLogImplTest.newDataList(moreLogsCount);
-        log.directAppend(initTerm, moreEntries);
+        log.leaderAsyncAppend(initTerm, moreEntries);
         assertEquals(logsCount + moreLogsCount, log.getLastIndex());
 
         // check appended logs
@@ -131,7 +131,7 @@ public class RaftLogImplTest {
 
         // append some logs
         List<LogEntry> entries = RaftLogImplTest.newDataList(logsCount);
-        log.directAppend(initTerm, entries);
+        log.leaderAsyncAppend(initTerm, entries);
         assertEquals(logsCount, log.getLastIndex());
 
         log.tryCommitTo(commitTo);
@@ -159,7 +159,7 @@ public class RaftLogImplTest {
         RaftLogImpl log = this.createRaftLogWithSomeInitLogs(100, 50);
         int prevIndex = ThreadLocalRandom.current().nextInt(0, 30);
         List<LogEntry> entries = RaftLogImplTest.newLogEntryList(prevIndex + 1, 20);
-//        assertTrue(log.tryAppendEntries(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
+//        assertTrue(log.followerSyncAppend(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
     }
 
     /**
@@ -171,7 +171,7 @@ public class RaftLogImplTest {
         int prevIndex = ThreadLocalRandom.current().nextInt(0, 30);
         List<LogEntry> entries = RaftLogImplTest.newLogEntryList(prevIndex + 1, 55);
         List<LogEntry> logsUnchanged = log.getEntries(prevIndex, log.getLastIndex() + 1);
-//        assertTrue(log.tryAppendEntries(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
+//        assertTrue(log.followerSyncAppend(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
         assertEquals(logsUnchanged, log.getEntries(prevIndex, log.getLastIndex() + 1));
     }
 
@@ -184,7 +184,7 @@ public class RaftLogImplTest {
         int prevIndex = ThreadLocalRandom.current().nextInt(50, 75);
         List<LogEntry> entries = RaftLogImplTest.newLogEntryList(prevIndex + 1, 20);
         List<LogEntry> logsUnchanged = log.getEntries(log.getCommitIndex(), log.getLastIndex() + 1);
-//        assertTrue(log.tryAppendEntries(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
+//        assertTrue(log.followerSyncAppend(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
         assertEquals(logsUnchanged, log.getEntries(log.getCommitIndex(), log.getLastIndex() + 1));
     }
 
@@ -198,7 +198,7 @@ public class RaftLogImplTest {
         List<LogEntry> entries = RaftLogImplTest.newLogEntryList(prevIndex + 1, 100);
         int prevLastIndex = log.getLastIndex();
         List<LogEntry> logsUnchanged = log.getEntries(prevIndex, log.getLastIndex() + 1);
-//        assertTrue(log.tryAppendEntries(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
+//        assertTrue(log.followerSyncAppend(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
         assertLogEntriesEquals(logsUnchanged, log.getEntries(prevIndex, prevLastIndex + 1));
         assertLogEntriesEquals(entries, log.getEntries(prevIndex + 1, log.getLastIndex() + 1));
     }
@@ -214,7 +214,7 @@ public class RaftLogImplTest {
         int prevLastIndex = log.getLastIndex();
         int prevCommitIndex = log.getCommitIndex();
         List<LogEntry> logsUnchanged = log.getEntries(log.getCommitIndex(), log.getLastIndex() + 1);
-//        assertTrue(log.tryAppendEntries(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
+//        assertTrue(log.followerSyncAppend(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
         List<LogEntry> es = log.getEntries(prevCommitIndex, prevLastIndex + 1);
         assertLogEntriesEquals(logsUnchanged, es);
         es = log.getEntries(prevIndex + 1, log.getLastIndex() + 1);
@@ -229,7 +229,7 @@ public class RaftLogImplTest {
         RaftLogImpl log = this.createRaftLogWithSomeInitLogs(100, 50);
         int prevIndex = ThreadLocalRandom.current().nextInt(100, 200);
         List<LogEntry> entries = RaftLogImplTest.newLogEntryList(20);
-//        assertTrue(log.tryAppendEntries(prevIndex, initTerm, prevIndex + entries.size(), entries) == 0);
+//        assertTrue(log.followerSyncAppend(prevIndex, initTerm, prevIndex + entries.size(), entries) == 0);
     }
 
     /**
@@ -241,7 +241,7 @@ public class RaftLogImplTest {
         int prevIndex = ThreadLocalRandom.current().nextInt(0, 30);
         int conflictIndex = ThreadLocalRandom.current().nextInt(prevIndex + 1, 49);
         List<LogEntry> entries = RaftLogImplTest.newLogEntryList(prevIndex + 1, conflictIndex,100);
-//        log.tryAppendEntries(prevIndex, initTerm, prevIndex + entries.size(), entries);
+//        log.followerSyncAppend(prevIndex, initTerm, prevIndex + entries.size(), entries);
     }
 
     /**
@@ -254,7 +254,7 @@ public class RaftLogImplTest {
         int conflictIndex = ThreadLocalRandom.current().nextInt(51, 100);
         List<LogEntry> entries = RaftLogImplTest.newLogEntryList(prevIndex + 1, conflictIndex, 100);
         List<LogEntry> logsUnchanged = log.getEntries(prevIndex, conflictIndex);
-//        assertTrue(log.tryAppendEntries(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
+//        assertTrue(log.followerSyncAppend(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
         assertEquals(logsUnchanged, log.getEntries(prevIndex, conflictIndex));
         List<LogEntry> e1 = entries.subList(conflictIndex - prevIndex - 1, entries.size());
         List<LogEntry> e2 = log.getEntries(conflictIndex, prevIndex + entries.size() + 1);
@@ -273,7 +273,7 @@ public class RaftLogImplTest {
         List<LogEntry> entries = RaftLogImplTest.newLogEntryList(prevIndex + 1, conflictIndex,300);
         int prevLastIndex = log.getLastIndex();
         List<LogEntry> logsUnchanged = log.getEntries(prevIndex, log.getLastIndex() + 1);
-//        assertTrue(log.tryAppendEntries(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
+//        assertTrue(log.followerSyncAppend(prevIndex, initTerm, prevIndex + entries.size(), entries) > 0);
         assertLogEntriesEquals(logsUnchanged, log.getEntries(prevIndex, prevLastIndex + 1));
         assertLogEntriesEquals(entries, log.getEntries(prevIndex + 1, log.getLastIndex() + 1));
     }

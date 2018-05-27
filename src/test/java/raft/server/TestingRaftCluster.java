@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
+import raft.server.proto.Snapshot;
 
 import java.nio.file.Paths;
 import java.util.*;
@@ -185,7 +186,17 @@ class TestingRaftCluster {
         }
 
         @Override
-        public void onLeaderStart() {
+        public void saveSnapshot(Snapshot snap) {
+
+        }
+
+        @Override
+        public Snapshot generateSnapshot() {
+            return null;
+        }
+
+        @Override
+        public void onLeaderStart(int term) {
             isLeader.set(true);
             if (waitLeaderFuture != null) {
                 waitLeaderFuture.complete(null);
@@ -207,7 +218,7 @@ class TestingRaftCluster {
         }
 
         @Override
-        public void onFollowerStart() {
+        public void onFollowerStart(int term, String leaderId) {
             isFollower.set(true);
             if (waitFollowerFuture != null) {
                 waitFollowerFuture.complete(null);

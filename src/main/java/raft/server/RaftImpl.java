@@ -245,6 +245,9 @@ public class RaftImpl implements Runnable {
                 List<RaftCommand> cmds = pollReceivedCmd();
                 long start = System.nanoTime();
                 processCommands(cmds);
+
+
+
                 long now = System.nanoTime();
                 long processCmdTime = now - start;
 
@@ -410,7 +413,17 @@ public class RaftImpl implements Runnable {
                             // fall through
                         case LOG:
                             final int term = meta.getTerm();
-                            raftLog.directAppend(term, proposal.entries);
+                            raftLog.leaderAsyncAppend(term, proposal.entries)
+                                    .whenComplete((lastIndex, err) -> {
+                                        if (err != null) {
+                                            panic("async append logs failed", err);
+                                        } else {
+                                            // it's OK if this node has step-down and surrendered leadership before we
+                                            // update index because we don't use RaftPeerNode on follower or candidate
+                                            RaftPeerNode leaderNode = peerNodes.get(selfId);
+                                            leaderNode.updateIndexes(lastIndex);
+                                        }
+                                    });
                             broadcastAppendEntries();
                             break;
                         case TRANSFER_LEADER:
@@ -538,6 +551,8 @@ public class RaftImpl implements Runnable {
     }
 
     private boolean updateCommit() {
+        assert getState() == State.LEADER;
+
         // kth biggest number
         int k = RaftImpl.this.getQuorum() - 1;
         List<Integer> matchedIndexes = peerNodes.values().stream()
@@ -678,7 +693,7 @@ public class RaftImpl implements Runnable {
         if (state == State.FOLLOWER) {
             try {
                 this.leaderId = leaderId;
-                return raftLog.tryAppendEntries(prevIndex, prevTerm, entries);
+                return raftLog.followerSyncAppend(prevIndex, prevTerm, entries);
             } catch (Exception ex) {
                 logger.error("append entries failed on node {}, leaderId {}, entries {}",
                         this, leaderId, entries, ex);
@@ -709,6 +724,11 @@ public class RaftImpl implements Runnable {
         processNewCommitedLogs(newCommitedLogs);
     }
 
+    private void panic(String reason, Throwable err){
+        logger.error("node {} panic due to {}, shutdown immediately", this, reason, err);
+        shutdown();
+    }
+
     void shutdown() {
         logger.info("shutting down node {} ...", this);
         tickGenerator.shutdown();
@@ -717,6 +737,7 @@ public class RaftImpl implements Runnable {
         broker.shutdown();
         stateMachine.onShutdown();
         stateMachine.shutdown();
+        raftLog.shutdown();
         logger.info("node {} shutdown", this);
     }
 
@@ -751,7 +772,7 @@ public class RaftImpl implements Runnable {
     }
 
     static class Context {
-        boolean receiveTimeoutOnTrasferLeader = false;
+        boolean receiveTimeoutOnTransferLeader = false;
     }
 
     private class Leader extends RaftState {
@@ -874,7 +895,7 @@ public class RaftImpl implements Runnable {
                     break;
                 case TIMEOUT_NOW:
                     if (peerNodes.containsKey(selfId)) {
-                        cxt.receiveTimeoutOnTrasferLeader = true;
+                        cxt.receiveTimeoutOnTransferLeader = true;
                         RaftImpl.this.tryBecomeCandidate();
                     } else {
                         logger.info("node {} receive timeout but it was removed from cluster already. currentPeers: {}",
@@ -907,8 +928,8 @@ public class RaftImpl implements Runnable {
         }
 
         private void startElection() {
-            boolean forceElection = cxt.receiveTimeoutOnTrasferLeader;
-            cxt.receiveTimeoutOnTrasferLeader = false;
+            boolean forceElection = cxt.receiveTimeoutOnTransferLeader;
+            cxt.receiveTimeoutOnTransferLeader = false;
 
             votesGot = new ConcurrentHashMap<>();
             RaftImpl.this.meta.setVotedFor(RaftImpl.this.selfId);

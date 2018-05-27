@@ -1,6 +1,7 @@
 package raft.server;
 
 import raft.server.proto.LogEntry;
+import raft.server.proto.Snapshot;
 
 import java.util.List;
 
@@ -16,5 +17,7 @@ public interface StateMachine {
     void onLeaderFinish();
     void onFollowerStart(int term, String leaderId);
     void onFollowerFinish();
+    void saveSnapshot(Snapshot snap);
+    Snapshot generateSnapshot();
     void onShutdown();
 }

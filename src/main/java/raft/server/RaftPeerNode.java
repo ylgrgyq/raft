@@ -36,7 +36,7 @@ class RaftPeerNode {
     }
 
     void sendAppend(int term) {
-        final int startIndex = this.nextIndex;
+        final int startIndex = getNextIndex();
         final List<LogEntry> entries = serverLog.getEntries(startIndex - 1, startIndex + this.maxEntriesPerAppend);
 
         // entries could contains only one LogEntry when leader just want to update follower's commit index
@@ -61,7 +61,7 @@ class RaftPeerNode {
                 .setType(RaftCommand.CmdType.PING)
                 .setTerm(term)
                 .setLeaderId(raft.getLeaderId())
-                .setLeaderCommit(Math.min(matchIndex, serverLog.getCommitIndex()))
+                .setLeaderCommit(Math.min(getMatchIndex(), serverLog.getCommitIndex()))
                 .setTo(peerId);
         raft.writeOutCommand(msg);
     }
@@ -75,7 +75,14 @@ class RaftPeerNode {
         raft.writeOutCommand(msg);
     }
 
-    boolean updateIndexes(int matchIndex) {
+    // raft main worker thread and leader async append log thread may contend lock to update matchIndex and nextIndex
+
+    /**
+     * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
+     * raft main worker thread and leader async append log thread
+     *
+     */
+    synchronized boolean updateIndexes(int matchIndex) {
         boolean updated = false;
         if (this.matchIndex < matchIndex) {
             this.matchIndex = matchIndex;
@@ -89,7 +96,12 @@ class RaftPeerNode {
         return updated;
     }
 
-    void decreaseIndexAndResendAppend(int term) {
+    /**
+     * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
+     * raft main worker thread and leader async append log thread
+     *
+     */
+    synchronized void decreaseIndexAndResendAppend(int term) {
         nextIndex--;
         if (nextIndex < 1) {
             logger.warn("nextIndex for {} decreased to 1", this.toString());
@@ -99,13 +111,32 @@ class RaftPeerNode {
         sendAppend(term);
     }
 
-    void reset(int nextIndex) {
+    /**
+     * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
+     * raft main worker thread and leader async append log thread
+     *
+     */
+    synchronized void reset(int nextIndex) {
         this.nextIndex = nextIndex;
         this.matchIndex = 0;
     }
 
-    int getMatchIndex() {
+    /**
+     * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
+     * raft main worker thread and leader async append log thread
+     *
+     */
+    synchronized int getMatchIndex() {
         return matchIndex;
+    }
+
+    /**
+     * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
+     * raft main worker thread and leader async append log thread
+     *
+     */
+    private synchronized int getNextIndex() {
+        return nextIndex;
     }
 
     String getPeerId() {
@@ -113,7 +144,7 @@ class RaftPeerNode {
     }
 
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return "RaftPeerNode{" +
                 "peerId='" + peerId + '\'' +
                 ", nextIndex=" + nextIndex +

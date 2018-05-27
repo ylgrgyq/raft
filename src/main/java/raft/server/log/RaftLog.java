@@ -4,12 +4,15 @@ import raft.server.proto.LogEntry;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Author: ylgrgyq
  * Date: 18/5/16
  */
 public interface RaftLog {
+    void init();
+
     int getLastIndex();
 
     Optional<Integer> getTerm(int index);
@@ -18,9 +21,9 @@ public interface RaftLog {
 
     List<LogEntry> getEntries(int start, int end);
 
-    int directAppend(int term, List<LogEntry> entries);
+    CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries);
 
-    int tryAppendEntries(int prevIndex, int prevTerm, List<LogEntry> entries);
+    int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries);
 
     boolean isUpToDate(int term, int index);
 
@@ -33,4 +36,6 @@ public interface RaftLog {
     List<LogEntry> getEntriesNeedToApply();
 
     void appliedTo(int appliedTo);
+
+    void shutdown();
 }

@@ -2,6 +2,7 @@ package raft.server;
 
 import raft.server.log.RaftLog;
 import raft.server.proto.LogEntry;
+import raft.server.proto.Snapshot;
 
 import java.util.List;
 import java.util.Objects;
@@ -63,6 +64,16 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     @Override
     public void onFollowerStart(int term, String leaderId) {
         notify(() -> stateMachine.onFollowerStart(term, leaderId));
+    }
+
+    @Override
+    public void saveSnapshot(Snapshot snap) {
+        stateMachine.saveSnapshot(snap);
+    }
+
+    @Override
+    public Snapshot generateSnapshot() {
+        return stateMachine.generateSnapshot();
     }
 
     @Override
