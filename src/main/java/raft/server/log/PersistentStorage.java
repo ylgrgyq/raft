@@ -21,6 +21,4 @@ public interface PersistentStorage {
     List<LogEntry> getEntries(int start, int end);
 
     void append(List<LogEntry> entries);
-
-    void shutdown();
 }

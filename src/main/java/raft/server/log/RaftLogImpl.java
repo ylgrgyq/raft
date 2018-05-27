@@ -30,6 +30,8 @@ public class RaftLogImpl implements RaftLog {
     private final ExecutorService pool;
     private final PersistentStorage storage;
 
+    private LogsBuffer buffer;
+
     private int commitIndex;
     private int appliedIndex;
 
@@ -42,20 +44,40 @@ public class RaftLogImpl implements RaftLog {
     public void init() {
         storage.init();
 
+        int lastIndex = storage.getLastIndex();
+        List<LogEntry> entries = storage.getEntries(lastIndex, lastIndex + 1);
+        if (entries.isEmpty()) {
+            buffer = new LogsBuffer(sentinel);
+        } else {
+            buffer = new LogsBuffer(entries.get(0));
+        }
+
         int firstIndex = storage.getFirstIndex();
         this.commitIndex = firstIndex;
         this.appliedIndex = firstIndex;
     }
 
     public int getLastIndex() {
+        if (! buffer.isEmpty()) {
+            return buffer.getLastIndex();
+        }
+
         return storage.getLastIndex();
     }
 
     public Optional<Integer> getTerm(int index) {
+        if (index < storage.getFirstIndex() || index > getLastIndex()) {
+            return Optional.empty();
+        }
+
+        if (index >= buffer.getOffsetIndex() && ! buffer.isEmpty()) {
+            return Optional.of(buffer.getTerm(index));
+        }
+
         return storage.getTerm(index);
     }
 
-    public synchronized Optional<LogEntry> getEntry(int index) {
+    public Optional<LogEntry> getEntry(int index) {
         List<LogEntry> entries = getEntries(index, index + 1);
 
         if (entries.isEmpty()) {
@@ -66,7 +88,34 @@ public class RaftLogImpl implements RaftLog {
     }
 
     public List<LogEntry> getEntries(int start, int end) {
-        return storage.getEntries(start, end);
+        checkArgument(start <= end, "invalid start and end: %s %s", start, end);
+
+        int firstIndex = storage.getFirstIndex();
+        int lastIndex = getLastIndex();
+        checkArgument(start >= firstIndex,
+                "start index %s out of bound %s",
+                start, firstIndex);
+
+        checkArgument(end <= lastIndex,
+                "end index %s out of bound %s",
+                start, lastIndex);
+
+        if (start == end) {
+            return Collections.emptyList();
+        }
+
+        List<LogEntry> entries = new ArrayList<>();
+
+        int bufferOffset = buffer.getOffsetIndex();
+        if (start < bufferOffset) {
+            entries.addAll(storage.getEntries(start, Math.min(end, bufferOffset)));
+        }
+
+        if (end > bufferOffset) {
+            entries.addAll(buffer.getEntries(start, end));
+        }
+
+        return entries;
     }
 
     public synchronized CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries) {
@@ -84,6 +133,10 @@ public class RaftLogImpl implements RaftLog {
                     .build();
             preparedEntries.add(e);
         }
+
+        // add logs to buffer first so we can read these new entries immediately during broadcasting logs to
+        // followers afterwards and don't need to wait them to persistent in storage
+        buffer.append(preparedEntries);
 
         return CompletableFuture.supplyAsync(() -> {
             storage.append(preparedEntries);
@@ -103,7 +156,9 @@ public class RaftLogImpl implements RaftLog {
                     throw new IllegalStateException();
                 }
 
-                storage.append(entries.subList(conflictIndex - prevIndex - 1, entries.size()));
+                List<LogEntry> entriesNeedToStore = entries.subList(conflictIndex - prevIndex - 1, entries.size());
+                buffer.append(entriesNeedToStore);
+                storage.append(entriesNeedToStore);
             }
             return lastIndex;
         }
@@ -141,11 +196,11 @@ public class RaftLogImpl implements RaftLog {
                         index >= lastEntryOnServer.getIndex());
     }
 
-    public int getCommitIndex() {
+    public synchronized int getCommitIndex() {
         return this.commitIndex;
     }
 
-    public int getAppliedIndex() {
+    public synchronized int getAppliedIndex() {
         return this.appliedIndex;
     }
 
@@ -183,11 +238,11 @@ public class RaftLogImpl implements RaftLog {
                 "try applied log to %s but applied index in log is %s", appliedTo, appliedIndex);
 
         this.appliedIndex = appliedTo;
+        buffer.truncateBuffer(appliedTo);
     }
 
     @Override
     public void shutdown() {
-        storage.shutdown();
         pool.shutdown();
     }
 

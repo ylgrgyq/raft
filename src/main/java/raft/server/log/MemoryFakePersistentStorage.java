@@ -75,7 +75,7 @@ public class MemoryFakePersistentStorage implements PersistentStorage{
 
     synchronized int truncate(int fromIndex) {
 //        checkArgument(fromIndex >= this.offset && fromIndex <= this.getCommitIndex(),
-//                "invalid truncate from: %s, current offset: %s, current commit index: %s",
+//                "invalid truncateBuffer from: %s, current offset: %s, current commit index: %s",
 //                fromIndex, this.offset, this.getCommitIndex());
 //
 //        logger.info("try truncating logs from {}, offset: {}, commitIndex: {}", fromIndex, this.offset, this.commitIndex);
@@ -87,10 +87,5 @@ public class MemoryFakePersistentStorage implements PersistentStorage{
 //        this.offset = this.getFirstIndex();
 //        return this.getLastIndex();
         return 0;
-    }
-
-    @Override
-    public void shutdown() {
-
     }
 }

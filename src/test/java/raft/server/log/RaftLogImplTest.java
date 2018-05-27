@@ -104,7 +104,7 @@ public class RaftLogImplTest {
         assertEquals(logsCount, log.getLastIndex());
         log.tryCommitTo(logsCount);
 
-        log.truncate(logsCount);
+        log.truncateBuffer(logsCount);
 
         // leaderAsyncAppend more logs
         int moreLogsCount = ThreadLocalRandom.current().nextInt(1, 100);
