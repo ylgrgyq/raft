@@ -1,6 +1,6 @@
-package raft.server.processor;
+package raft.rpc.processor;
 
-import raft.server.rpc.RemotingCommand;
+import raft.rpc.RemotingCommand;
 
 /**
  * Author: ylgrgyq

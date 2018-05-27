@@ -1,4 +1,4 @@
-package raft.server.connections;
+package raft.rpc.connections;
 
 import com.google.common.base.Preconditions;
 import io.netty.bootstrap.Bootstrap;
@@ -12,9 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.Util;
-import raft.server.rpc.PendingRequest;
-import raft.server.rpc.PendingRequestCallback;
-import raft.server.rpc.RemotingCommand;
+import raft.rpc.PendingRequest;
+import raft.rpc.PendingRequestCallback;
+import raft.rpc.RemotingCommand;
 
 import java.net.SocketAddress;
 import java.util.Iterator;

@@ -185,7 +185,7 @@ class TestingRaftCluster {
         }
 
         @Override
-        public void onLeaderStart() {
+        public void onLeaderStart(int term) {
             isLeader.set(true);
             if (waitLeaderFuture != null) {
                 waitLeaderFuture.complete(null);
@@ -207,7 +207,7 @@ class TestingRaftCluster {
         }
 
         @Override
-        public void onFollowerStart() {
+        public void onFollowerStart(int term, String leaderId) {
             isFollower.set(true);
             if (waitFollowerFuture != null) {
                 waitFollowerFuture.complete(null);

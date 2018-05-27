@@ -1,4 +1,4 @@
-package raft.server.rpc;
+package raft.rpc;
 
 import io.netty.buffer.ByteBuf;
 

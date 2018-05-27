@@ -1,8 +1,5 @@
-package raft.server.rpc;
+package raft.rpc;
 
-
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Author: ylgrgyq
