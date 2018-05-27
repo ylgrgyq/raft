@@ -1,6 +1,5 @@
 package raft.server.log;
 
-import com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
@@ -25,8 +24,6 @@ public class RaftLogImpl implements RaftLog {
     private static final Logger logger = LoggerFactory.getLogger(RaftLogImpl.class.getName());
     private static final ThreadFactory defaultThreadFactory = new ThreadFactoryImpl("RaftLogAsyncAppender-");
 
-    static final LogEntry sentinel = LogEntry.newBuilder().setTerm(0).setIndex(0).setData(ByteString.EMPTY).build();
-
     private final ExecutorService pool;
     private final PersistentStorage storage;
 
@@ -47,22 +44,21 @@ public class RaftLogImpl implements RaftLog {
         int lastIndex = storage.getLastIndex();
         List<LogEntry> entries = storage.getEntries(lastIndex, lastIndex + 1);
         if (entries.isEmpty()) {
-            buffer = new LogsBuffer(sentinel);
-        } else {
-            buffer = new LogsBuffer(entries.get(0));
+            String msg = String.format("failed to get LogEntry from persistent storage with " +
+                    "storage last index: %s", lastIndex);
+            throw new IllegalStateException(msg);
         }
 
+        buffer = new LogsBuffer(entries.get(0));
+
         int firstIndex = storage.getFirstIndex();
-        this.commitIndex = firstIndex;
-        this.appliedIndex = firstIndex;
+        this.commitIndex = firstIndex - 1;
+        this.appliedIndex = firstIndex - 1;
     }
 
     public int getLastIndex() {
-        if (! buffer.isEmpty()) {
-            return buffer.getLastIndex();
-        }
-
-        return storage.getLastIndex();
+        // buffer always know the last index
+        return buffer.getLastIndex();
     }
 
     public Optional<Integer> getTerm(int index) {
@@ -70,7 +66,7 @@ public class RaftLogImpl implements RaftLog {
             return Optional.empty();
         }
 
-        if (index >= buffer.getOffsetIndex() && ! buffer.isEmpty()) {
+        if (index >= buffer.getOffsetIndex()) {
             return Optional.of(buffer.getTerm(index));
         }
 
@@ -137,7 +133,6 @@ public class RaftLogImpl implements RaftLog {
         // add logs to buffer first so we can read these new entries immediately during broadcasting logs to
         // followers afterwards and don't need to wait them to persistent in storage
         buffer.append(preparedEntries);
-
         return CompletableFuture.supplyAsync(() -> {
             storage.append(preparedEntries);
             return this.getLastIndex();

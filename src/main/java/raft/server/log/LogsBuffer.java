@@ -23,18 +23,12 @@ class LogsBuffer {
         this.offsetIndex = offsetEntry.getIndex();
     }
 
-    synchronized boolean isEmpty() {
-        return logsBuffer.isEmpty();
-    }
-
     synchronized int getLastIndex() {
-        assert ! isEmpty();
-
         return offsetIndex + logsBuffer.size() - 1;
     }
 
     synchronized int getTerm(int index) {
-        assert index >= offsetIndex && ! logsBuffer.isEmpty();
+        assert index >= offsetIndex && index < logsBuffer.size();
 
         return logsBuffer.get(index - offsetIndex).getTerm();
     }
@@ -71,9 +65,10 @@ class LogsBuffer {
     synchronized void truncateBuffer(int index) {
         logger.debug("try truncating logs from {}, offset: {}", index, offsetIndex);
 
-        if (index > offsetIndex) {
-            assert index < offsetIndex + logsBuffer.size();
+        assert index <= getLastIndex();
 
+        if (index > offsetIndex) {
+            // always at least keep last log entry in buffer
             List<LogEntry> remainLogs = logsBuffer.subList(index - offsetIndex, logsBuffer.size());
             logsBuffer = new ArrayList<>();
             logsBuffer.addAll(remainLogs);

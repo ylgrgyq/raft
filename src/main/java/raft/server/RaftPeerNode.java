@@ -8,6 +8,7 @@ import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Author: ylgrgyq
@@ -37,20 +38,19 @@ class RaftPeerNode {
 
     void sendAppend(int term) {
         final int startIndex = getNextIndex();
-        final List<LogEntry> entries = serverLog.getEntries(startIndex - 1, startIndex + this.maxEntriesPerAppend);
+        final Optional<Integer> prevTerm = serverLog.getTerm(startIndex - 1);
+        final List<LogEntry> entries = serverLog.getEntries(startIndex, startIndex + this.maxEntriesPerAppend);
 
-        // entries could contains only one LogEntry when leader just want to update follower's commit index
-        assert entries.size() > 0;
-
-        final LogEntry prev = entries.get(0);
+        //TODO currently we suppose we can get prevTerm, but we need to fix this when we have snapshot
+        assert prevTerm.isPresent();
 
         RaftCommand.Builder msg = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.APPEND_ENTRIES)
                 .setTerm(term)
                 .setLeaderId(this.raft.getLeaderId())
                 .setLeaderCommit(serverLog.getCommitIndex())
-                .setPrevLogIndex(prev.getIndex())
-                .setPrevLogTerm(prev.getTerm())
+                .setPrevLogIndex(startIndex - 1)
+                .setPrevLogTerm(prevTerm.get())
                 .addAllEntries(entries.subList(1, entries.size()))
                 .setTo(peerId);
         raft.writeOutCommand(msg);
