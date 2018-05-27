@@ -2,6 +2,8 @@ package raft.server;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import raft.server.log.MemoryFakePersistentStorage;
+import raft.server.log.PersistentStorage;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -21,6 +23,7 @@ public class Config {
     final String persistentStateFileDirPath;
     final StateMachine stateMachine;
     final RaftCommandBroker broker;
+    final PersistentStorage storage;
 
     private Config(ConfigBuilder builder) {
         this.tickIntervalMs = builder.tickIntervalMs;
@@ -32,6 +35,7 @@ public class Config {
         this.persistentStateFileDirPath = builder.persistentStateFileDirPath;
         this.stateMachine = builder.stateMachine;
         this.broker = builder.broker;
+        this.storage = builder.storage;
     }
 
     public static ConfigBuilder newBuilder() {
@@ -49,6 +53,7 @@ public class Config {
         private RaftCommandBroker broker;
         private String persistentStateFileDirPath;
         private String selfId;
+        private PersistentStorage storage;
 
         public ConfigBuilder withSelfID(String selfId) {
             this.selfId = selfId;
@@ -96,6 +101,11 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder withPersistentStorage(PersistentStorage storage) {
+            this.storage = storage;
+            return this;
+        }
+
         public Config build() {
             Preconditions.checkArgument(! Strings.isNullOrEmpty(selfId), "Must provide non-empty self Id");
             Preconditions.checkArgument(! Strings.isNullOrEmpty(persistentStateFileDirPath),
@@ -105,6 +115,10 @@ public class Config {
 
             if (peers.stream().noneMatch(p -> p.equals(selfId))) {
                 peers.add(selfId);
+            }
+
+            if (storage == null) {
+                storage = new MemoryFakePersistentStorage();
             }
 
             return new Config(this);

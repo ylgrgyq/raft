@@ -24,53 +24,35 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class RaftLogImpl implements RaftLog {
     private static final Logger logger = LoggerFactory.getLogger(RaftLogImpl.class.getName());
     private static final ThreadFactory defaultThreadFactory = new ThreadFactoryImpl("RaftLogAsyncAppender-");
-    private final ExecutorService pool = Executors.newSingleThreadExecutor(defaultThreadFactory);
 
     static final LogEntry sentinel = LogEntry.newBuilder().setTerm(0).setIndex(0).setData(ByteString.EMPTY).build();
 
+    private final ExecutorService pool;
+    private final PersistentStorage storage;
+
     private int commitIndex;
     private int appliedIndex;
-    private int offset;
 
-    // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
-    private List<LogEntry> logs = new ArrayList<>();
+    public RaftLogImpl(PersistentStorage storage) {
+        this.storage = storage;
+        this.pool = Executors.newSingleThreadExecutor(defaultThreadFactory);
+    }
 
-    public RaftLogImpl() {
-        this.logs.add(sentinel);
-        this.offset = this.getFirstIndex();
-        this.commitIndex = this.offset;
-        this.appliedIndex = this.offset;
+    @Override
+    public void init() {
+        storage.init();
+
+        int firstIndex = storage.getFirstIndex();
+        this.commitIndex = firstIndex;
+        this.appliedIndex = firstIndex;
     }
 
     public int getLastIndex() {
-        return this.offset + this.logs.size() - 1;
+        return storage.getLastIndex();
     }
 
     public Optional<Integer> getTerm(int index) {
-        if (index < this.offset || index > this.getLastIndex()) {
-            return Optional.empty();
-        }
-
-        return Optional.of(this.logs.get(index - this.offset).getTerm());
-    }
-
-    private int getFirstIndex() {
-        return this.logs.get(0).getIndex();
-    }
-
-    synchronized int truncate(int fromIndex) {
-        checkArgument(fromIndex >= this.offset && fromIndex <= this.getCommitIndex(),
-                "invalid truncate from: %s, current offset: %s, current commit index: %s",
-                fromIndex, this.offset, this.getCommitIndex());
-
-        logger.info("try truncating logs from {}, offset: {}, commitIndex: {}", fromIndex, this.offset, this.commitIndex);
-
-        List<LogEntry> remainLogs = this.getEntries(fromIndex, this.getLastIndex() + 1);
-        this.logs = new ArrayList<>();
-        this.logs.addAll(remainLogs);
-        assert !logs.isEmpty();
-        this.offset = this.getFirstIndex();
-        return this.getLastIndex();
+        return storage.getTerm(index);
     }
 
     public synchronized Optional<LogEntry> getEntry(int index) {
@@ -83,12 +65,8 @@ public class RaftLogImpl implements RaftLog {
         }
     }
 
-    public synchronized List<LogEntry> getEntries(int start, int end) {
-        checkArgument(start >= this.offset && start < end, "invalid start and end: %s %s", start, end);
-
-        start = start - this.offset;
-        end = end - this.offset;
-        return new ArrayList<>(this.logs.subList(start, Math.min(end, this.logs.size())));
+    public List<LogEntry> getEntries(int start, int end) {
+        return storage.getEntries(start, end);
     }
 
     public synchronized CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries) {
@@ -96,6 +74,7 @@ public class RaftLogImpl implements RaftLog {
             return CompletableFuture.completedFuture(this.getLastIndex());
         }
 
+        final ArrayList<LogEntry> preparedEntries = new ArrayList<>(entries.size());
         int i = this.getLastIndex();
         for (LogEntry entry : entries) {
             ++i;
@@ -103,34 +82,18 @@ public class RaftLogImpl implements RaftLog {
                     .setIndex(i)
                     .setTerm(term)
                     .build();
-            this.logs.add(e);
+            preparedEntries.add(e);
         }
 
         return CompletableFuture.supplyAsync(() -> {
-
-            // 异步的将 entries 写入 storage
-
+            storage.append(preparedEntries);
             return this.getLastIndex();
         }, pool);
     }
 
     public synchronized int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries) {
-        // entries can be empty when leader just want to update follower's commit index
-
-        if (prevIndex < this.offset) {
-            logger.warn("try append entries with truncated prevIndex: {}. " +
-                            "prevTerm: {}, current offset: {}",
-                    prevIndex, prevTerm, this.offset);
-            return 0;
-        } else if (prevIndex > this.getLastIndex()) {
-            logger.warn("try append entries with out of range prevIndex: {}. " +
-                            "prevTerm: {}, current lastIndex: {}",
-                    prevIndex, prevTerm, this.getLastIndex());
-            return 0;
-        }
-
         if (this.match(prevTerm, prevIndex)) {
-            int conflictIndex = this.searchConflict(entries);
+            int conflictIndex = searchConflict(entries);
             int lastIndex = prevIndex + entries.size();
             if (conflictIndex != 0) {
                 if (conflictIndex <= this.commitIndex) {
@@ -140,14 +103,7 @@ public class RaftLogImpl implements RaftLog {
                     throw new IllegalStateException();
                 }
 
-                for (LogEntry e : entries.subList(conflictIndex - prevIndex - 1, entries.size())) {
-                    int index = e.getIndex() - this.offset;
-                    if (index >= this.logs.size()) {
-                        this.logs.add(e);
-                    } else {
-                        this.logs.set(index, e);
-                    }
-                }
+                storage.append(entries.subList(conflictIndex - prevIndex - 1, entries.size()));
             }
             return lastIndex;
         }
@@ -230,12 +186,8 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public void init() {
-
-    }
-
-    @Override
     public void shutdown() {
+        storage.shutdown();
         pool.shutdown();
     }
 
@@ -244,7 +196,6 @@ public class RaftLogImpl implements RaftLog {
         return "{" +
                 "commitIndex=" + commitIndex +
                 ", appliedIndex=" + appliedIndex +
-                ", offset=" + offset +
                 '}';
     }
 }

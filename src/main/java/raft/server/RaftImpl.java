@@ -63,7 +63,7 @@ public class RaftImpl implements Runnable {
         Preconditions.checkNotNull(c);
 
         this.workerThread = new Thread(this);
-        this.raftLog = new RaftLogImpl();
+        this.raftLog = new RaftLogImpl(c.storage);
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
         this.selfId = c.selfId;
@@ -86,6 +86,8 @@ public class RaftImpl implements Runnable {
     void start() {
         meta.init();
         reset(meta.getTerm());
+
+        raftLog.init();
 
         tickGenerator.scheduleWithFixedDelay(() -> {
             boolean wakeup = false;
@@ -418,7 +420,7 @@ public class RaftImpl implements Runnable {
                                         if (err != null) {
                                             panic("async append logs failed", err);
                                         } else {
-                                            // it's OK if this node has step-down and surrendered leadership before we
+                                            // it's OK if this node has stepped-down and surrendered leadership before we
                                             // update index because we don't use RaftPeerNode on follower or candidate
                                             RaftPeerNode leaderNode = peerNodes.get(selfId);
                                             leaderNode.updateIndexes(lastIndex);
