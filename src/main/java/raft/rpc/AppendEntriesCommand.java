@@ -1,14 +1,4 @@
-package raft.server.rpc;
-
-import com.google.common.base.Preconditions;
-import raft.server.proto.LogEntry;
-
-
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.IntStream;
+package raft.rpc;
 
 /**
  * Author: ylgrgyq

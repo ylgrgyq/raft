@@ -1,4 +1,4 @@
-package raft.server.connections;
+package raft.rpc.connections;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -7,7 +7,7 @@ import io.netty.handler.codec.MessageToByteEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.Util;
-import raft.server.rpc.RemotingCommand;
+import raft.rpc.RemotingCommand;
 
 /**
  * Author: ylgrgyq
