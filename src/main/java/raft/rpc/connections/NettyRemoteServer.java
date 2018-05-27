@@ -1,4 +1,4 @@
-package raft.server.connections;
+package raft.rpc.connections;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
@@ -8,10 +8,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.Pair;
 import raft.Util;
-import raft.server.processor.Processor;
-import raft.server.rpc.CommandCode;
-import raft.server.rpc.RemotingCommand;
-import raft.server.rpc.RemotingCommandType;
+import raft.rpc.processor.Processor;
+import raft.rpc.CommandCode;
+import raft.rpc.RemotingCommand;
+import raft.rpc.RemotingCommandType;
 
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;

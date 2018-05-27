@@ -1,4 +1,4 @@
-package raft.server.rpc;
+package raft.rpc;
 
 /**
  * Author: ylgrgyq

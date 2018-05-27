@@ -1,4 +1,4 @@
-package raft.server.rpc;
+package raft.rpc;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
