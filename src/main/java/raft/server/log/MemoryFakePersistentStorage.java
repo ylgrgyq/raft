@@ -90,23 +90,23 @@ public class MemoryFakePersistentStorage implements PersistentStorage{
         }
     }
 
-    public synchronized void compact(int compactIndex) {
-        checkArgument(compactIndex <= getLastIndex(),
+    public synchronized void compact(int toIndex) {
+        checkArgument(toIndex <= getLastIndex(),
                 "compactIndex: %s should lower than last index: %s",
-                compactIndex, getLastIndex());
+                toIndex, getLastIndex());
 
-        if (compactIndex < getFirstIndex()) {
+        if (toIndex < getFirstIndex()) {
             throw new LogsCompactedException();
         }
 
-        if (compactIndex > offset) {
+        if (toIndex > offset) {
             // always at least keep last log entry in buffer
-            List<LogEntry> remainLogs = logs.subList(compactIndex - offset, logs.size());
+            List<LogEntry> remainLogs = logs.subList(toIndex - offset, logs.size());
             logs = new ArrayList<>();
             logs.addAll(remainLogs);
 
 
-            offset = compactIndex;
+            offset = toIndex;
         }
     }
 }

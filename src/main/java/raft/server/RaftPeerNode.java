@@ -120,7 +120,7 @@ class RaftPeerNode {
     }
 
     /**
-     * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
+     * synchronized mark is used to protect matchIndex and nextIndex which may be contended between
      * raft main worker thread and leader async append log thread
      */
     synchronized void decreaseIndexAndResendAppend(int term) {
@@ -134,7 +134,7 @@ class RaftPeerNode {
     }
 
     /**
-     * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
+     * synchronized mark is used to protect matchIndex and nextIndex which may be contended between
      * raft main worker thread and leader async append log thread
      */
     synchronized void reset(int nextIndex) {
@@ -143,7 +143,7 @@ class RaftPeerNode {
     }
 
     /**
-     * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
+     * synchronized mark is used to protect matchIndex and nextIndex which may be contended between
      * raft main worker thread and leader async append log thread
      */
     synchronized int getMatchIndex() {
@@ -151,7 +151,7 @@ class RaftPeerNode {
     }
 
     /**
-     * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
+     * synchronized mark is used to protect matchIndex and nextIndex which may be contended between
      * raft main worker thread and leader async append log thread
      */
     private synchronized int getNextIndex() {

@@ -86,7 +86,7 @@ public class RaftLogImpl implements RaftLog {
             return Optional.of(buffer.getTerm(index));
         }
 
-        if (index == recentSnapshotIndex) {
+        if (recentSnapshotIndex > 0 && index == recentSnapshotIndex) {
             return Optional.of(recentSnapshotTerm);
         }
 
