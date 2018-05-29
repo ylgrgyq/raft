@@ -736,24 +736,30 @@ public class RaftImpl implements Runnable {
                 .setSuccess(true);
 
         // apply snapshot
-        if (applySnapshot(cmd.getSnapshot())) {
+        if (tryApplySnapshot(cmd.getSnapshot())) {
+            logger.info("node {} install snapshot success, update matching index to {}", this, raftLog.getLastIndex());
             resp.setMatchIndex(raftLog.getLastIndex());
         } else {
+            logger.info("node {} install snapshot failed, update matching index to {}", this, raftLog.getCommitIndex());
             resp.setMatchIndex(raftLog.getCommitIndex());
         }
 
         writeOutCommand(resp);
     }
 
-    private boolean applySnapshot(Snapshot snapshot) {
+    private boolean tryApplySnapshot(Snapshot snapshot) {
         if (snapshot.getIndex() <= raftLog.getCommitIndex()) {
             return false;
         }
 
         if (raftLog.match(snapshot.getIndex(), snapshot.getTerm())){
+            logger.info("node {} fast forward commit index to {} due to receive snapshot", this, snapshot.getIndex());
             tryCommitTo(snapshot.getIndex());
             return false;
         }
+
+        logger.info("node {} installing snapshot with index {}, term {}, peerIds {}",
+                this, snapshot.getIndex(), snapshot.getTerm(), snapshot.getPeerIdsList());
 
         raftLog.installSnapshot(snapshot);
         stateMachine.installSnapshot(snapshot);

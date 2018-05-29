@@ -60,13 +60,21 @@ public class RaftLogImpl implements RaftLog {
         this.appliedIndex = firstIndex - 1;
     }
 
+    private int getFirstIndex() {
+        if (recentSnapshotIndex > 0) {
+            return recentSnapshotIndex;
+        }
+
+        return storage.getFirstIndex();
+    }
+
     public int getLastIndex() {
         // buffer always know the last index
-        return buffer.getLastIndex();
+        return Math.max(buffer.getLastIndex(), recentSnapshotIndex);
     }
 
     public synchronized Optional<Integer> getTerm(int index){
-        if (index < storage.getFirstIndex()) {
+        if (index < getFirstIndex()) {
             throw new LogsCompactedException();
         }
 
@@ -76,6 +84,10 @@ public class RaftLogImpl implements RaftLog {
 
         if (index >= buffer.getOffsetIndex()) {
             return Optional.of(buffer.getTerm(index));
+        }
+
+        if (index == recentSnapshotIndex) {
+            return Optional.of(recentSnapshotTerm);
         }
 
         return Optional.of(storage.getTerm(index));
@@ -94,7 +106,7 @@ public class RaftLogImpl implements RaftLog {
     public synchronized List<LogEntry> getEntries(int start, int end){
         checkArgument(start <= end, "invalid start and end: %s %s", start, end);
 
-        if (start < storage.getFirstIndex()) {
+        if (start < getFirstIndex()) {
             throw new LogsCompactedException();
         }
 
@@ -229,7 +241,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public void installSnapshot(Snapshot snapshot) {
+    public synchronized void installSnapshot(Snapshot snapshot) {
         commitIndex = snapshot.getIndex();
 
         recentSnapshotIndex = snapshot.getIndex();
@@ -237,10 +249,10 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public void applySnapshot(int snapshotIndex) {
+    public synchronized void applySnapshot(int snapshotIndex) {
         if (recentSnapshotIndex == snapshotIndex) {
-            recentSnapshotIndex = 0;
-            recentSnapshotTerm = 0;
+            recentSnapshotIndex = -1;
+            recentSnapshotTerm = -1;
         }
     }
 
@@ -254,7 +266,7 @@ public class RaftLogImpl implements RaftLog {
         return "{" +
                 "commitIndex=" + commitIndex +
                 ", appliedIndex=" + appliedIndex +
-                ", firstIndex=" + storage.getFirstIndex() +
+                ", firstIndex=" + getFirstIndex() +
                 ", lastIndex=" + getLastIndex() +
                 '}';
     }
