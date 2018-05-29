@@ -186,12 +186,12 @@ class TestingRaftCluster {
         }
 
         @Override
-        public void saveSnapshot(Snapshot snap) {
+        public void installSnapshot(Snapshot snap) {
 
         }
 
         @Override
-        public Snapshot generateSnapshot() {
+        public Snapshot getRecentSnapshot() {
             return null;
         }
 

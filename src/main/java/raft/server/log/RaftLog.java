@@ -1,6 +1,7 @@
 package raft.server.log;
 
 import raft.server.proto.LogEntry;
+import raft.server.proto.Snapshot;
 
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +22,8 @@ public interface RaftLog {
 
     List<LogEntry> getEntries(int start, int end);
 
+    boolean match(int term, int index);
+
     CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries);
 
     int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries);
@@ -34,6 +37,10 @@ public interface RaftLog {
     List<LogEntry> tryCommitTo(int commitTo);
 
     void appliedTo(int appliedTo);
+
+    void installSnapshot(Snapshot snapshot);
+
+    void applySnapshot(int snapshotIndex);
 
     void shutdown();
 }

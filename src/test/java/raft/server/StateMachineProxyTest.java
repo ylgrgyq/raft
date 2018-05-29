@@ -153,11 +153,6 @@ public class StateMachineProxyTest {
 
         RaftLog raftLog = new AbstractTestingRaftLog() {
             @Override
-            public List<LogEntry> getEntriesNeedToApply() {
-                return originMsgs;
-            }
-
-            @Override
             public void appliedTo(int appliedTo) {
                 assertEquals(configAtLast.getIndex(), appliedTo);
                 appliedCalled.countDown();
@@ -235,11 +230,6 @@ public class StateMachineProxyTest {
         }
 
         @Override
-        public List<LogEntry> getEntriesNeedToApply() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void appliedTo(int appliedTo) {
             throw new UnsupportedOperationException();
         }
@@ -287,12 +277,12 @@ public class StateMachineProxyTest {
         }
 
         @Override
-        public void saveSnapshot(Snapshot snap) {
+        public void installSnapshot(Snapshot snap) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Snapshot generateSnapshot() {
+        public Optional<Snapshot> getRecentSnapshot() {
             throw new UnsupportedOperationException();
         }
     }

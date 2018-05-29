@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.server.proto.LogEntry;
+import raft.server.proto.Snapshot;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +32,9 @@ public class RaftLogImpl implements RaftLog {
 
     private int commitIndex;
     private int appliedIndex;
+
+    private int recentSnapshotIndex;
+    private int recentSnapshotTerm;
 
     public RaftLogImpl(PersistentStorage storage) {
         this.storage = storage;
@@ -62,7 +66,11 @@ public class RaftLogImpl implements RaftLog {
     }
 
     public synchronized Optional<Integer> getTerm(int index){
-        if (index < storage.getFirstIndex() || index > getLastIndex()) {
+        if (index < storage.getFirstIndex()) {
+            throw new LogsCompactedException();
+        }
+
+        if (index > getLastIndex()) {
             return Optional.empty();
         }
 
@@ -172,7 +180,7 @@ public class RaftLogImpl implements RaftLog {
         return 0;
     }
 
-    private boolean match(int term, int index) {
+    public boolean match(int term, int index) {
         Optional<Integer> storedTerm = getTerm(index);
 
         return storedTerm.isPresent() && term == storedTerm.get();
@@ -221,6 +229,22 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
+    public void installSnapshot(Snapshot snapshot) {
+        commitIndex = snapshot.getIndex();
+
+        recentSnapshotIndex = snapshot.getIndex();
+        recentSnapshotTerm = snapshot.getTerm();
+    }
+
+    @Override
+    public void applySnapshot(int snapshotIndex) {
+        if (recentSnapshotIndex == snapshotIndex) {
+            recentSnapshotIndex = 0;
+            recentSnapshotTerm = 0;
+        }
+    }
+
+    @Override
     public void shutdown() {
         pool.shutdown();
     }
@@ -230,6 +254,8 @@ public class RaftLogImpl implements RaftLog {
         return "{" +
                 "commitIndex=" + commitIndex +
                 ", appliedIndex=" + appliedIndex +
+                ", firstIndex=" + storage.getFirstIndex() +
+                ", lastIndex=" + getLastIndex() +
                 '}';
     }
 }

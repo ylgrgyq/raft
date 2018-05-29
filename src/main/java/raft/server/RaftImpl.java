@@ -11,11 +11,9 @@ import raft.server.log.RaftLogImpl;
 import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
+import raft.server.proto.Snapshot;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -145,6 +143,10 @@ public class RaftImpl implements Runnable {
 
     String getSelfId() {
         return selfId;
+    }
+
+    Optional<Snapshot> getRecentSnapshot(int expectIndex) {
+        return stateMachine.getRecentSnapshot(expectIndex);
     }
 
     // FIXME state may change during getting status
@@ -726,6 +728,57 @@ public class RaftImpl implements Runnable {
         processNewCommitedLogs(newCommitedLogs);
     }
 
+    private void processSnapshot(RaftCommand cmd) {
+        RaftCommand.Builder resp = RaftCommand.newBuilder()
+                .setType(RaftCommand.CmdType.APPEND_ENTRIES_RESP)
+                .setTo(cmd.getFrom())
+                .setTerm(meta.getTerm())
+                .setSuccess(true);
+
+        // apply snapshot
+        if (applySnapshot(cmd.getSnapshot())) {
+            resp.setMatchIndex(raftLog.getLastIndex());
+        } else {
+            resp.setMatchIndex(raftLog.getCommitIndex());
+        }
+
+        writeOutCommand(resp);
+    }
+
+    private boolean applySnapshot(Snapshot snapshot) {
+        if (snapshot.getIndex() <= raftLog.getCommitIndex()) {
+            return false;
+        }
+
+        if (raftLog.match(snapshot.getIndex(), snapshot.getTerm())){
+            tryCommitTo(snapshot.getIndex());
+            return false;
+        }
+
+        raftLog.installSnapshot(snapshot);
+        stateMachine.installSnapshot(snapshot);
+
+        int lastIndex = raftLog.getLastIndex();
+        Set<String> remainPeerIds = new HashSet<>();
+        remainPeerIds.addAll(peerNodes.keySet());
+
+        for (String peerId : snapshot.getPeerIdsList()) {
+            RaftPeerNode node = new RaftPeerNode(peerId, this, this.raftLog, lastIndex + 1,
+                    RaftImpl.this.maxEntriesPerAppend);
+            if (peerId.equals(selfId)) {
+                node.updateIndexes(lastIndex - 1);
+            }
+            peerNodes.put(peerId, node);
+            remainPeerIds.remove(peerId);
+        }
+
+        for (String id : remainPeerIds) {
+            peerNodes.remove(id);
+        }
+
+        return true;
+    }
+
     private void panic(String reason, Throwable err){
         logger.error("node {} panic due to {}, shutdown immediately", this, reason, err);
         shutdown();
@@ -895,6 +948,11 @@ public class RaftImpl implements Runnable {
                     RaftImpl.this.leaderId = cmd.getFrom();
                     RaftImpl.this.processHeartbeat(cmd);
                     break;
+                case SNAPSHOT:
+                    RaftImpl.this.clearTickCounters();
+                    RaftImpl.this.leaderId = cmd.getFrom();
+                    RaftImpl.this.processSnapshot(cmd);
+                    break;
                 case TIMEOUT_NOW:
                     if (peerNodes.containsKey(selfId)) {
                         cxt.receiveTimeoutOnTransferLeader = true;
@@ -994,6 +1052,10 @@ public class RaftImpl implements Runnable {
                 case PING:
                     RaftImpl.this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
                     RaftImpl.this.processHeartbeat(cmd);
+                    break;
+                case SNAPSHOT:
+                    RaftImpl.this.tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
+                    RaftImpl.this.processSnapshot(cmd);
                     break;
                 default:
                     logger.warn("node {} received unexpected command {}", RaftImpl.this, cmd);

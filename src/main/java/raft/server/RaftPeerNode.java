@@ -2,10 +2,11 @@ package raft.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.server.log.LogsCompactedException;
 import raft.server.log.RaftLog;
-import raft.server.log.RaftLogImpl;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
+import raft.server.proto.Snapshot;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,7 +20,7 @@ class RaftPeerNode {
 
     private final String peerId;
     private final RaftImpl raft;
-    private final RaftLog serverLog;
+    private final RaftLog raftLog;
 
     // index of the next log entry to send to that raft (initialized to leader last log index + 1)
     private int nextIndex;
@@ -32,28 +33,51 @@ class RaftPeerNode {
         this.nextIndex = nextIndex;
         this.matchIndex = 0;
         this.raft = raft;
-        this.serverLog = log;
+        this.raftLog = log;
         this.maxEntriesPerAppend = maxEntriesPerAppend;
     }
 
     void sendAppend(int term) {
         final int startIndex = getNextIndex();
-        final Optional<Integer> prevTerm = serverLog.getTerm(startIndex - 1);
-        final List<LogEntry> entries = serverLog.getEntries(startIndex, startIndex + this.maxEntriesPerAppend);
-
-        //TODO currently we suppose we can get prevTerm, but we need to fix this when we have snapshot
-        assert prevTerm.isPresent();
-
-        RaftCommand.Builder msg = RaftCommand.newBuilder()
-                .setType(RaftCommand.CmdType.APPEND_ENTRIES)
+        boolean compacted = false;
+        Optional<Integer> prevTerm;
+        RaftCommand.Builder msgBuilder = RaftCommand.newBuilder()
+                .setLeaderId(raft.getLeaderId())
+                .setLeaderCommit(raftLog.getCommitIndex())
                 .setTerm(term)
-                .setLeaderId(this.raft.getLeaderId())
-                .setLeaderCommit(serverLog.getCommitIndex())
-                .setPrevLogIndex(startIndex - 1)
-                .setPrevLogTerm(prevTerm.get())
-                .addAllEntries(entries.subList(1, entries.size()))
                 .setTo(peerId);
-        raft.writeOutCommand(msg);
+
+        try {
+            prevTerm = raftLog.getTerm(startIndex - 1);
+        } catch (LogsCompactedException ex) {
+            compacted = true;
+            prevTerm = Optional.empty();
+        }
+
+        if (compacted) {
+            Optional<Snapshot> snapshot = raft.getRecentSnapshot(startIndex - 1);
+            if (snapshot.isPresent()) {
+                Snapshot s = snapshot.get();
+                logger.info("prepare to send snapshot with index: {} term: {} to {}", s.getIndex(), s.getTerm(), this);
+                msgBuilder.setType(RaftCommand.CmdType.SNAPSHOT).setSnapshot(snapshot.get());
+            } else {
+                logger.warn("snapshot on {} is not ready, skip append to {}", raft.getSelfId(), this);
+                return;
+            }
+        } else {
+            if (!prevTerm.isPresent()) {
+                String m = String.format("get term for index: %s from log: %s failed", startIndex - 1, raftLog);
+                throw new IllegalStateException(m);
+            }
+
+            List<LogEntry> entries = raftLog.getEntries(startIndex, startIndex + this.maxEntriesPerAppend);
+            msgBuilder.setType(RaftCommand.CmdType.APPEND_ENTRIES)
+                    .setPrevLogIndex(startIndex - 1)
+                    .setPrevLogTerm(prevTerm.get())
+                    .addAllEntries(entries.subList(1, entries.size()));
+        }
+
+        raft.writeOutCommand(msgBuilder);
     }
 
     void sendPing(int term) {
@@ -61,7 +85,7 @@ class RaftPeerNode {
                 .setType(RaftCommand.CmdType.PING)
                 .setTerm(term)
                 .setLeaderId(raft.getLeaderId())
-                .setLeaderCommit(Math.min(getMatchIndex(), serverLog.getCommitIndex()))
+                .setLeaderCommit(Math.min(getMatchIndex(), raftLog.getCommitIndex()))
                 .setTo(peerId);
         raft.writeOutCommand(msg);
     }
@@ -80,7 +104,6 @@ class RaftPeerNode {
     /**
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
      * raft main worker thread and leader async append log thread
-     *
      */
     synchronized boolean updateIndexes(int matchIndex) {
         boolean updated = false;
@@ -99,7 +122,6 @@ class RaftPeerNode {
     /**
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
      * raft main worker thread and leader async append log thread
-     *
      */
     synchronized void decreaseIndexAndResendAppend(int term) {
         nextIndex--;
@@ -107,14 +129,13 @@ class RaftPeerNode {
             logger.warn("nextIndex for {} decreased to 1", this.toString());
             nextIndex = 1;
         }
-        assert nextIndex > matchIndex: "nextIndex: " + nextIndex + " is not greater than matchIndex: " + matchIndex;
+        assert nextIndex > matchIndex : "nextIndex: " + nextIndex + " is not greater than matchIndex: " + matchIndex;
         sendAppend(term);
     }
 
     /**
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
      * raft main worker thread and leader async append log thread
-     *
      */
     synchronized void reset(int nextIndex) {
         this.nextIndex = nextIndex;
@@ -124,7 +145,6 @@ class RaftPeerNode {
     /**
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
      * raft main worker thread and leader async append log thread
-     *
      */
     synchronized int getMatchIndex() {
         return matchIndex;
@@ -133,7 +153,6 @@ class RaftPeerNode {
     /**
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
      * raft main worker thread and leader async append log thread
-     *
      */
     private synchronized int getNextIndex() {
         return nextIndex;

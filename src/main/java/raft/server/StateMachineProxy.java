@@ -6,6 +6,7 @@ import raft.server.proto.Snapshot;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -67,13 +68,16 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
-    public void saveSnapshot(Snapshot snap) {
-        stateMachine.saveSnapshot(snap);
+    public void installSnapshot(Snapshot snap) {
+        notify(() -> {
+            stateMachine.installSnapshot(snap);
+            raftLog.applySnapshot(snap.getIndex());
+        });
     }
 
     @Override
-    public Snapshot generateSnapshot() {
-        return stateMachine.generateSnapshot();
+    public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
+        return stateMachine.getRecentSnapshot(expectIndex);
     }
 
     @Override
