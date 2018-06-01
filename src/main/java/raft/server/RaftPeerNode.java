@@ -31,7 +31,7 @@ class RaftPeerNode {
     RaftPeerNode(String peerId, RaftImpl raft, RaftLog log, int nextIndex, int maxEntriesPerAppend) {
         this.peerId = peerId;
         this.nextIndex = nextIndex;
-        this.matchIndex = 0;
+        this.matchIndex = -1;
         this.raft = raft;
         this.raftLog = log;
         this.maxEntriesPerAppend = maxEntriesPerAppend;
@@ -74,7 +74,7 @@ class RaftPeerNode {
             msgBuilder.setType(RaftCommand.CmdType.APPEND_ENTRIES)
                     .setPrevLogIndex(startIndex - 1)
                     .setPrevLogTerm(prevTerm.get())
-                    .addAllEntries(entries.subList(1, entries.size()));
+                    .addAllEntries(entries);
         }
 
         raft.writeOutCommand(msgBuilder);
@@ -139,7 +139,7 @@ class RaftPeerNode {
      */
     synchronized void reset(int nextIndex) {
         this.nextIndex = nextIndex;
-        this.matchIndex = 0;
+        this.matchIndex = -1;
     }
 
     /**

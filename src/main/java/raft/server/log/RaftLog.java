@@ -16,6 +16,8 @@ public interface RaftLog {
 
     int getLastIndex();
 
+    int getFirstIndex();
+
     Optional<Integer> getTerm(int index);
 
     Optional<LogEntry> getEntry(int index);

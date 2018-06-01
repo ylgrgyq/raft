@@ -250,8 +250,6 @@ public class RaftImpl implements Runnable {
                 long start = System.nanoTime();
                 processCommands(cmds);
 
-
-
                 long now = System.nanoTime();
                 long processCmdTime = now - start;
 
@@ -309,6 +307,8 @@ public class RaftImpl implements Runnable {
         // we must set wake up mark to prevent receiving interrupt during block writing persistent state to file
         // because if that happens we will get an unexpected java.nio.channels.ClosedByInterruptException
         wakenUp.getAndSet(true);
+        // clear interrupt mark in case of it has set
+        Thread.interrupted();
 
         int i = 0;
         while (i < 1000 && (cmd = RaftImpl.this.receivedCmdQueue.poll()) != null) {
@@ -463,7 +463,7 @@ public class RaftImpl implements Runnable {
                 error = ErrorMsg.NOT_LEADER;
             }
         } catch (Throwable t) {
-            logger.error("proposeConfigChange failed on node {}", this, t);
+            logger.error("process propose failed on node {}", this, t);
             error = ErrorMsg.INTERNAL_ERROR;
         }
 
@@ -558,20 +558,22 @@ public class RaftImpl implements Runnable {
         assert getState() == State.LEADER;
 
         // kth biggest number
-        int k = RaftImpl.this.getQuorum() - 1;
+        int k = getQuorum() - 1;
         List<Integer> matchedIndexes = peerNodes.values().stream()
                 .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
         int kthMatchedIndexes = matchedIndexes.get(k);
-        Optional<LogEntry> kthLog = RaftImpl.this.raftLog.getEntry(kthMatchedIndexes);
-        if (kthLog.isPresent()) {
-            LogEntry e = kthLog.get();
-            // this is a key point. Raft never commits log entries from previous terms by counting replicas
-            // Only log entries from the leader’s current term are committed by counting replicas; once an entry
-            // from the current term has been committed in this way, then all prior entries are committed
-            // indirectly because of the Log Matching Property
-            if (e.getTerm() == RaftImpl.this.meta.getTerm()) {
-                tryCommitTo(kthMatchedIndexes);
-                return true;
+        if (kthMatchedIndexes >= raftLog.getFirstIndex()) {
+            Optional<LogEntry> kthLog = raftLog.getEntry(kthMatchedIndexes);
+            if (kthLog.isPresent()) {
+                LogEntry e = kthLog.get();
+                // this is a key point. Raft never commits log entries from previous terms by counting replicas
+                // Only log entries from the leader’s current term are committed by counting replicas; once an entry
+                // from the current term has been committed in this way, then all prior entries are committed
+                // indirectly because of the Log Matching Property
+                if (e.getTerm() == meta.getTerm()) {
+                    tryCommitTo(kthMatchedIndexes);
+                    return true;
+                }
             }
         }
         return false;
@@ -579,9 +581,13 @@ public class RaftImpl implements Runnable {
 
     private void broadcastPing() {
         final int selfTerm = meta.getTerm();
-        for (final RaftPeerNode peer : peerNodes.values()) {
-            if (!peer.getPeerId().equals(selfId)) {
-                peer.sendPing(selfTerm);
+        if (peerNodes.size() == 1) {
+            tryCommitTo(raftLog.getLastIndex());
+        } else {
+            for (final RaftPeerNode peer : peerNodes.values()) {
+                if (!peer.getPeerId().equals(selfId)) {
+                    peer.sendPing(selfTerm);
+                }
             }
         }
     }
@@ -677,7 +683,7 @@ public class RaftImpl implements Runnable {
             resp = resp.setMatchIndex(raftLog.getCommitIndex()).setSuccess(true);
         } else {
             int matchIndex = RaftImpl.this.replicateLogsOnFollower(cmd);
-            if (matchIndex != 0) {
+            if (matchIndex != -1) {
                 tryCommitTo(Math.min(cmd.getLeaderCommit(), matchIndex));
 
                 resp.setSuccess(true);
@@ -706,7 +712,7 @@ public class RaftImpl implements Runnable {
             logger.error("append logs failed on node {} due to invalid state: {}", this, state);
         }
 
-        return 0;
+        return -1;
     }
 
     private void processHeartbeat(RaftCommand cmd) {
@@ -721,7 +727,7 @@ public class RaftImpl implements Runnable {
 
     private void tryCommitTo(int commitTo){
         if (logger.isDebugEnabled()) {
-            logger.info("try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
+            logger.debug("try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
                     commitTo, raftLog.getCommitIndex(), raftLog.getLastIndex());
         }
         List<LogEntry> newCommitedLogs = raftLog.tryCommitTo(commitTo);
@@ -1011,20 +1017,21 @@ public class RaftImpl implements Runnable {
             if (votesToWin == 0) {
                 RaftImpl.this.tryBecomeLeader();
             } else {
-                Optional<LogEntry> lastEntry = RaftImpl.this.raftLog.getEntry(RaftImpl.this.raftLog.getLastIndex());
-                assert lastEntry.isPresent();
+                int lastIndex = raftLog.getLastIndex();
+                Optional<Integer> term = raftLog.getTerm(lastIndex);
 
-                LogEntry e = lastEntry.get();
+                assert term.isPresent();
 
-                logger.debug("node {} start election, votesToWin={}", RaftImpl.this, votesToWin);
+                logger.debug("node {} start election, votesToWin={}, lastIndex={}, lastTerm={}",
+                        RaftImpl.this, votesToWin, lastIndex, term.get());
                 for (final RaftPeerNode node : RaftImpl.this.getPeerNodes().values()) {
                     if (!node.getPeerId().equals(RaftImpl.this.selfId)) {
                         RaftCommand vote = RaftCommand.newBuilder()
                                 .setType(RaftCommand.CmdType.REQUEST_VOTE)
                                 .setTerm(candidateTerm)
                                 .setFrom(RaftImpl.this.selfId)
-                                .setLastLogIndex(e.getIndex())
-                                .setLastLogTerm(e.getTerm())
+                                .setLastLogIndex(lastIndex)
+                                .setLastLogTerm(term.get())
                                 .setTo(node.getPeerId())
                                 .setForceElection(forceElection)
                                 .build();

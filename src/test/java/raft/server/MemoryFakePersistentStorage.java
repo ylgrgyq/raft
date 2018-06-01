@@ -1,7 +1,9 @@
-package raft.server.log;
+package raft.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.server.log.LogsCompactedException;
+import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
 
 import java.util.ArrayList;
@@ -14,7 +16,7 @@ import static com.google.common.base.Preconditions.checkArgument;
  * Author: ylgrgyq
  * Date: 18/5/27
  */
-public class MemoryFakePersistentStorage implements PersistentStorage{
+public class MemoryFakePersistentStorage implements PersistentStorage {
     private static final Logger logger = LoggerFactory.getLogger(PersistentStorage.class.getName());
 
     // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)

@@ -2,7 +2,6 @@ package raft.server;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import raft.server.log.MemoryFakePersistentStorage;
 import raft.server.log.PersistentStorage;
 
 import java.util.*;
@@ -112,13 +111,10 @@ public class Config {
                     "Must provide a non-empty directory path to save raft persistent state");
             Preconditions.checkNotNull(stateMachine, "Must provide a state machine implementation");
             Preconditions.checkNotNull(broker, "Must provide a broker to transfer raft command between raft nodes");
+            Preconditions.checkNotNull(storage, "Must provide a storage to save persistent logs");
 
             if (peers.stream().noneMatch(p -> p.equals(selfId))) {
                 peers.add(selfId);
-            }
-
-            if (storage == null) {
-                storage = new MemoryFakePersistentStorage();
             }
 
             return new Config(this);

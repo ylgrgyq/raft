@@ -28,7 +28,8 @@ class LogsBuffer {
     }
 
     synchronized int getTerm(int index) {
-        assert index >= offsetIndex && index < logsBuffer.size();
+        assert index >= offsetIndex && index < offsetIndex + logsBuffer.size() :
+                String.format("index:%s offsetIndex:%s logsBufferSize:%s", index, offsetIndex, logsBuffer.size()) ;
 
         return logsBuffer.get(index - offsetIndex).getTerm();
     }
