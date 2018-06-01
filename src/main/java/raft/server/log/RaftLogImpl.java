@@ -127,7 +127,7 @@ public class RaftLogImpl implements RaftLog {
         }
 
         if (end > bufferOffset) {
-            entries.addAll(buffer.getEntries(Math.max(start, bufferOffset), Math.min(end, buffer.getLastIndex())));
+            entries.addAll(buffer.getEntries(Math.max(start, bufferOffset), Math.min(end, buffer.getLastIndex() + 1)));
         }
 
         return entries;

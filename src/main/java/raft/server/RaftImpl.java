@@ -165,6 +165,8 @@ public class RaftImpl implements Runnable {
     }
 
     CompletableFuture<RaftResponse> proposeData(List<byte[]> entries) {
+        logger.debug("node {} receives proposal with {} entries", this, entries.size());
+
         List<LogEntry> logEntries =
                 entries.stream().map(data ->
                         LogEntry.newBuilder()
@@ -727,8 +729,8 @@ public class RaftImpl implements Runnable {
 
     private void tryCommitTo(int commitTo){
         if (logger.isDebugEnabled()) {
-            logger.debug("try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
-                    commitTo, raftLog.getCommitIndex(), raftLog.getLastIndex());
+            logger.debug("node {} try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
+                    this, commitTo, raftLog.getCommitIndex(), raftLog.getLastIndex());
         }
         List<LogEntry> newCommitedLogs = raftLog.tryCommitTo(commitTo);
         processNewCommitedLogs(newCommitedLogs);

@@ -64,7 +64,7 @@ class LogsBuffer {
     }
 
     synchronized void truncateBuffer(int index) {
-        logger.debug("try truncating logs from {}, offset: {}", index, offsetIndex);
+        logger.debug("try truncating logs from {}, current offset:{}", index, offsetIndex);
 
         assert index <= getLastIndex();
 

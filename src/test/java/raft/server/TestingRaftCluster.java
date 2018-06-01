@@ -45,6 +45,7 @@ class TestingRaftCluster {
                 .withSelfID(selfId)
                 .withRaftCommandBroker(broker)
                 .withStateMachine(stateMachine)
+                .withPersistentStorage(new MemoryFakePersistentStorage())
                 .build();
         return new RaftNode(c);
     }
@@ -120,43 +121,6 @@ class TestingRaftCluster {
         });
     }
 
-    static List<LogEntry> drainAvailableApplied(String peerId) {
-        List<LogEntry> ret = new ArrayList<>();
-
-        TestingRaftStateMachine stateMachine = getStateMachineById(peerId);
-        stateMachine.getApplied().drainTo(ret);
-
-        return Collections.unmodifiableList(ret);
-    }
-
-    static List<LogEntry> waitApplied(String peerId, int atLeastExpect) {
-        return waitApplied(peerId, atLeastExpect, defaultTimeoutMs);
-    }
-
-    static List<LogEntry> waitApplied(String peerId, int atLeastExpect, long timeoutMs) {
-        Preconditions.checkArgument(atLeastExpect >= 0);
-
-        List<LogEntry> ret = new ArrayList<>(atLeastExpect);
-        TestingRaftStateMachine stateMachine = getStateMachineById(peerId);
-        stateMachine.getApplied().drainTo(ret);
-
-        long start = System.nanoTime();
-        long deadline = start + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
-        while (atLeastExpect != 0 && ret.size() < atLeastExpect && System.nanoTime() < deadline) {
-            try {
-                LogEntry e;
-                if ((e = stateMachine.getApplied().poll(timeoutMs, TimeUnit.MILLISECONDS)) != null) {
-                    ret.add(e);
-                    stateMachine.getApplied().drainTo(ret);
-                }
-            } catch (InterruptedException ex) {
-                // ignore
-            }
-        }
-
-        return Collections.unmodifiableList(ret);
-    }
-
     static class TestingRaftStateMachine implements StateMachine {
         private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
         private AtomicBoolean isLeader = new AtomicBoolean(false);
@@ -191,7 +155,7 @@ class TestingRaftCluster {
         }
 
         @Override
-        public Snapshot getRecentSnapshot() {
+        public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
             return null;
         }
 
@@ -274,7 +238,7 @@ class TestingRaftCluster {
         }
 
         List<LogEntry> waitApplied(int atLeastExpect, long timeoutMs) {
-            assert atLeastExpect >= 0 : "actual" + atLeastExpect;
+            assert atLeastExpect >= 0 : "actual " + atLeastExpect;
 
             List<LogEntry> ret = new ArrayList<>(atLeastExpect);
             getApplied().drainTo(ret);
@@ -292,6 +256,14 @@ class TestingRaftCluster {
                     // ignore
                 }
             }
+
+            return Collections.unmodifiableList(ret);
+        }
+
+        List<LogEntry> drainAvailableApplied() {
+            List<LogEntry> ret = new ArrayList<>();
+
+            getApplied().drainTo(ret);
 
             return Collections.unmodifiableList(ret);
         }

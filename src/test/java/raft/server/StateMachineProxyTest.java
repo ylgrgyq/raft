@@ -23,7 +23,7 @@ import static org.junit.Assert.assertTrue;
  * Date: 18/5/10
  */
 public class StateMachineProxyTest {
-    private final RaftLog raftLog = new RaftLogImpl();
+    private final RaftLog raftLog = new RaftLogImpl(new MemoryFakePersistentStorage());
 
     @Test
     public void testNormalCase() throws Exception {
@@ -185,6 +185,11 @@ public class StateMachineProxyTest {
         }
 
         @Override
+        public int getFirstIndex() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Optional<Integer> getTerm(int index) {
             throw new UnsupportedOperationException();
         }
@@ -231,6 +236,21 @@ public class StateMachineProxyTest {
 
         @Override
         public void appliedTo(int appliedTo) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean match(int term, int index) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void installSnapshot(Snapshot snapshot) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void applySnapshot(int snapshotIndex) {
             throw new UnsupportedOperationException();
         }
     }
@@ -282,7 +302,7 @@ public class StateMachineProxyTest {
         }
 
         @Override
-        public Optional<Snapshot> getRecentSnapshot() {
+        public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
             throw new UnsupportedOperationException();
         }
     }

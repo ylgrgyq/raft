@@ -41,7 +41,7 @@ public class MemoryFakePersistentStorage implements PersistentStorage {
     @Override
     public synchronized int getTerm(int index){
         if (index < offset) {
-            throw new LogsCompactedException();
+            throw new LogsCompactedException(index);
         }
 
         int lastIndex = getLastIndex();
@@ -62,7 +62,7 @@ public class MemoryFakePersistentStorage implements PersistentStorage {
         checkArgument(start < end, "invalid start and end: %s %s", start, end);
 
         if (start < offset) {
-            throw new LogsCompactedException();
+            throw new LogsCompactedException(start);
         }
 
         start = start - this.offset;
@@ -98,7 +98,7 @@ public class MemoryFakePersistentStorage implements PersistentStorage {
                 toIndex, getLastIndex());
 
         if (toIndex < getFirstIndex()) {
-            throw new LogsCompactedException();
+            throw new LogsCompactedException(toIndex);
         }
 
         if (toIndex > offset) {
