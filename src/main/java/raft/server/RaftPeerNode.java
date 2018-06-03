@@ -47,7 +47,7 @@ class RaftPeerNode {
                 .setTerm(term)
                 .setTo(peerId);
 
-        logger.debug("send append to {} with logs start from {}", this, startIndex);
+        logger.debug("node {} send append to {} with logs start from {}", raft, this, startIndex);
 
         try {
             prevTerm = raftLog.getTerm(startIndex - 1);

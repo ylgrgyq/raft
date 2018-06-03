@@ -164,20 +164,13 @@ public class RaftImpl implements Runnable {
         return status;
     }
 
-    CompletableFuture<RaftResponse> proposeData(List<byte[]> entries) {
+    CompletableFuture<RaftResponse> proposeData(final List<byte[]> entries) {
         logger.debug("node {} receives proposal with {} entries", this, entries.size());
 
-        List<LogEntry> logEntries =
-                entries.stream().map(data ->
-                        LogEntry.newBuilder()
-                                .setData(ByteString.copyFrom(data))
-                                .setType(LogEntry.EntryType.LOG)
-                                .build())
-                        .collect(Collectors.toList());
-        return doPropose(new Proposal(logEntries, LogEntry.EntryType.LOG));
+        return doPropose(entries, LogEntry.EntryType.LOG);
     }
 
-    CompletableFuture<RaftResponse> proposeConfigChange(String peerId, ConfigChange.ConfigChangeAction action) {
+    CompletableFuture<RaftResponse> proposeConfigChange(final String peerId, final ConfigChange.ConfigChangeAction action) {
         ConfigChange change = ConfigChange.newBuilder()
                 .setAction(action)
                 .setPeerId(peerId)
@@ -185,29 +178,26 @@ public class RaftImpl implements Runnable {
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(change.toByteArray());
-        List<LogEntry> logEntries =
-                data.stream().map(d ->
-                        LogEntry.newBuilder()
-                                .setData(ByteString.copyFrom(d))
-                                .setType(LogEntry.EntryType.CONFIG)
-                                .build()).collect(Collectors.toList());
-        return doPropose(new Proposal(logEntries, LogEntry.EntryType.CONFIG));
+
+        return doPropose(data, LogEntry.EntryType.CONFIG);
     }
 
-    CompletableFuture<RaftResponse> proposeTransferLeader(String transfereeId) {
+    CompletableFuture<RaftResponse> proposeTransferLeader(final String transfereeId) {
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(transfereeId.getBytes());
 
-        List<LogEntry> logEntries =
-                data.stream().map(d ->
-                        LogEntry.newBuilder()
-                                .setData(ByteString.copyFrom(d))
-                                .setType(LogEntry.EntryType.TRANSFER_LEADER)
-                                .build()).collect(Collectors.toList());
-        return doPropose(new Proposal(logEntries, LogEntry.EntryType.TRANSFER_LEADER));
+        return doPropose(data, LogEntry.EntryType.TRANSFER_LEADER);
     }
 
-    private CompletableFuture<RaftResponse> doPropose(Proposal proposal) {
+    private CompletableFuture<RaftResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
+        List<LogEntry> logEntries =
+                datas.stream().map(d ->
+                        LogEntry.newBuilder()
+                                .setData(ByteString.copyFrom(d))
+                                .setType(type)
+                                .build()).collect(Collectors.toList());
+
+        Proposal proposal = new Proposal(logEntries, type);
         CompletableFuture<RaftResponse> future;
         if (getState() == State.LEADER) {
             future = proposal.getFuture();
@@ -599,9 +589,7 @@ public class RaftImpl implements Runnable {
 
         final int selfTerm = meta.getTerm();
         if (term >= selfTerm) {
-            reset(term);
-            this.leaderId = leaderId;
-            transitState(follower);
+            transitState(follower, term, leaderId);
             return true;
         } else {
             logger.error("node {} transient state to {} failed, term = {}, leaderId = {}",
@@ -614,9 +602,7 @@ public class RaftImpl implements Runnable {
         assert Thread.currentThread() == workerThread;
 
         if (getState() == State.CANDIDATE) {
-            reset(meta.getTerm());
-            this.leaderId = this.selfId;
-            transitState(leader);
+            transitState(leader, meta.getTerm(), selfId);
 
             // reinitialize nextIndex for every peer node
             // then send them initial ping on start leader state
@@ -633,8 +619,7 @@ public class RaftImpl implements Runnable {
     private boolean tryBecomeCandidate() {
         assert Thread.currentThread() == workerThread;
 
-        RaftImpl.this.reset(meta.getTerm());
-        RaftImpl.this.transitState(RaftImpl.this.candidate);
+        transitState(candidate, meta.getTerm(), null);
 
         return true;
     }
@@ -667,11 +652,17 @@ public class RaftImpl implements Runnable {
         return suggestElectionTimeoutTicks + ThreadLocalRandom.current().nextLong(suggestElectionTimeoutTicks);
     }
 
-    private void transitState(RaftState nextState) {
+    private void transitState(RaftState nextState, int newTerm, String newLeaderId) {
         assert Thread.currentThread() == workerThread;
 
+        // we'd better finish old state before reset term and set leader id. this can insure that when old state
+        // finished with the old term and leader id while new state started with new term and leader id
         Context cxt = state.finish();
         state = nextState;
+        reset(newTerm);
+        if (newLeaderId != null) {
+            this.leaderId = newLeaderId;
+        }
         nextState.start(cxt);
     }
 
@@ -727,7 +718,7 @@ public class RaftImpl implements Runnable {
         writeOutCommand(pong);
     }
 
-    private void tryCommitTo(int commitTo){
+    private void tryCommitTo(int commitTo) {
         if (logger.isDebugEnabled()) {
             logger.debug("node {} try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
                     this, commitTo, raftLog.getCommitIndex(), raftLog.getLastIndex());
@@ -760,7 +751,7 @@ public class RaftImpl implements Runnable {
             return false;
         }
 
-        if (raftLog.match(snapshot.getIndex(), snapshot.getTerm())){
+        if (raftLog.match(snapshot.getIndex(), snapshot.getTerm())) {
             logger.info("node {} fast forward commit index to {} due to receive snapshot", this, snapshot.getIndex());
             tryCommitTo(snapshot.getIndex());
             return false;
@@ -793,7 +784,7 @@ public class RaftImpl implements Runnable {
         return true;
     }
 
-    private void panic(String reason, Throwable err){
+    private void panic(String reason, Throwable err) {
         logger.error("node {} panic due to {}, shutdown immediately", this, reason, err);
         shutdown();
     }
@@ -803,6 +794,11 @@ public class RaftImpl implements Runnable {
         tickGenerator.shutdown();
         workerRun = false;
         wakeUpWorker();
+        try {
+            workerThread.join();
+        } catch (InterruptedException ex) {
+            // ignore and continue shutdown
+        }
         broker.shutdown();
         stateMachine.onShutdown();
         stateMachine.shutdown();

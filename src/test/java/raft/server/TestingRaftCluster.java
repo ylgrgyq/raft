@@ -7,10 +7,12 @@ import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 import raft.server.proto.Snapshot;
 
+import java.lang.reflect.Array;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -70,11 +72,26 @@ class TestingRaftCluster {
     static RaftNode waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException {
         long start = System.currentTimeMillis();
         while (true) {
+            ArrayList<RaftNode> possibleLeaderNodes = new ArrayList<>(nodes.size());
             for (RaftNode n : nodes.values()) {
                 if (n.isLeader()) {
-                    return n;
+                    possibleLeaderNodes.add(n);
                 }
             }
+
+            if (possibleLeaderNodes.size() != 0) {
+                if (possibleLeaderNodes.size() == 1) {
+                    return possibleLeaderNodes.get(0);
+                }
+
+                // we could have more than one leader but they must have different term.
+                // the scenario is we have A B C three nodes, A was the old leader and now B C elect B as new leader.
+                // Before B had a chance to notify A it is the new leader, A continue to consider itself as leader. At
+                // this moment we have two leader A and B but they don't share the same term. B's term must
+                // be greater than A's.
+                logger.warn("we have more than one leader: {}", possibleLeaderNodes);
+            }
+
             if (timeoutMs != 0 && (System.currentTimeMillis() - start > timeoutMs)) {
                 throw new TimeoutException();
             } else {
