@@ -34,7 +34,7 @@ public class RaftNode{
         checkArgument(! data.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
 
-        return raft.proposeData(data);
+        return raft.proposeLog(data);
     }
 
     public CompletableFuture<ProposalResponse> addNode(String newNode) {

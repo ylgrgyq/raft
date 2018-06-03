@@ -11,7 +11,7 @@ public class ProposalResponse {
     private final ErrorMsg error;
 
     private ProposalResponse() {
-        this("", ErrorMsg.NONE);
+        this(null, ErrorMsg.NONE);
     }
 
     private ProposalResponse(String leaderIdHint, ErrorMsg error) {

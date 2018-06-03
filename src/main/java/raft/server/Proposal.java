@@ -9,7 +9,7 @@ import java.util.concurrent.CompletableFuture;
  * Author: ylgrgyq
  * Date: 18/6/3
  */
-public class Proposal {
+class Proposal {
     private final List<LogEntry> entries;
     private final LogEntry.EntryType type;
     private final CompletableFuture<ProposalResponse> future;
@@ -24,7 +24,7 @@ public class Proposal {
         return entries;
     }
 
-    public LogEntry.EntryType getType() {
+    LogEntry.EntryType getType() {
         return type;
     }
 

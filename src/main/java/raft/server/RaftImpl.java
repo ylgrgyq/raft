@@ -161,7 +161,7 @@ public class RaftImpl implements Runnable {
         return status;
     }
 
-    CompletableFuture<ProposalResponse> proposeData(final List<byte[]> entries) {
+    CompletableFuture<ProposalResponse> proposeLog(final List<byte[]> entries) {
         logger.debug("node {} receives proposal with {} entries", this, entries.size());
 
         return doPropose(entries, LogEntry.EntryType.LOG);
@@ -258,8 +258,7 @@ public class RaftImpl implements Runnable {
                     }
                 }
             } catch (Throwable t) {
-                logger.error("node {} got unexpected exception, self shutdown immediately", this, t);
-                shutdown();
+                panic("unexpected exception", t);
             }
         }
     }
@@ -660,8 +659,8 @@ public class RaftImpl implements Runnable {
     private void transitState(RaftState nextState, int newTerm, String newLeaderId) {
         assert Thread.currentThread() == workerThread;
 
-        // we'd better finish old state before reset term and set leader id. this can insure that when old state
-        // finished with the old term and leader id while new state started with new term and leader id
+        // we'd better finish old state before reset term and set leader id. this can insure that old state
+        // finished with the old term and leader id while new state started with new term and new leader id
         Context cxt = state.finish();
         state = nextState;
         reset(newTerm);
@@ -807,7 +806,7 @@ public class RaftImpl implements Runnable {
         try {
             workerThread.join();
         } catch (InterruptedException ex) {
-            // ignore and continue shutdown
+            // ignore then continue shutdown
         }
         broker.shutdown();
         // we can call onShutdown and shutdown on stateMachine successively
