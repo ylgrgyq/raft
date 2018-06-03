@@ -80,6 +80,7 @@ public class RaftPersistentState {
                     PBRaftPersistentState state = PBRaftPersistentState.parseFrom(meta);
                     term = state.getTerm();
                     votedFor = state.getVotedFor();
+                    commitIndex = state.getCommitIndex();
                     initialized = true;
                     return;
                 } catch (BufferUnderflowException | IOException ex) {

@@ -70,7 +70,6 @@ public class LeaderTransferTest {
         String newLeaderId = newLeader.getId();
         CompletableFuture<ProposalResponse> future = oldLeader.transferLeader(newLeaderId);
         ProposalResponse resp = future.get();
-        assertNull(resp.getError());
         assertTrue(resp.isSuccess());
 
         TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(newLeaderId);
@@ -87,7 +86,6 @@ public class LeaderTransferTest {
         String newLeaderId = newLeader.getId();
         CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
         CompletableFuture<ProposalResponse> failedFuture = oldLeader.transferLeader(newLeaderId);
-        assertNull(successFuture.get().getError());
         assertTrue(successFuture.get().isSuccess());
         assertFalse(failedFuture.get().isSuccess());
         assertEquals(ErrorMsg.LEADER_TRANSFERRING, failedFuture.get().getError());
@@ -111,7 +109,6 @@ public class LeaderTransferTest {
             CompletableFuture<ProposalResponse> resp = oldLeader.propose(dataList);
             ProposalResponse p = resp.get();
             assertTrue(p.isSuccess());
-            assertNull(p.getError());
         }
 
         // addFuture a new node
@@ -119,14 +116,12 @@ public class LeaderTransferTest {
         CompletableFuture<ProposalResponse> f = oldLeader.addNode(newLeaderId);
         ProposalResponse resp = f.get();
         assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
         TestingRaftCluster.TestingRaftStateMachine oldLeaderStateMachine =
                 TestingRaftCluster.getStateMachineById(oldLeader.getId());
         oldLeaderStateMachine.waitNodeAdded(newLeaderId);
 
         // transfer leader to new node
         CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
-        assertNull(successFuture.get().getError());
         assertTrue(successFuture.get().isSuccess());
 
         // propose will failed

@@ -1,7 +1,7 @@
 package raft.server;
 
 import java.util.Map;
-import java.util.SortedMap;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 
@@ -20,7 +20,7 @@ class PendingProposalFutures {
     }
 
     void completeFutures(int commitIndex) {
-        SortedMap<Integer, CompletableFuture<ProposalResponse>> fs = pendingProposal.subMap(0, commitIndex);
+        NavigableMap<Integer, CompletableFuture<ProposalResponse>> fs = pendingProposal.headMap(commitIndex, true);
 
         for (Map.Entry<Integer, CompletableFuture<ProposalResponse>> entry : fs.entrySet()) {
             CompletableFuture<ProposalResponse> future = entry.getValue();

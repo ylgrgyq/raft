@@ -54,6 +54,7 @@ public class RaftImpl implements Runnable {
     private volatile boolean workerRun = true;
     private boolean existsPendingConfigChange = false;
     private String transfereeId = null;
+    private TransferLeaderFuture transferLeaderFuture = null;
 
     RaftImpl(Config c) {
         Preconditions.checkNotNull(c);
@@ -419,7 +420,7 @@ public class RaftImpl implements Runnable {
 
                             pendingProposal.addFuture(newLastIndex, proposal.getFuture());
                             broadcastAppendEntries();
-                            break;
+                            return;
                         case TRANSFER_LEADER:
                             String transereeId = new String(proposal.getEntries().get(0).getData().toByteArray());
 
@@ -446,7 +447,10 @@ public class RaftImpl implements Runnable {
                                 n.sendAppend(meta.getTerm());
                             }
 
-                            break;
+                            TransferLeaderFuture future = new TransferLeaderFuture(transereeId, proposal.getFuture());
+                            
+                            proposal.getFuture().complete(ProposalResponse.success());
+                            return;
                     }
                 }
             } else {

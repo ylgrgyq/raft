@@ -59,7 +59,6 @@ public class ConfigChangeTest {
         CompletableFuture<ProposalResponse> f = leader.addNode(newNode);
         ProposalResponse resp = f.get();
         assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
 
         HashSet<String> newPeerIds = new HashSet<>(peerIdSet);
         newPeerIds.add(newNode);
@@ -86,7 +85,6 @@ public class ConfigChangeTest {
         CompletableFuture<ProposalResponse> f2 = leader.addNode(failedNewNode);
         ProposalResponse resp = f1.get();
         assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
         resp = f2.get();
         assertFalse(resp.isSuccess());
         assertEquals(ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION, resp.getError());
@@ -113,7 +111,6 @@ public class ConfigChangeTest {
         CompletableFuture<ProposalResponse> f = leader.removeNode(removePeerId);
         ProposalResponse resp = f.get();
         assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
 
         peerIdSet.stream().map(TestingRaftCluster::getNodeById).forEach(node -> {
             assertNotNull(node);
@@ -135,7 +132,6 @@ public class ConfigChangeTest {
         CompletableFuture<ProposalResponse> f = leader.removeNode(removePeerId);
         ProposalResponse resp = f.get();
         assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
 
         peerIdSet.remove(removePeerId);
         peerIdSet.stream().map(TestingRaftCluster::getNodeById).forEach(node -> {

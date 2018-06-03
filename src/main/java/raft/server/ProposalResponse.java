@@ -36,7 +36,7 @@ public class ProposalResponse {
     }
 
     public boolean isSuccess() {
-        return error == null;
+        return error == ErrorMsg.NONE;
     }
 
     public ErrorMsg getError() {
