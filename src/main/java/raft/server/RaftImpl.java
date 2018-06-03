@@ -38,13 +38,10 @@ public class RaftImpl implements Runnable {
     private final BlockingQueue<Proposal> proposalQueue = new LinkedBlockingQueue<>(1000);
     private final BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>(1000);
 
+    private final Config c;
     private final ScheduledExecutorService tickGenerator;
     private final String selfId;
     private final RaftLog raftLog;
-    private final long tickIntervalMs;
-    private final int maxEntriesPerAppend;
-    private final long pingIntervalTicks;
-    private final long suggestElectionTimeoutTicks;
     private final RaftPersistentState meta;
     private final StateMachineProxy stateMachine;
     private final AsyncRaftCommandBrokerProxy broker;
@@ -60,22 +57,18 @@ public class RaftImpl implements Runnable {
     RaftImpl(Config c) {
         Preconditions.checkNotNull(c);
 
+        this.c = c;
         this.workerThread = new Thread(this);
         this.raftLog = new RaftLogImpl(c.storage);
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
         this.selfId = c.selfId;
-        this.tickIntervalMs = c.tickIntervalMs;
-        this.suggestElectionTimeoutTicks = c.suggestElectionTimeoutTicks;
-        this.pingIntervalTicks = c.pingIntervalTicks;
-        this.maxEntriesPerAppend = c.maxEntriesPerAppend;
         this.meta = new RaftPersistentState(c.persistentStateFileDirPath, c.selfId);
         this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
         this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
 
-        //TODO consider do not include selfId into peerNodes ?
         for (String peerId : c.peers) {
-            this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, RaftImpl.this.maxEntriesPerAppend));
+            this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, c.maxEntriesPerAppend));
         }
 
         this.state = follower;
@@ -85,7 +78,10 @@ public class RaftImpl implements Runnable {
         meta.init();
         reset(meta.getTerm());
 
-        raftLog.init();
+        raftLog.init(meta);
+        if (c.appliedTo > -1) {
+            raftLog.appliedTo(c.appliedTo);
+        }
 
         tickGenerator.scheduleWithFixedDelay(() -> {
             boolean wakeup = false;
@@ -95,7 +91,7 @@ public class RaftImpl implements Runnable {
                 wakeup = true;
             }
 
-            if (pingTickCounter.incrementAndGet() >= pingIntervalTicks) {
+            if (pingTickCounter.incrementAndGet() >= c.pingIntervalTicks) {
                 pingTickCounter.set(0);
                 pingTickerTimeout.compareAndSet(false, true);
                 wakeup = true;
@@ -105,7 +101,7 @@ public class RaftImpl implements Runnable {
                 wakeUpWorker();
             }
 
-        }, tickIntervalMs, tickIntervalMs, TimeUnit.MILLISECONDS);
+        }, c.tickIntervalMs, c.tickIntervalMs, TimeUnit.MILLISECONDS);
 
         workerThread.start();
 
@@ -117,8 +113,8 @@ public class RaftImpl implements Runnable {
                         "pingIntervalTicks={}\n" +
                         "suggectElectionTimeoutTicks={}\n" +
                         "raftLog={}\n",
-                this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, tickIntervalMs, pingIntervalTicks,
-                suggestElectionTimeoutTicks, raftLog);
+                this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, c.tickIntervalMs, c.pingIntervalTicks,
+                c.suggestElectionTimeoutTicks, raftLog);
     }
 
     boolean isLeader() {
@@ -517,7 +513,7 @@ public class RaftImpl implements Runnable {
                         this,
                         raftLog,
                         raftLog.getLastIndex() + 1,
-                        RaftImpl.this.maxEntriesPerAppend));
+                        c.maxEntriesPerAppend));
 
         logger.info("node {} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
         stateMachine.onNodeAdded(peerId);
@@ -640,7 +636,7 @@ public class RaftImpl implements Runnable {
 
         // we need to reset election timeout on every time state changed and every
         // reelection in candidate state to avoid split vote
-        electionTimeoutTicks = RaftImpl.generateElectionTimeoutTicks(RaftImpl.this.suggestElectionTimeoutTicks);
+        electionTimeoutTicks = RaftImpl.generateElectionTimeoutTicks(c.suggestElectionTimeoutTicks);
     }
 
     private void clearTickCounters() {
@@ -720,10 +716,13 @@ public class RaftImpl implements Runnable {
 
     private void tryCommitTo(int commitTo) {
         if (logger.isDebugEnabled()) {
-            logger.debug("node {} try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
+            logger.debug("node {} try commit to {} with current commitIndex: {} and lastIndex: {}",
                     this, commitTo, raftLog.getCommitIndex(), raftLog.getLastIndex());
         }
         List<LogEntry> newCommitedLogs = raftLog.tryCommitTo(commitTo);
+        if (!newCommitedLogs.isEmpty()) {
+            meta.setCommitIndex(commitTo);
+        }
         processNewCommitedLogs(newCommitedLogs);
     }
 
@@ -768,8 +767,8 @@ public class RaftImpl implements Runnable {
         remainPeerIds.addAll(peerNodes.keySet());
 
         for (String peerId : snapshot.getPeerIdsList()) {
-            RaftPeerNode node = new RaftPeerNode(peerId, this, this.raftLog, lastIndex + 1,
-                    RaftImpl.this.maxEntriesPerAppend);
+            RaftPeerNode node = new RaftPeerNode(peerId, this, raftLog, lastIndex + 1,
+                    c.maxEntriesPerAppend);
             if (peerId.equals(selfId)) {
                 node.updateIndexes(lastIndex - 1);
             }
@@ -800,6 +799,8 @@ public class RaftImpl implements Runnable {
             // ignore and continue shutdown
         }
         broker.shutdown();
+        // we can call onShutdown and shutdown on stateMachine successively
+        // shutdown will wait onShutdown to finish
         stateMachine.onShutdown();
         stateMachine.shutdown();
         raftLog.shutdown();

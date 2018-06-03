@@ -1,5 +1,6 @@
 package raft.server.log;
 
+import raft.server.RaftPersistentState;
 import raft.server.proto.LogEntry;
 import raft.server.proto.Snapshot;
 
@@ -12,7 +13,7 @@ import java.util.concurrent.CompletableFuture;
  * Date: 18/5/16
  */
 public interface RaftLog {
-    void init();
+    void init(RaftPersistentState meta);
 
     int getLastIndex();
 

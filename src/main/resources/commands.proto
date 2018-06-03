@@ -5,6 +5,7 @@ option java_multiple_files = true;
 message PBRaftPersistentState {
     int32 term = 1;
     string votedFor = 2;
+    int32 commitIndex = 3;
 }
 
 message LogEntry {

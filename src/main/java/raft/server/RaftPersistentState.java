@@ -13,6 +13,8 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.zip.CRC32;
 
+import static com.google.common.base.Preconditions.checkState;
+
 /**
  * Author: ylgrgyq
  * Date: 18/4/23
@@ -24,6 +26,7 @@ public class RaftPersistentState {
 
     private String votedFor;
     private int term;
+    private int commitIndex = -1;
     private Path stateFileDirPath;
     private Path stateFilePath;
     private volatile boolean initialized;
@@ -99,13 +102,13 @@ public class RaftPersistentState {
     }
 
     public String getVotedFor() {
-        Preconditions.checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentState before using it");
 
         return votedFor;
     }
 
     public void setVotedFor(String votedFor) {
-        Preconditions.checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentState before using it");
         Preconditions.checkArgument(votedFor == null || ! votedFor.isEmpty(), "votedFor should not be empty string");
 
         this.votedFor = votedFor;
@@ -113,28 +116,43 @@ public class RaftPersistentState {
     }
 
     public int getTerm() {
-        Preconditions.checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentState before using it");
 
         return term;
     }
 
     public void setTerm(int term) {
-        Preconditions.checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentState before using it");
 
         this.term = term;
         this.persistent();
     }
 
     public void setTermAndVotedFor(int term, String votedFor) {
-        Preconditions.checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentState before using it");
 
         this.term = term;
         this.votedFor = votedFor;
-        this.persistent();
+        persistent();
+    }
+
+    public int getCommitIndex() {
+        checkState(initialized, "should initialize RaftPersistentState before using it");
+
+        return commitIndex;
+    }
+
+    public void setCommitIndex(int commitIndex) {
+        checkState(initialized, "should initialize RaftPersistentState before using it");
+
+        this.commitIndex = commitIndex;
+        persistent();
     }
 
     private void persistent() {
-        PBRaftPersistentState.Builder builder = PBRaftPersistentState.newBuilder().setTerm(term);
+        PBRaftPersistentState.Builder builder = PBRaftPersistentState.newBuilder()
+                .setTerm(term)
+                .setCommitIndex(commitIndex);
         if (votedFor != null) {
             builder.setVotedFor(votedFor);
         }

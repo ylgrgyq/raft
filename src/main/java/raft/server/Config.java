@@ -16,6 +16,7 @@ public class Config {
     final long pingIntervalTicks;
     final long suggestElectionTimeoutTicks;
     final int maxEntriesPerAppend;
+    final int appliedTo;
 
     final List<String> peers;
     final String selfId;
@@ -35,6 +36,7 @@ public class Config {
         this.stateMachine = builder.stateMachine;
         this.broker = builder.broker;
         this.storage = builder.storage;
+        this.appliedTo = builder.appliedTo;
     }
 
     public static ConfigBuilder newBuilder() {
@@ -46,6 +48,7 @@ public class Config {
         private long pingIntervalTicks = 20;
         private long suggestElectionTimeoutTicks = 60;
         private int maxEntriesPerAppend = 16;
+        private int appliedTo = -1;
         private List<String> peers = Collections.emptyList();
 
         private StateMachine stateMachine;
@@ -102,6 +105,11 @@ public class Config {
 
         public ConfigBuilder withPersistentStorage(PersistentStorage storage) {
             this.storage = storage;
+            return this;
+        }
+
+        public ConfigBuilder withAppliedTo(int appliedTo) {
+            this.appliedTo = appliedTo;
             return this;
         }
 

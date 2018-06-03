@@ -21,4 +21,9 @@ public interface PBRaftPersistentStateOrBuilder extends
    */
   com.google.protobuf.ByteString
       getVotedForBytes();
+
+  /**
+   * <code>int32 commitIndex = 3;</code>
+   */
+  int getCommitIndex();
 }

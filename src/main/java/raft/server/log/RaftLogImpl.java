@@ -3,6 +3,7 @@ package raft.server.log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
+import raft.server.RaftPersistentState;
 import raft.server.proto.LogEntry;
 import raft.server.proto.Snapshot;
 
@@ -42,7 +43,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public void init() {
+    public void init(RaftPersistentState meta) {
         storage.init();
 
         int lastIndex = storage.getLastIndex();
@@ -62,6 +63,10 @@ public class RaftLogImpl implements RaftLog {
         // appliedIndex, we will restore it latter
         this.commitIndex = firstIndex - 1;
         this.appliedIndex = firstIndex - 1;
+
+        if (meta.getCommitIndex() > -1) {
+            this.commitIndex = meta.getCommitIndex();
+        }
     }
 
     public int getFirstIndex() {
