@@ -12,7 +12,9 @@ public enum ErrorMsg {
     FORBID_REMOVE_LEADER(4, "Need transfer leadership first then remove previous leader node"),
     ALLREADY_LEADER(5, "Transferee is a leader already"),
     LEADER_TRANSFERRING(6, "Transferring leadership to another node"),
-    UNKNOWN_TRANSFEREEID(7, "Transfer leadership to a unknown node");
+    UNKNOWN_TRANSFEREEID(7, "Transfer leadership to a unknown node"),
+    TRANSFER_ABORTED_BY_TRANSFEREE_REMOVED(8, "Transfer leadership is aborted due to transferee was removed"),
+    TIMEOUT(9, "Operation aborted due to timeout");
 
     private int code;
     private String msg;

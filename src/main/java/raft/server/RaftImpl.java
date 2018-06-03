@@ -53,7 +53,6 @@ public class RaftImpl implements Runnable {
     private Thread workerThread;
     private volatile boolean workerRun = true;
     private boolean existsPendingConfigChange = false;
-    private String transfereeId = null;
     private TransferLeaderFuture transferLeaderFuture = null;
 
     RaftImpl(Config c) {
@@ -393,7 +392,7 @@ public class RaftImpl implements Runnable {
         ErrorMsg error = null;
         try {
             if (getState() == State.LEADER) {
-                if (transfereeId != null) {
+                if (transferLeaderFuture != null) {
                     error = ErrorMsg.LEADER_TRANSFERRING;
                 } else {
                     switch (proposal.getType()) {
@@ -437,7 +436,7 @@ public class RaftImpl implements Runnable {
                             logger.info("node {} start transfer leadership to {}", this, transereeId);
 
                             electionTickCounter.set(0);
-                            this.transfereeId = transereeId;
+                            transferLeaderFuture = new TransferLeaderFuture(transereeId, proposal.getFuture());
                             RaftPeerNode n = peerNodes.get(transereeId);
                             if (n.getMatchIndex() == raftLog.getLastIndex()) {
                                 logger.info("node {} send timeout immediately to {} because it already " +
@@ -447,9 +446,6 @@ public class RaftImpl implements Runnable {
                                 n.sendAppend(meta.getTerm());
                             }
 
-                            TransferLeaderFuture future = new TransferLeaderFuture(transereeId, proposal.getFuture());
-                            
-                            proposal.getFuture().complete(ProposalResponse.success());
                             return;
                     }
                 }
@@ -535,8 +531,10 @@ public class RaftImpl implements Runnable {
 
         if (getState() == State.LEADER) {
             // abort transfer leadership when transferee was removed from cluster
-            if (peerId.equals(transfereeId)) {
-                transfereeId = null;
+            if (transferLeaderFuture != null && peerId.equals(transferLeaderFuture.getTransfereeId())) {
+                transferLeaderFuture.getResponseFuture()
+                        .complete(ProposalResponse.error(ErrorMsg.TRANSFER_ABORTED_BY_TRANSFEREE_REMOVED));
+                transferLeaderFuture = null;
             }
 
             // quorum has changed, check if there's any pending entries
@@ -635,7 +633,12 @@ public class RaftImpl implements Runnable {
         }
 
         leaderId = null;
-        transfereeId = null;
+
+        // I think we don't have any scenario that need to reset transferLeaderFuture to null
+        // but for safety we add an assert and reset it to null anyway
+        assert transferLeaderFuture == null;
+        transferLeaderFuture = null;
+
         clearTickCounters();
         electionTickerTimeout.getAndSet(false);
         pingTickerTimeout.getAndSet(false);
@@ -847,14 +850,21 @@ public class RaftImpl implements Runnable {
         public Context finish() {
             logger.debug("node {} finish leader", RaftImpl.this);
             stateMachine.onLeaderFinish();
+            if (transferLeaderFuture != null) {
+                transferLeaderFuture.getResponseFuture().complete(ProposalResponse.success());
+                transferLeaderFuture = null;
+            }
             return cxt;
         }
 
         @Override
         public void onElectionTimeout() {
-            if (transfereeId != null) {
-                logger.info("node {} abort transfer leadership to {} due to timeout", RaftImpl.this, transfereeId);
-                transfereeId = null;
+            if (transferLeaderFuture  != null) {
+                logger.info("node {} abort transfer leadership to {} due to timeout", RaftImpl.this,
+                        transferLeaderFuture.getTransfereeId());
+                transferLeaderFuture.getResponseFuture()
+                        .complete(ProposalResponse.error(ErrorMsg.TIMEOUT));
+                transferLeaderFuture  = null;
             }
         }
 
@@ -881,8 +891,8 @@ public class RaftImpl implements Runnable {
                                 broadcastAppendEntries();
                             }
 
-                            if (transfereeId != null
-                                    && transfereeId.equals(cmd.getFrom())
+                            if (transferLeaderFuture != null
+                                    && transferLeaderFuture.getTransfereeId().equals(cmd.getFrom())
                                     && node.getMatchIndex() == raftLog.getLastIndex()) {
                                 logger.info("node {} send timeout to {} after it has up to date logs", RaftImpl.this, cmd.getFrom());
                                 node.sendTimeout(selfTerm);

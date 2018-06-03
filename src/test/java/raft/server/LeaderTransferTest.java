@@ -122,7 +122,6 @@ public class LeaderTransferTest {
 
         // transfer leader to new node
         CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
-        assertTrue(successFuture.get().isSuccess());
 
         // propose will failed
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
@@ -133,6 +132,7 @@ public class LeaderTransferTest {
         assertEquals(ErrorMsg.LEADER_TRANSFERRING, p.getError());
 
         // check leadership on new leader
+        assertTrue(successFuture.get().isSuccess());
         TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(newLeaderId);
         stateMachine.waitBecomeLeader().get();
         RaftNode newLeader = TestingRaftCluster.waitGetLeader();
