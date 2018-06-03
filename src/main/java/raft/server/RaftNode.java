@@ -21,7 +21,7 @@ public class RaftNode{
         this.raft = new RaftImpl(c);
     }
 
-    public CompletableFuture<RaftResponse> transferLeader(String transfereeId) {
+    public CompletableFuture<ProposalResponse> transferLeader(String transfereeId) {
         checkNotNull(transfereeId);
         checkArgument(! transfereeId.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
@@ -29,7 +29,7 @@ public class RaftNode{
         return raft.proposeTransferLeader(transfereeId);
     }
 
-    public CompletableFuture<RaftResponse> propose(List<byte[]> data) {
+    public CompletableFuture<ProposalResponse> propose(List<byte[]> data) {
         checkNotNull(data);
         checkArgument(! data.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
@@ -37,7 +37,7 @@ public class RaftNode{
         return raft.proposeData(data);
     }
 
-    public CompletableFuture<RaftResponse> addNode(String newNode) {
+    public CompletableFuture<ProposalResponse> addNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(! newNode.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
@@ -45,14 +45,14 @@ public class RaftNode{
         return raft.proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.ADD_NODE);
     }
 
-    public CompletableFuture<RaftResponse> removeNode(String newNode) {
+    public CompletableFuture<ProposalResponse> removeNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(! newNode.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
 
         if (newNode.equals(raft.getLeaderId())) {
             return CompletableFuture.completedFuture(
-                    new RaftResponse(raft.getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
+                    ProposalResponse.errorWithLeaderHint(raft.getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
         }
 
         return raft.proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.REMOVE_NODE);

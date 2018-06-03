@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.BiConsumer;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -138,9 +139,10 @@ public class RaftLogImpl implements RaftLog {
         return entries;
     }
 
-    public CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries) {
+    @Override
+    public int leaderAsyncAppend(int term, List<LogEntry> entries, BiConsumer<? super Integer, ? super Throwable> callback) {
         if (entries.size() == 0) {
-            return CompletableFuture.completedFuture(getLastIndex());
+            return getLastIndex();
         }
 
         final ArrayList<LogEntry> preparedEntries = new ArrayList<>(entries.size());
@@ -158,13 +160,16 @@ public class RaftLogImpl implements RaftLog {
             // add logs to buffer first so we can read these new entries immediately during broadcasting logs to
             // followers afterwards and don't need to wait them to persistent in storage
             buffer.append(preparedEntries);
-            return CompletableFuture.supplyAsync(() -> {
+            CompletableFuture.supplyAsync(() -> {
                 storage.append(preparedEntries);
                 return getLastIndex();
-            }, pool);
+            }, pool).whenComplete(callback);
         }
+
+        return i;
     }
 
+    @Override
     public synchronized int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries) {
         if (match(prevTerm, prevIndex)) {
             int conflictIndex = searchConflict(entries);

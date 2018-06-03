@@ -31,9 +31,10 @@ public class LogReplicationTest {
         // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
-        CompletableFuture<RaftResponse> resp = leader.propose(dataList);
-        RaftResponse p = resp.get();
-        assertEquals(selfId, p.getLeaderIdHint());
+        CompletableFuture<ProposalResponse> resp = leader.propose(dataList);
+        ProposalResponse p = resp.get();
+        assertTrue(p.getLeaderIdHint().isPresent());
+        assertEquals(selfId, p.getLeaderIdHint().get());
         assertTrue(p.isSuccess());
         assertNull(p.getError());
 
@@ -95,9 +96,10 @@ public class LogReplicationTest {
         int logCount = ThreadLocalRandom.current().nextInt(1, 10);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
         assert logCount == dataList.size();
-        CompletableFuture<RaftResponse> resp = leader.propose(dataList);
-        RaftResponse p = resp.get();
-        assertEquals(leaderId, p.getLeaderIdHint());
+        CompletableFuture<ProposalResponse> resp = leader.propose(dataList);
+        ProposalResponse p = resp.get();
+        assertTrue(leaderId, p.getLeaderIdHint().isPresent());
+        assertEquals(leaderId, p.getLeaderIdHint().get());
         assertTrue(p.isSuccess());
         assertNull(p.getError());
 
