@@ -42,7 +42,7 @@ abstract class AsyncProxy {
                         }
                     });
         } else {
-            throw new RuntimeException("proxy shutdown due to unexpected exception, please check log to debug");
+            throw new IllegalStateException("proxy shutdown due to unexpected exception, please check log to debug");
         }
     }
 

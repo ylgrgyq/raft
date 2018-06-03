@@ -254,7 +254,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public synchronized void applySnapshot(int snapshotIndex) {
+    public synchronized void snapshotApplied(int snapshotIndex) {
         if (recentSnapshotIndex == snapshotIndex) {
             recentSnapshotIndex = -1;
             recentSnapshotTerm = -1;

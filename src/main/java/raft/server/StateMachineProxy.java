@@ -68,21 +68,21 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
+    public void onFollowerFinish() {
+        notify(stateMachine::onFollowerFinish);
+    }
+
+    @Override
     public void installSnapshot(Snapshot snap) {
         notify(() -> {
             stateMachine.installSnapshot(snap);
-            raftLog.applySnapshot(snap.getIndex());
+            raftLog.snapshotApplied(snap.getIndex());
         });
     }
 
     @Override
     public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
         return stateMachine.getRecentSnapshot(expectIndex);
-    }
-
-    @Override
-    public void onFollowerFinish() {
-        notify(stateMachine::onFollowerFinish);
     }
 
     @Override

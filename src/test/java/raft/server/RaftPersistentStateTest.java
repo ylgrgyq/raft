@@ -65,7 +65,6 @@ public class RaftPersistentStateTest {
         initState.setTerm(term);
         initState.setVotedFor(voteFor);
 
-        Thread.currentThread().interrupt();
         RaftPersistentState loadedState = new RaftPersistentState(testingDirectory, raftId);
         loadedState.init();
 

@@ -42,7 +42,7 @@ public interface RaftLog {
 
     void installSnapshot(Snapshot snapshot);
 
-    void applySnapshot(int snapshotIndex);
+    void snapshotApplied(int snapshotIndex);
 
     void shutdown();
 }
