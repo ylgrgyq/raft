@@ -6,6 +6,7 @@ import raft.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
 import raft.server.log.RaftLogImpl;
 import raft.server.proto.LogEntry;
+import raft.server.proto.Snapshot;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,29 +17,33 @@ import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 /**
  * Author: ylgrgyq
  * Date: 18/5/10
  */
 public class StateMachineProxyTest {
-    private final RaftLog raftLog = new RaftLogImpl();
+    private final RaftLog raftLog = new RaftLogImpl(new MemoryFakePersistentStorage());
 
     @Test
     public void testNormalCase() throws Exception {
         String expectPeerId = "peerId1";
         final AtomicBoolean stateMachineCalledOnce = new AtomicBoolean();
         CountDownLatch listenerCalled = new CountDownLatch(1);
-        StateMachine stateMachine = new AbstractTestingStateMachine() {
-            @Override
-            public void onNodeAdded(String peerId) {
-                assertTrue(expectPeerId.equals(peerId));
-                assertTrue(stateMachineCalledOnce.compareAndSet(false, true));
-                listenerCalled.countDown();
-            }
-        };
 
-        StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog);
+        StateMachine mockStateMachine = mock(StateMachine.class);
+        doAnswer(invocationOnMock -> {
+            String peerId = invocationOnMock.getArgument(0);
+            assertTrue(expectPeerId.equals(peerId));
+            assertTrue(stateMachineCalledOnce.compareAndSet(false, true));
+            listenerCalled.countDown();
+            return null;
+        }).when(mockStateMachine).onNodeAdded(anyString());
+
+        StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, raftLog);
         proxy.onNodeAdded(expectPeerId);
         listenerCalled.await();
         assertTrue(stateMachineCalledOnce.get());
@@ -47,59 +52,56 @@ public class StateMachineProxyTest {
     @Test(expected = RejectedExecutionException.class)
     public void testThreadPoolQueueFull() throws Exception {
         CountDownLatch listenerCalled = new CountDownLatch(1);
-        StateMachine stateMachine = new AbstractTestingStateMachine() {
-            @Override
-            public void onNodeAdded(String peerId) {
-                try {
-                    listenerCalled.countDown();
-                    Thread.sleep(1000);
-                } catch (InterruptedException ex) {
-                    // ignore
-                }
+        StateMachine mockedStateMachine = mock(StateMachine.class);
+        doAnswer(invocationOnMock -> {
+            try {
+                listenerCalled.countDown();
+                Thread.sleep(1000);
+            } catch (InterruptedException ex) {
+                // ignore
             }
-        };
+            return null;
+        }).when(mockedStateMachine).onNodeAdded(anyString());
 
         ExecutorService pool = new ThreadPoolExecutor(
                 1, 1, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(1), new ThreadFactoryImpl("StateMachineProxy-"));
-        StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog, pool);
+        StateMachineProxy proxy = new StateMachineProxy(mockedStateMachine, raftLog, pool);
         proxy.onNodeAdded("peerId1");
         listenerCalled.await();
         proxy.onNodeAdded("peerId2");
         proxy.onNodeAdded("peerId2");
     }
 
-    @Test(expected = RuntimeException.class)
-    public void testStateMachineThrowAnyException() throws Exception {
-        CountDownLatch listenerCalled = new CountDownLatch(1);
-        StateMachine stateMachine = new AbstractTestingStateMachine() {
-            @Override
-            public void onNodeAdded(String peerId) {
-                listenerCalled.countDown();
-                throw new RuntimeException("some exception");
-            }
-        };
+    @Test(expected = IllegalStateException.class)
+    public void testStateMachineThrowAnyException2() throws Exception {
+        StateMachine mockStateMachine = mock(StateMachine.class);
+        doAnswer(invocationOnMock -> {
+            throw new RuntimeException("some expected exception");
+        }).when(mockStateMachine)
+                .onNodeAdded(anyString());
 
-        StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog);
-        proxy.onNodeAdded("peerId1");
-        listenerCalled.await();
-        proxy.onNodeAdded("peerId2");
+        StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, raftLog);
+        for (int i = 0; i < 10; i++) {
+            proxy.onNodeAdded("peerId1");
+            Thread.sleep(200);
+        }
     }
 
     @Test
     public void testOnShutdown() throws Exception {
         final AtomicBoolean shutdownCalled = new AtomicBoolean();
-        StateMachine stateMachine = new AbstractTestingStateMachine() {
-            @Override
-            public void onShutdown() {
-                assertTrue(shutdownCalled.compareAndSet(false, true));
-            }
-        };
+
+        StateMachine mockStateMachine = mock(StateMachine.class);
+        doAnswer(invocationOnMock -> {
+            assertTrue(shutdownCalled.compareAndSet(false, true));
+            return null;
+        }).when(mockStateMachine).onShutdown();
 
         ExecutorService pool = new ThreadPoolExecutor(
                 1, 1, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(), new ThreadFactoryImpl("StateMachineProxy-"));
-        StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog, pool);
+        StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, raftLog, pool);
         proxy.onShutdown();
         proxy.shutdown();
         assertTrue(pool.awaitTermination(2000, TimeUnit.SECONDS));
@@ -139,31 +141,26 @@ public class StateMachineProxyTest {
         CountDownLatch appliedCalled = new CountDownLatch(1);
         final AtomicBoolean stateMachineCalledOnce = new AtomicBoolean();
 
-        StateMachine stateMachine = new AbstractTestingStateMachine() {
-            @Override
-            public void onProposalCommitted(List<LogEntry> msgs) {
-                assertTrue(stateMachineCalledOnce.compareAndSet(false, true));
-                assertEquals(originMsgs
-                        .stream()
-                        .filter(e -> (e.getType() != LogEntry.EntryType.CONFIG))
-                        .collect(Collectors.toList()), msgs);
-            }
-        };
+        StateMachine mockStateMachine = mock(StateMachine.class);
+        doAnswer(invocationOnMock -> {
+            List<LogEntry> msgs = invocationOnMock.getArgument(0);
+            assertTrue(stateMachineCalledOnce.compareAndSet(false, true));
+            assertEquals(originMsgs
+                    .stream()
+                    .filter(e -> (e.getType() != LogEntry.EntryType.CONFIG))
+                    .collect(Collectors.toList()), msgs);
+            return null;
+        }).when(mockStateMachine).onProposalCommitted(anyList());
 
-        RaftLog raftLog = new AbstractTestingRaftLog() {
-            @Override
-            public List<LogEntry> getEntriesNeedToApply() {
-                return originMsgs;
-            }
+        RaftLog mockRaftLog = mock(RaftLog.class);
+        doAnswer(invocationOnMock -> {
+            int appliedTo = invocationOnMock.getArgument(0);
+            assertEquals(configAtLast.getIndex(), appliedTo);
+            appliedCalled.countDown();
+            return null;
+        }).when(mockRaftLog).appliedTo(anyInt());
 
-            @Override
-            public void appliedTo(int appliedTo) {
-                assertEquals(configAtLast.getIndex(), appliedTo);
-                appliedCalled.countDown();
-            }
-        };
-
-        StateMachineProxy proxy = new StateMachineProxy(stateMachine, raftLog);
+        StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, mockRaftLog);
         proxy.onProposalCommitted(originMsgs
                 .stream()
                 .filter(e -> (e.getType() != LogEntry.EntryType.CONFIG))
@@ -172,108 +169,56 @@ public class StateMachineProxyTest {
         assertTrue(stateMachineCalledOnce.get());
     }
 
-    static abstract class AbstractTestingRaftLog implements RaftLog {
-        @Override
-        public int getLastIndex() {
-            throw new UnsupportedOperationException();
-        }
+    @Test
+    public void installSnapshot() throws Exception {
+        CountDownLatch appliedCalled = new CountDownLatch(1);
+        Snapshot expectSnapshot = Snapshot.newBuilder()
+                .setTerm(2)
+                .setIndex(6)
+                .setData(ByteString.copyFrom(new byte[]{1, 2,3,4}))
+                .build();
 
-        @Override
-        public Optional<Integer> getTerm(int index) {
-            throw new UnsupportedOperationException();
-        }
+        StateMachine mockStateMachine = mock(StateMachine.class);
+        doAnswer(invocationOnMock -> {
+            Snapshot actualSnapshot = invocationOnMock.getArgument(0);
+            assertEquals(expectSnapshot, actualSnapshot);
+            return null;
+        }).when(mockStateMachine).installSnapshot(any());
 
-        @Override
-        public Optional<LogEntry> getEntry(int index) {
-            throw new UnsupportedOperationException();
-        }
+        RaftLog mockRaftLog = mock(RaftLog.class);
+        doAnswer(invocationOnMock -> {
+            int actualIndex = invocationOnMock.getArgument(0);
+            assertEquals(expectSnapshot.getIndex(), actualIndex);
+            appliedCalled.countDown();
+            return null;
+        }).when(mockRaftLog).snapshotApplied(anyInt());
 
-        @Override
-        public List<LogEntry> getEntries(int start, int end) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int directAppend(int term, List<LogEntry> entries) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int tryAppendEntries(int prevIndex, int prevTerm, List<LogEntry> entries) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isUpToDate(int term, int index) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int getCommitIndex() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int getAppliedIndex() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<LogEntry> tryCommitTo(int commitTo) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<LogEntry> getEntriesNeedToApply() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void appliedTo(int appliedTo) {
-            throw new UnsupportedOperationException();
-        }
+        StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, mockRaftLog);
+        proxy.installSnapshot(expectSnapshot);
+        appliedCalled.await();
     }
 
-    static abstract class AbstractTestingStateMachine implements StateMachine {
-        @Override
-        public void onProposalCommitted(List<LogEntry> msgs) {
-            throw new UnsupportedOperationException();
-        }
+    @Test
+    public void getRecentSnapshot() throws Exception {
+        int expectIndex = ThreadLocalRandom.current().nextInt();
+        Snapshot expectSnapshot = Snapshot.newBuilder()
+                .setTerm(2)
+                .setIndex(6)
+                .setData(ByteString.copyFrom(new byte[]{1, 2,3,4}))
+                .build();
 
-        @Override
-        public void onLeaderStart(int term) {
-            throw new UnsupportedOperationException();
-        }
+        long mainThreadId = Thread.currentThread().getId();
+        StateMachine mockStateMachine = mock(StateMachine.class);
+        doAnswer(invocationOnMock -> {
+            int actualIndex = invocationOnMock.getArgument(0);
+            assertEquals(expectIndex, actualIndex);
+            assertEquals(mainThreadId, Thread.currentThread().getId());
+            return Optional.of(expectSnapshot);
+        }).when(mockStateMachine).getRecentSnapshot(anyInt());
 
-        @Override
-        public void onLeaderFinish() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void onFollowerStart(int term, String leaderId) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void onFollowerFinish() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void onNodeAdded(String peerId) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void onNodeRemoved(String peerId) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void onShutdown() {
-            throw new UnsupportedOperationException();
-        }
+        StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, raftLog);
+        Optional<Snapshot> actualSnapshot = proxy.getRecentSnapshot(expectIndex);
+        assert(actualSnapshot.isPresent());
+        assertEquals(expectSnapshot, actualSnapshot.get());
     }
-
 }

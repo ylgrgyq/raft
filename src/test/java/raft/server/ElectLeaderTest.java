@@ -28,7 +28,6 @@ public class ElectLeaderTest {
         assertEquals(selfId, status.getId());
         assertEquals(State.LEADER, status.getState());
         assertEquals(0, status.getCommitIndex());
-        assertEquals(0, status.getAppliedIndex());
         assertEquals(1, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
         assertEquals(selfId, status.getVotedFor());
@@ -49,8 +48,10 @@ public class ElectLeaderTest {
 
         RaftStatus leaderStatus = leader.getStatus();
         assertEquals(State.LEADER, leaderStatus.getState());
-        assertEquals(0, leaderStatus.getCommitIndex());
-        assertEquals(0, leaderStatus.getAppliedIndex());
+
+        // index of dummy log is 0, term is 0. but new leader can not commit logs from previous term by counting replicas
+        // so commit index remains -1
+        assertEquals(-1, leaderStatus.getCommitIndex());
         assertTrue(leaderStatus.getTerm() > 0);
         assertEquals(leader.getId(), leaderStatus.getVotedFor());
 
@@ -61,8 +62,8 @@ public class ElectLeaderTest {
         RaftNode follower = TestingRaftCluster.getNodeById(followerId);
         RaftStatus status = follower.getStatus();
         assertEquals(State.FOLLOWER, status.getState());
-        assertEquals(0, status.getCommitIndex());
-        assertEquals(0, status.getAppliedIndex());
+        assertEquals(-1, status.getCommitIndex());
+        assertEquals(-1, status.getAppliedIndex());
         assertEquals(leaderStatus.getTerm(), status.getTerm());
         assertEquals(leader.getId(), status.getLeaderId());
 
@@ -88,8 +89,10 @@ public class ElectLeaderTest {
         RaftStatus leaderStatus = leader.getStatus();
         assertEquals(leaderId, leaderStatus.getId());
         assertEquals(State.LEADER, leaderStatus.getState());
-        assertEquals(0, leaderStatus.getCommitIndex());
-        assertEquals(0, leaderStatus.getAppliedIndex());
+        // index of dummy log is 0, term is 0. but new leader can not commit logs from previous term by counting replicas
+        // so commit index remains -1
+        assertEquals(-1, leaderStatus.getCommitIndex());
+        assertEquals(-1, leaderStatus.getAppliedIndex());
         assertTrue(leaderStatus.getTerm() > 0);
         assertEquals(leaderId, leaderStatus.getLeaderId());
         assertEquals(leaderId, leaderStatus.getVotedFor());
@@ -101,8 +104,8 @@ public class ElectLeaderTest {
             RaftNode follower = TestingRaftCluster.getNodeById(id);
             RaftStatus status = follower.getStatus();
             assertEquals(State.FOLLOWER, status.getState());
-            assertEquals(0, status.getCommitIndex());
-            assertEquals(0, status.getAppliedIndex());
+            assertEquals(-1, status.getCommitIndex());
+            assertEquals(-1, status.getAppliedIndex());
             assertEquals(leaderStatus.getTerm(), status.getTerm());
             assertEquals(leaderId, status.getLeaderId());
 
@@ -136,8 +139,8 @@ public class ElectLeaderTest {
         RaftStatus leaderStatus = leader.getStatus();
         assertEquals(leaderId, leaderStatus.getId());
         assertEquals(State.LEADER, leaderStatus.getState());
-        assertEquals(0, leaderStatus.getCommitIndex());
-        assertEquals(0, leaderStatus.getAppliedIndex());
+        assertEquals(-1, leaderStatus.getCommitIndex());
+        assertEquals(-1, leaderStatus.getAppliedIndex());
         assertTrue(leaderStatus.getTerm() > 0);
         assertEquals(leaderId, leaderStatus.getLeaderId());
         assertEquals(leaderId, leaderStatus.getVotedFor());
@@ -151,8 +154,8 @@ public class ElectLeaderTest {
             RaftNode follower = TestingRaftCluster.getNodeById(id);
             RaftStatus status = follower.getStatus();
             assertEquals(State.FOLLOWER, status.getState());
-            assertEquals(0, status.getCommitIndex());
-            assertEquals(0, status.getAppliedIndex());
+            assertEquals(-1, status.getCommitIndex());
+            assertEquals(-1, status.getAppliedIndex());
             assertEquals(leaderStatus.getTerm(), status.getTerm());
             assertEquals(leaderId, status.getLeaderId());
 

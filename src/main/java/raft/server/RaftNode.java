@@ -1,13 +1,13 @@
 package raft.server;
 
 import raft.server.proto.ConfigChange;
-import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static com.google.common.base.Preconditions.*;
 
 /**
  * Author: ylgrgyq
@@ -22,18 +22,34 @@ public class RaftNode{
     }
 
     public CompletableFuture<RaftResponse> transferLeader(String transfereeId) {
+        checkNotNull(transfereeId);
+        checkArgument(! transfereeId.isEmpty());
+        checkState(started.get(), "raft server not start or already shutdown");
+
         return raft.proposeTransferLeader(transfereeId);
     }
 
     public CompletableFuture<RaftResponse> propose(List<byte[]> data) {
+        checkNotNull(data);
+        checkArgument(! data.isEmpty());
+        checkState(started.get(), "raft server not start or already shutdown");
+
         return raft.proposeData(data);
     }
 
     public CompletableFuture<RaftResponse> addNode(String newNode) {
+        checkNotNull(newNode);
+        checkArgument(! newNode.isEmpty());
+        checkState(started.get(), "raft server not start or already shutdown");
+
         return raft.proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.ADD_NODE);
     }
 
     public CompletableFuture<RaftResponse> removeNode(String newNode) {
+        checkNotNull(newNode);
+        checkArgument(! newNode.isEmpty());
+        checkState(started.get(), "raft server not start or already shutdown");
+
         if (newNode.equals(raft.getLeaderId())) {
             return CompletableFuture.completedFuture(
                     new RaftResponse(raft.getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
@@ -43,6 +59,8 @@ public class RaftNode{
     }
 
     public void receiveCommand(RaftCommand cmd) {
+        checkNotNull(cmd);
+
         raft.queueReceivedCommand(cmd);
     }
 
@@ -72,5 +90,10 @@ public class RaftNode{
         if (started.compareAndSet(true, false)) {
             raft.shutdown();
         }
+    }
+
+    @Override
+    public String toString() {
+        return raft.toString();
     }
 }

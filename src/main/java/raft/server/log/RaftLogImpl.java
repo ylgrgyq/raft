@@ -1,14 +1,19 @@
 package raft.server.log;
 
-import com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.ThreadFactoryImpl;
 import raft.server.proto.LogEntry;
+import raft.server.proto.Snapshot;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -18,54 +23,81 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class RaftLogImpl implements RaftLog {
     private static final Logger logger = LoggerFactory.getLogger(RaftLogImpl.class.getName());
-    static final LogEntry sentinel = LogEntry.newBuilder().setTerm(0).setIndex(0).setData(ByteString.EMPTY).build();
+    private static final ThreadFactory defaultThreadFactory = new ThreadFactoryImpl("RaftLogAsyncAppender-");
+
+    private final ExecutorService pool;
+    private final PersistentStorage storage;
+
+    private LogsBuffer buffer;
 
     private int commitIndex;
     private int appliedIndex;
-    private int offset;
 
-    // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
-    private List<LogEntry> logs = new ArrayList<>();
+    private int recentSnapshotIndex;
+    private int recentSnapshotTerm;
 
-    public RaftLogImpl() {
-        this.logs.add(sentinel);
-        this.offset = this.getFirstIndex();
-        this.commitIndex = this.offset;
-        this.appliedIndex = this.offset;
+    public RaftLogImpl(PersistentStorage storage) {
+        this.storage = storage;
+        this.pool = Executors.newSingleThreadExecutor(defaultThreadFactory);
+    }
+
+    @Override
+    public void init() {
+        storage.init();
+
+        int lastIndex = storage.getLastIndex();
+        List<LogEntry> entries = storage.getEntries(lastIndex, lastIndex + 1);
+        if (entries.isEmpty()) {
+            String msg = String.format("failed to get LogEntry from persistent storage with " +
+                    "storage last index: %s", lastIndex);
+            throw new IllegalStateException(msg);
+        }
+
+        buffer = new LogsBuffer(entries.get(0));
+
+        int firstIndex = storage.getFirstIndex();
+        // we shell assume every logs in storage is not committed and applied including the first dummy empty log and
+        // init commitIndex and appliedIndex to the index before the firstIndex in storage. Because we don't know where
+        // the log has already committed or applied to at this moment. If we have persistent commitIndex and
+        // appliedIndex, we will restore it latter
+        this.commitIndex = firstIndex - 1;
+        this.appliedIndex = firstIndex - 1;
+    }
+
+    public int getFirstIndex() {
+        if (recentSnapshotIndex > 0) {
+            return recentSnapshotIndex;
+        }
+
+        return storage.getFirstIndex();
     }
 
     public int getLastIndex() {
-        return this.offset + this.logs.size() - 1;
+        // buffer always know the last index
+        return Math.max(buffer.getLastIndex(), recentSnapshotIndex);
     }
 
-    public Optional<Integer> getTerm(int index) {
-        if (index < this.offset || index > this.getLastIndex()) {
+    public synchronized Optional<Integer> getTerm(int index){
+        if (index < getFirstIndex()) {
+            throw new LogsCompactedException(index);
+        }
+
+        if (index > getLastIndex()) {
             return Optional.empty();
         }
 
-        return Optional.of(this.logs.get(index - this.offset).getTerm());
+        if (index >= buffer.getOffsetIndex()) {
+            return Optional.of(buffer.getTerm(index));
+        }
+
+        if (recentSnapshotIndex > 0 && index == recentSnapshotIndex) {
+            return Optional.of(recentSnapshotTerm);
+        }
+
+        return Optional.of(storage.getTerm(index));
     }
 
-    private int getFirstIndex() {
-        return this.logs.get(0).getIndex();
-    }
-
-    synchronized int truncate(int fromIndex) {
-        checkArgument(fromIndex >= this.offset && fromIndex <= this.getCommitIndex(),
-                "invalid truncate from: %s, current offset: %s, current commit index: %s",
-                fromIndex, this.offset, this.getCommitIndex());
-
-        logger.info("try truncating logs from {}, offset: {}, commitIndex: {}", fromIndex, this.offset, this.commitIndex);
-
-        List<LogEntry> remainLogs = this.getEntries(fromIndex, this.getLastIndex() + 1);
-        this.logs = new ArrayList<>();
-        this.logs.addAll(remainLogs);
-        assert !logs.isEmpty();
-        this.offset = this.getFirstIndex();
-        return this.getLastIndex();
-    }
-
-    public synchronized Optional<LogEntry> getEntry(int index) {
+    public Optional<LogEntry> getEntry(int index){
         List<LogEntry> entries = getEntries(index, index + 1);
 
         if (entries.isEmpty()) {
@@ -75,79 +107,87 @@ public class RaftLogImpl implements RaftLog {
         }
     }
 
-    public synchronized List<LogEntry> getEntries(int start, int end) {
-        checkArgument(start >= this.offset && start < end, "invalid start and end: %s %s", start, end);
+    public synchronized List<LogEntry> getEntries(int start, int end){
+        checkArgument(start <= end, "invalid start and end: %s %s", start, end);
 
-        start = start - this.offset;
-        end = end - this.offset;
-        return new ArrayList<>(this.logs.subList(start, Math.min(end, this.logs.size())));
-    }
-
-    public synchronized int directAppend(int term, List<LogEntry> entries) {
-        if (entries.size() == 0) {
-            return this.getLastIndex();
+        if (start < getFirstIndex()) {
+            throw new LogsCompactedException(start);
         }
 
-        int i = this.getLastIndex();
+        int lastIndex = getLastIndex();
+        if (start == end || start > lastIndex) {
+            return Collections.emptyList();
+        }
+
+        List<LogEntry> entries = new ArrayList<>();
+
+        int bufferOffset = buffer.getOffsetIndex();
+        if (start < bufferOffset) {
+            entries.addAll(storage.getEntries(start, Math.min(end, bufferOffset)));
+        }
+
+        if (end > bufferOffset) {
+            entries.addAll(buffer.getEntries(Math.max(start, bufferOffset), Math.min(end, buffer.getLastIndex() + 1)));
+        }
+
+        return entries;
+    }
+
+    public CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries) {
+        if (entries.size() == 0) {
+            return CompletableFuture.completedFuture(getLastIndex());
+        }
+
+        final ArrayList<LogEntry> preparedEntries = new ArrayList<>(entries.size());
+        int i = getLastIndex();
         for (LogEntry entry : entries) {
             ++i;
             LogEntry e = LogEntry.newBuilder(entry)
                     .setIndex(i)
                     .setTerm(term)
                     .build();
-            this.logs.add(e);
+            preparedEntries.add(e);
         }
 
-        return this.getLastIndex();
+        synchronized(this) {
+            // add logs to buffer first so we can read these new entries immediately during broadcasting logs to
+            // followers afterwards and don't need to wait them to persistent in storage
+            buffer.append(preparedEntries);
+            return CompletableFuture.supplyAsync(() -> {
+                storage.append(preparedEntries);
+                return getLastIndex();
+            }, pool);
+        }
     }
 
-    public synchronized int tryAppendEntries(int prevIndex, int prevTerm, List<LogEntry> entries) {
-        // entries can be empty when leader just want to update follower's commit index
-
-        if (prevIndex < this.offset) {
-            logger.warn("try append entries with truncated prevIndex: {}. " +
-                            "prevTerm: {}, current offset: {}",
-                    prevIndex, prevTerm, this.offset);
-            return 0;
-        } else if (prevIndex > this.getLastIndex()) {
-            logger.warn("try append entries with out of range prevIndex: {}. " +
-                            "prevTerm: {}, current lastIndex: {}",
-                    prevIndex, prevTerm, this.getLastIndex());
-            return 0;
-        }
-
-        if (this.match(prevTerm, prevIndex)) {
-            int conflictIndex = this.searchConflict(entries);
+    public synchronized int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries) {
+        if (match(prevTerm, prevIndex)) {
+            int conflictIndex = searchConflict(entries);
             int lastIndex = prevIndex + entries.size();
             if (conflictIndex != 0) {
-                if (conflictIndex <= this.commitIndex) {
+                if (conflictIndex <= commitIndex) {
                     logger.error("try append entries conflict with committed entry on index: {}, " +
                                     "new entry: {}, committed entry: {}",
-                            conflictIndex, entries.get(conflictIndex - prevIndex - 1), this.getEntry(conflictIndex));
+                            conflictIndex, entries.get(conflictIndex - prevIndex - 1), getEntry(conflictIndex));
                     throw new IllegalStateException();
                 }
 
-                for (LogEntry e : entries.subList(conflictIndex - prevIndex - 1, entries.size())) {
-                    int index = e.getIndex() - this.offset;
-                    if (index >= this.logs.size()) {
-                        this.logs.add(e);
-                    } else {
-                        this.logs.set(index, e);
-                    }
-                }
+                List<LogEntry> entriesNeedToStore = entries.subList(conflictIndex - prevIndex - 1, entries.size());
+                buffer.append(entriesNeedToStore);
+                storage.append(entriesNeedToStore);
             }
             return lastIndex;
         }
 
-        return 0;
+        return -1;
     }
 
     private int searchConflict(List<LogEntry> entries) {
         for (LogEntry entry : entries) {
-            if (!this.match(entry.getTerm(), entry.getIndex())) {
-                if (entry.getIndex() <= this.getLastIndex()) {
+            if (!match(entry.getTerm(), entry.getIndex())) {
+                if (entry.getIndex() <= getLastIndex()) {
                     logger.warn("found conflict entry at index {}, existing term: {}, conflicting term: {}",
-                            entry.getIndex(), this.getTerm(entry.getIndex()), entry.getTerm());
+                            entry.getIndex(), getTerm(entry.getIndex()), entry.getTerm());
                 }
                 return entry.getIndex();
             }
@@ -156,53 +196,41 @@ public class RaftLogImpl implements RaftLog {
         return 0;
     }
 
-    private boolean match(int term, int index) {
-        Optional<Integer> storedTerm = this.getTerm(index);
+    public boolean match(int term, int index) {
+        Optional<Integer> storedTerm = getTerm(index);
 
         return storedTerm.isPresent() && term == storedTerm.get();
     }
 
     public synchronized boolean isUpToDate(int term, int index) {
-        Optional<LogEntry> lastEntryOnServerOpt = this.getEntry(this.getLastIndex());
-        assert lastEntryOnServerOpt.isPresent();
+        int lastIndex = getLastIndex();
+        Optional<Integer> lastTerm = getTerm(lastIndex);
 
-        LogEntry lastEntryOnServer = lastEntryOnServerOpt.get();
-        return term > lastEntryOnServer.getTerm() ||
-                (term == lastEntryOnServer.getTerm() &&
-                        index >= lastEntryOnServer.getIndex());
+        assert lastTerm.isPresent();
+
+        return term > lastTerm.get() ||
+                (term == lastTerm.get() &&
+                        index >= lastIndex);
     }
 
-    public int getCommitIndex() {
-        return this.commitIndex;
+    public synchronized int getCommitIndex() {
+        return commitIndex;
     }
 
-    public int getAppliedIndex() {
-        return this.appliedIndex;
+    public synchronized int getAppliedIndex() {
+        return appliedIndex;
     }
 
     public synchronized List<LogEntry> tryCommitTo(int commitTo) {
-        checkArgument(commitTo <= this.getLastIndex(),
-                "try commit to %s but last index in log is %s", commitTo, this.getLastIndex());
-        int oldCommit = this.getCommitIndex();
+        checkArgument(commitTo <= getLastIndex(),
+                "try commit to %s but last index in log is %s", commitTo, getLastIndex());
+        int oldCommit = getCommitIndex();
         if (commitTo > oldCommit) {
-            this.commitIndex = commitTo;
-            return this.getEntries(oldCommit + 1, commitTo + 1);
+            commitIndex = commitTo;
+            return getEntries(oldCommit + 1, commitTo + 1);
         }
 
         return Collections.emptyList();
-    }
-
-    public synchronized List<LogEntry> getEntriesNeedToApply() {
-        int start = this.appliedIndex + 1;
-        int end = this.getCommitIndex() + 1;
-
-        assert start <= end : "start " + start + " end " + end;
-
-        if (start == end) {
-            return Collections.emptyList();
-        } else {
-            return this.getEntries(this.appliedIndex + 1, this.getCommitIndex() + 1);
-        }
     }
 
     public synchronized void appliedTo(int appliedTo) {
@@ -214,14 +242,37 @@ public class RaftLogImpl implements RaftLog {
                 "try applied log to %s but applied index in log is %s", appliedTo, appliedIndex);
 
         this.appliedIndex = appliedTo;
+        buffer.truncateBuffer(appliedTo);
     }
 
     @Override
-    public String toString() {
+    public synchronized void installSnapshot(Snapshot snapshot) {
+        commitIndex = snapshot.getIndex();
+
+        recentSnapshotIndex = snapshot.getIndex();
+        recentSnapshotTerm = snapshot.getTerm();
+    }
+
+    @Override
+    public synchronized void snapshotApplied(int snapshotIndex) {
+        if (recentSnapshotIndex == snapshotIndex) {
+            recentSnapshotIndex = -1;
+            recentSnapshotTerm = -1;
+        }
+    }
+
+    @Override
+    public void shutdown() {
+        pool.shutdown();
+    }
+
+    @Override
+    public synchronized String toString() {
         return "{" +
                 "commitIndex=" + commitIndex +
                 ", appliedIndex=" + appliedIndex +
-                ", offset=" + offset +
+                ", firstIndex=" + getFirstIndex() +
+                ", lastIndex=" + getLastIndex() +
                 '}';
     }
 }

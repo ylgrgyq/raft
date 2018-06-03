@@ -20,6 +20,12 @@ message LogEntry {
     EntryType type = 4;
 }
 
+message Snapshot {
+	bytes data = 1;
+	int32 index = 2;
+    int32 term = 3;
+    repeated string peer_ids = 4;
+}
 
 message ConfigChange {
     enum ConfigChangeAction {
@@ -46,6 +52,7 @@ message RaftCommand {
         PONG = 10;
         TIMEOUT_NOW = 11;
         TRANSFER_LEADER = 12;
+        SNAPSHOT = 13;
     }
 
     CmdType type = 1;
@@ -64,4 +71,5 @@ message RaftCommand {
     bool vote_granted = 14;
     string leader_hint = 15;
     bool force_election = 16;
+    Snapshot snapshot = 17;
 }

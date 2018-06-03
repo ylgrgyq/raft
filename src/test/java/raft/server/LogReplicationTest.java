@@ -1,6 +1,7 @@
 package raft.server;
 
 import org.junit.Test;
+import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
 
 import java.util.ArrayList;
@@ -46,34 +47,32 @@ public class LogReplicationTest {
         assertEquals(selfId, status.getVotedFor());
 
         // this is a single node raft so proposed logs will be applied immediately so we can get applied logs from StateMachine
-        List<LogEntry> applied = TestingRaftCluster.drainAvailableApplied(selfId);
+        TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(selfId);
+        List<LogEntry> applied  = stateMachine.drainAvailableApplied();
         for (LogEntry e : applied) {
-            assertEquals(status.getTerm(), e.getTerm());
-            assertArrayEquals(dataList.get(e.getIndex() - 1), e.getData().toByteArray());
+            if (e != PersistentStorage.sentinel) {
+                assertEquals(status.getTerm(), e.getTerm());
+                assertArrayEquals(dataList.get(e.getIndex() - 1), e.getData().toByteArray());
+            }
         }
-
-        // check new raft status
-        RaftStatus newStatus = leader.getStatus();
-        assertEquals(logCount, newStatus.getAppliedIndex());
 
         TestingRaftCluster.shutdownCluster();
     }
 
     private static void checkAppliedLogs(RaftNode node, int logCount, List<byte[]> sourceDataList) {
-        List<LogEntry> applied = TestingRaftCluster.waitApplied(node.getId(), logCount);
+        TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(node.getId());
+        List<LogEntry> applied = stateMachine.waitApplied(logCount);
 
         // check node status after logs proposed
         RaftStatus status = node.getStatus();
         assertEquals(logCount, status.getCommitIndex());
 
         for (LogEntry e : applied) {
-            assertEquals(status.getTerm(), e.getTerm());
-            assertArrayEquals(sourceDataList.get(e.getIndex() - 1), e.getData().toByteArray());
+            if (e != PersistentStorage.sentinel) {
+                assertEquals(status.getTerm(), e.getTerm());
+                assertArrayEquals(sourceDataList.get(e.getIndex() - 1), e.getData().toByteArray());
+            }
         }
-
-        // check node status after applied
-        RaftStatus newStatus = node.getStatus();
-        assertEquals(logCount, newStatus.getAppliedIndex());
     }
 
     @Test
@@ -95,6 +94,7 @@ public class LogReplicationTest {
         // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(1, 10);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
+        assert logCount == dataList.size();
         CompletableFuture<RaftResponse> resp = leader.propose(dataList);
         RaftResponse p = resp.get();
         assertEquals(leaderId, p.getLeaderIdHint());

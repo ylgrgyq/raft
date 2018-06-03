@@ -5,11 +5,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
+import raft.server.proto.Snapshot;
 
+import java.lang.reflect.Array;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -44,6 +47,7 @@ class TestingRaftCluster {
                 .withSelfID(selfId)
                 .withRaftCommandBroker(broker)
                 .withStateMachine(stateMachine)
+                .withPersistentStorage(new MemoryFakePersistentStorage())
                 .build();
         return new RaftNode(c);
     }
@@ -68,11 +72,26 @@ class TestingRaftCluster {
     static RaftNode waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException {
         long start = System.currentTimeMillis();
         while (true) {
+            ArrayList<RaftNode> possibleLeaderNodes = new ArrayList<>(nodes.size());
             for (RaftNode n : nodes.values()) {
                 if (n.isLeader()) {
-                    return n;
+                    possibleLeaderNodes.add(n);
                 }
             }
+
+            if (possibleLeaderNodes.size() != 0) {
+                if (possibleLeaderNodes.size() == 1) {
+                    return possibleLeaderNodes.get(0);
+                }
+
+                // we could have more than one leader but they must have different term.
+                // the scenario is we have A B C three nodes, A was the old leader and now B C elect B as new leader.
+                // Before B had a chance to notify A it is the new leader, A continue to consider itself as leader. At
+                // this moment we have two leader A and B but they don't share the same term. B's term must
+                // be greater than A's.
+                logger.warn("we have more than one leader: {}", possibleLeaderNodes);
+            }
+
             if (timeoutMs != 0 && (System.currentTimeMillis() - start > timeoutMs)) {
                 throw new TimeoutException();
             } else {
@@ -119,43 +138,6 @@ class TestingRaftCluster {
         });
     }
 
-    static List<LogEntry> drainAvailableApplied(String peerId) {
-        List<LogEntry> ret = new ArrayList<>();
-
-        TestingRaftStateMachine stateMachine = getStateMachineById(peerId);
-        stateMachine.getApplied().drainTo(ret);
-
-        return Collections.unmodifiableList(ret);
-    }
-
-    static List<LogEntry> waitApplied(String peerId, int atLeastExpect) {
-        return waitApplied(peerId, atLeastExpect, defaultTimeoutMs);
-    }
-
-    static List<LogEntry> waitApplied(String peerId, int atLeastExpect, long timeoutMs) {
-        Preconditions.checkArgument(atLeastExpect >= 0);
-
-        List<LogEntry> ret = new ArrayList<>(atLeastExpect);
-        TestingRaftStateMachine stateMachine = getStateMachineById(peerId);
-        stateMachine.getApplied().drainTo(ret);
-
-        long start = System.nanoTime();
-        long deadline = start + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
-        while (atLeastExpect != 0 && ret.size() < atLeastExpect && System.nanoTime() < deadline) {
-            try {
-                LogEntry e;
-                if ((e = stateMachine.getApplied().poll(timeoutMs, TimeUnit.MILLISECONDS)) != null) {
-                    ret.add(e);
-                    stateMachine.getApplied().drainTo(ret);
-                }
-            } catch (InterruptedException ex) {
-                // ignore
-            }
-        }
-
-        return Collections.unmodifiableList(ret);
-    }
-
     static class TestingRaftStateMachine implements StateMachine {
         private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
         private AtomicBoolean isLeader = new AtomicBoolean(false);
@@ -182,6 +164,16 @@ class TestingRaftCluster {
         public void onProposalCommitted(List<LogEntry> msgs) {
             assert msgs != null && !msgs.isEmpty() : "msgs is null:" + (msgs == null);
             applied.addAll(msgs);
+        }
+
+        @Override
+        public void installSnapshot(Snapshot snap) {
+
+        }
+
+        @Override
+        public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
+            return null;
         }
 
         @Override
@@ -263,7 +255,7 @@ class TestingRaftCluster {
         }
 
         List<LogEntry> waitApplied(int atLeastExpect, long timeoutMs) {
-            assert atLeastExpect >= 0 : "actual" + atLeastExpect;
+            assert atLeastExpect >= 0 : "actual " + atLeastExpect;
 
             List<LogEntry> ret = new ArrayList<>(atLeastExpect);
             getApplied().drainTo(ret);
@@ -281,6 +273,14 @@ class TestingRaftCluster {
                     // ignore
                 }
             }
+
+            return Collections.unmodifiableList(ret);
+        }
+
+        List<LogEntry> drainAvailableApplied() {
+            List<LogEntry> ret = new ArrayList<>();
+
+            getApplied().drainTo(ret);
 
             return Collections.unmodifiableList(ret);
         }

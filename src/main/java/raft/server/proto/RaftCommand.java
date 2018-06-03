@@ -154,6 +154,19 @@ private static final long serialVersionUID = 0L;
             forceElection_ = input.readBool();
             break;
           }
+          case 138: {
+            raft.server.proto.Snapshot.Builder subBuilder = null;
+            if (snapshot_ != null) {
+              subBuilder = snapshot_.toBuilder();
+            }
+            snapshot_ = input.readMessage(raft.server.proto.Snapshot.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(snapshot_);
+              snapshot_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
         }
       }
     } catch (com.google.protobuf.InvalidProtocolBufferException e) {
@@ -238,6 +251,10 @@ private static final long serialVersionUID = 0L;
      * <code>TRANSFER_LEADER = 12;</code>
      */
     TRANSFER_LEADER(12),
+    /**
+     * <code>SNAPSHOT = 13;</code>
+     */
+    SNAPSHOT(13),
     UNRECOGNIZED(-1),
     ;
 
@@ -293,6 +310,10 @@ private static final long serialVersionUID = 0L;
      * <code>TRANSFER_LEADER = 12;</code>
      */
     public static final int TRANSFER_LEADER_VALUE = 12;
+    /**
+     * <code>SNAPSHOT = 13;</code>
+     */
+    public static final int SNAPSHOT_VALUE = 13;
 
 
     public final int getNumber() {
@@ -326,6 +347,7 @@ private static final long serialVersionUID = 0L;
         case 10: return PONG;
         case 11: return TIMEOUT_NOW;
         case 12: return TRANSFER_LEADER;
+        case 13: return SNAPSHOT;
         default: return null;
       }
     }
@@ -656,6 +678,27 @@ private static final long serialVersionUID = 0L;
     return forceElection_;
   }
 
+  public static final int SNAPSHOT_FIELD_NUMBER = 17;
+  private raft.server.proto.Snapshot snapshot_;
+  /**
+   * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+   */
+  public boolean hasSnapshot() {
+    return snapshot_ != null;
+  }
+  /**
+   * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+   */
+  public raft.server.proto.Snapshot getSnapshot() {
+    return snapshot_ == null ? raft.server.proto.Snapshot.getDefaultInstance() : snapshot_;
+  }
+  /**
+   * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+   */
+  public raft.server.proto.SnapshotOrBuilder getSnapshotOrBuilder() {
+    return getSnapshot();
+  }
+
   private byte memoizedIsInitialized = -1;
   public final boolean isInitialized() {
     byte isInitialized = memoizedIsInitialized;
@@ -715,6 +758,9 @@ private static final long serialVersionUID = 0L;
     }
     if (forceElection_ != false) {
       output.writeBool(16, forceElection_);
+    }
+    if (snapshot_ != null) {
+      output.writeMessage(17, getSnapshot());
     }
     unknownFields.writeTo(output);
   }
@@ -784,6 +830,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(16, forceElection_);
     }
+    if (snapshot_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(17, getSnapshot());
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -831,6 +881,11 @@ private static final long serialVersionUID = 0L;
         .equals(other.getLeaderHint());
     result = result && (getForceElection()
         == other.getForceElection());
+    result = result && (hasSnapshot() == other.hasSnapshot());
+    if (hasSnapshot()) {
+      result = result && getSnapshot()
+          .equals(other.getSnapshot());
+    }
     result = result && unknownFields.equals(other.unknownFields);
     return result;
   }
@@ -879,6 +934,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + FORCE_ELECTION_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getForceElection());
+    if (hasSnapshot()) {
+      hash = (37 * hash) + SNAPSHOT_FIELD_NUMBER;
+      hash = (53 * hash) + getSnapshot().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1045,6 +1104,12 @@ private static final long serialVersionUID = 0L;
 
       forceElection_ = false;
 
+      if (snapshotBuilder_ == null) {
+        snapshot_ = null;
+      } else {
+        snapshot_ = null;
+        snapshotBuilder_ = null;
+      }
       return this;
     }
 
@@ -1093,6 +1158,11 @@ private static final long serialVersionUID = 0L;
       result.voteGranted_ = voteGranted_;
       result.leaderHint_ = leaderHint_;
       result.forceElection_ = forceElection_;
+      if (snapshotBuilder_ == null) {
+        result.snapshot_ = snapshot_;
+      } else {
+        result.snapshot_ = snapshotBuilder_.build();
+      }
       result.bitField0_ = to_bitField0_;
       onBuilt();
       return result;
@@ -1209,6 +1279,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getForceElection() != false) {
         setForceElection(other.getForceElection());
+      }
+      if (other.hasSnapshot()) {
+        mergeSnapshot(other.getSnapshot());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -2056,6 +2129,123 @@ private static final long serialVersionUID = 0L;
       forceElection_ = false;
       onChanged();
       return this;
+    }
+
+    private raft.server.proto.Snapshot snapshot_ = null;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        raft.server.proto.Snapshot, raft.server.proto.Snapshot.Builder, raft.server.proto.SnapshotOrBuilder> snapshotBuilder_;
+    /**
+     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     */
+    public boolean hasSnapshot() {
+      return snapshotBuilder_ != null || snapshot_ != null;
+    }
+    /**
+     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     */
+    public raft.server.proto.Snapshot getSnapshot() {
+      if (snapshotBuilder_ == null) {
+        return snapshot_ == null ? raft.server.proto.Snapshot.getDefaultInstance() : snapshot_;
+      } else {
+        return snapshotBuilder_.getMessage();
+      }
+    }
+    /**
+     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     */
+    public Builder setSnapshot(raft.server.proto.Snapshot value) {
+      if (snapshotBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        snapshot_ = value;
+        onChanged();
+      } else {
+        snapshotBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     */
+    public Builder setSnapshot(
+        raft.server.proto.Snapshot.Builder builderForValue) {
+      if (snapshotBuilder_ == null) {
+        snapshot_ = builderForValue.build();
+        onChanged();
+      } else {
+        snapshotBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     */
+    public Builder mergeSnapshot(raft.server.proto.Snapshot value) {
+      if (snapshotBuilder_ == null) {
+        if (snapshot_ != null) {
+          snapshot_ =
+            raft.server.proto.Snapshot.newBuilder(snapshot_).mergeFrom(value).buildPartial();
+        } else {
+          snapshot_ = value;
+        }
+        onChanged();
+      } else {
+        snapshotBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     */
+    public Builder clearSnapshot() {
+      if (snapshotBuilder_ == null) {
+        snapshot_ = null;
+        onChanged();
+      } else {
+        snapshot_ = null;
+        snapshotBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     */
+    public raft.server.proto.Snapshot.Builder getSnapshotBuilder() {
+      
+      onChanged();
+      return getSnapshotFieldBuilder().getBuilder();
+    }
+    /**
+     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     */
+    public raft.server.proto.SnapshotOrBuilder getSnapshotOrBuilder() {
+      if (snapshotBuilder_ != null) {
+        return snapshotBuilder_.getMessageOrBuilder();
+      } else {
+        return snapshot_ == null ?
+            raft.server.proto.Snapshot.getDefaultInstance() : snapshot_;
+      }
+    }
+    /**
+     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        raft.server.proto.Snapshot, raft.server.proto.Snapshot.Builder, raft.server.proto.SnapshotOrBuilder> 
+        getSnapshotFieldBuilder() {
+      if (snapshotBuilder_ == null) {
+        snapshotBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            raft.server.proto.Snapshot, raft.server.proto.Snapshot.Builder, raft.server.proto.SnapshotOrBuilder>(
+                getSnapshot(),
+                getParentForChildren(),
+                isClean());
+        snapshot_ = null;
+      }
+      return snapshotBuilder_;
     }
     public final Builder setUnknownFields(
         final com.google.protobuf.UnknownFieldSet unknownFields) {
