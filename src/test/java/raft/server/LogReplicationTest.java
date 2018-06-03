@@ -31,9 +31,10 @@ public class LogReplicationTest {
         // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
-        CompletableFuture<RaftResponse> resp = leader.propose(dataList);
-        RaftResponse p = resp.get();
-        assertEquals(selfId, p.getLeaderIdHint());
+        CompletableFuture<ProposalResponse> resp = leader.propose(dataList);
+        ProposalResponse p = resp.get();
+        assertTrue(p.getLeaderIdHint().isPresent());
+        assertEquals(selfId, p.getLeaderIdHint().get());
         assertTrue(p.isSuccess());
         assertNull(p.getError());
 
@@ -46,7 +47,6 @@ public class LogReplicationTest {
         assertEquals(selfId, status.getLeaderId());
         assertEquals(selfId, status.getVotedFor());
 
-        // this is a single node raft so proposed logs will be applied immediately so we can get applied logs from StateMachine
         TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(selfId);
         List<LogEntry> applied  = stateMachine.drainAvailableApplied();
         for (LogEntry e : applied) {
@@ -95,11 +95,10 @@ public class LogReplicationTest {
         int logCount = ThreadLocalRandom.current().nextInt(1, 10);
         List<byte[]> dataList = TestUtil.newDataList(logCount);
         assert logCount == dataList.size();
-        CompletableFuture<RaftResponse> resp = leader.propose(dataList);
-        RaftResponse p = resp.get();
-        assertEquals(leaderId, p.getLeaderIdHint());
+        CompletableFuture<ProposalResponse> resp = leader.propose(dataList);
+        ProposalResponse p = resp.get();
+        assertTrue(leaderId, p.getLeaderIdHint().isPresent());
         assertTrue(p.isSuccess());
-        assertNull(p.getError());
 
         checkAppliedLogs(leader, logCount, dataList);
         for (String id : followerIds) {

@@ -16,7 +16,7 @@ import java.util.concurrent.ThreadFactory;
  */
 abstract class AsyncProxy {
     private static final Logger logger = LoggerFactory.getLogger(AsyncProxy.class.getName());
-    private static final ThreadFactory defaultThreadFactory = new ThreadFactoryImpl("AsyncProxy-");
+    private static final ThreadFactory defaultThreadFactory = new ThreadFactoryImpl("RaftAsyncProxy-");
 
     private final ExecutorService pool;
     private volatile boolean unexpectedException = false;

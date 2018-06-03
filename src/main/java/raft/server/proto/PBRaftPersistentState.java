@@ -18,6 +18,7 @@ private static final long serialVersionUID = 0L;
   private PBRaftPersistentState() {
     term_ = 0;
     votedFor_ = "";
+    commitIndex_ = 0;
   }
 
   @java.lang.Override
@@ -60,6 +61,11 @@ private static final long serialVersionUID = 0L;
             java.lang.String s = input.readStringRequireUtf8();
 
             votedFor_ = s;
+            break;
+          }
+          case 24: {
+
+            commitIndex_ = input.readInt32();
             break;
           }
         }
@@ -129,6 +135,15 @@ private static final long serialVersionUID = 0L;
     }
   }
 
+  public static final int COMMITINDEX_FIELD_NUMBER = 3;
+  private int commitIndex_;
+  /**
+   * <code>int32 commitIndex = 3;</code>
+   */
+  public int getCommitIndex() {
+    return commitIndex_;
+  }
+
   private byte memoizedIsInitialized = -1;
   public final boolean isInitialized() {
     byte isInitialized = memoizedIsInitialized;
@@ -147,6 +162,9 @@ private static final long serialVersionUID = 0L;
     if (!getVotedForBytes().isEmpty()) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 2, votedFor_);
     }
+    if (commitIndex_ != 0) {
+      output.writeInt32(3, commitIndex_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -161,6 +179,10 @@ private static final long serialVersionUID = 0L;
     }
     if (!getVotedForBytes().isEmpty()) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, votedFor_);
+    }
+    if (commitIndex_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(3, commitIndex_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -182,6 +204,8 @@ private static final long serialVersionUID = 0L;
         == other.getTerm());
     result = result && getVotedFor()
         .equals(other.getVotedFor());
+    result = result && (getCommitIndex()
+        == other.getCommitIndex());
     result = result && unknownFields.equals(other.unknownFields);
     return result;
   }
@@ -197,6 +221,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getTerm();
     hash = (37 * hash) + VOTEDFOR_FIELD_NUMBER;
     hash = (53 * hash) + getVotedFor().hashCode();
+    hash = (37 * hash) + COMMITINDEX_FIELD_NUMBER;
+    hash = (53 * hash) + getCommitIndex();
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -330,6 +356,8 @@ private static final long serialVersionUID = 0L;
 
       votedFor_ = "";
 
+      commitIndex_ = 0;
+
       return this;
     }
 
@@ -354,6 +382,7 @@ private static final long serialVersionUID = 0L;
       raft.server.proto.PBRaftPersistentState result = new raft.server.proto.PBRaftPersistentState(this);
       result.term_ = term_;
       result.votedFor_ = votedFor_;
+      result.commitIndex_ = commitIndex_;
       onBuilt();
       return result;
     }
@@ -401,6 +430,9 @@ private static final long serialVersionUID = 0L;
       if (!other.getVotedFor().isEmpty()) {
         votedFor_ = other.votedFor_;
         onChanged();
+      }
+      if (other.getCommitIndex() != 0) {
+        setCommitIndex(other.getCommitIndex());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -520,6 +552,32 @@ private static final long serialVersionUID = 0L;
   checkByteStringIsUtf8(value);
       
       votedFor_ = value;
+      onChanged();
+      return this;
+    }
+
+    private int commitIndex_ ;
+    /**
+     * <code>int32 commitIndex = 3;</code>
+     */
+    public int getCommitIndex() {
+      return commitIndex_;
+    }
+    /**
+     * <code>int32 commitIndex = 3;</code>
+     */
+    public Builder setCommitIndex(int value) {
+      
+      commitIndex_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>int32 commitIndex = 3;</code>
+     */
+    public Builder clearCommitIndex() {
+      
+      commitIndex_ = 0;
       onChanged();
       return this;
     }

@@ -37,14 +37,12 @@ public class RaftImpl implements Runnable {
     private final AtomicBoolean wakenUp = new AtomicBoolean();
     private final BlockingQueue<Proposal> proposalQueue = new LinkedBlockingQueue<>(1000);
     private final BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>(1000);
+    private final PendingProposalFutures pendingProposal = new PendingProposalFutures();
 
+    private final Config c;
     private final ScheduledExecutorService tickGenerator;
     private final String selfId;
     private final RaftLog raftLog;
-    private final long tickIntervalMs;
-    private final int maxEntriesPerAppend;
-    private final long pingIntervalTicks;
-    private final long suggestElectionTimeoutTicks;
     private final RaftPersistentState meta;
     private final StateMachineProxy stateMachine;
     private final AsyncRaftCommandBrokerProxy broker;
@@ -55,27 +53,23 @@ public class RaftImpl implements Runnable {
     private Thread workerThread;
     private volatile boolean workerRun = true;
     private boolean existsPendingConfigChange = false;
-    private String transfereeId = null;
+    private TransferLeaderFuture transferLeaderFuture = null;
 
     RaftImpl(Config c) {
         Preconditions.checkNotNull(c);
 
+        this.c = c;
         this.workerThread = new Thread(this);
         this.raftLog = new RaftLogImpl(c.storage);
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
         this.selfId = c.selfId;
-        this.tickIntervalMs = c.tickIntervalMs;
-        this.suggestElectionTimeoutTicks = c.suggestElectionTimeoutTicks;
-        this.pingIntervalTicks = c.pingIntervalTicks;
-        this.maxEntriesPerAppend = c.maxEntriesPerAppend;
         this.meta = new RaftPersistentState(c.persistentStateFileDirPath, c.selfId);
         this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
         this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
 
-        //TODO consider do not include selfId into peerNodes ?
         for (String peerId : c.peers) {
-            this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, RaftImpl.this.maxEntriesPerAppend));
+            this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, c.maxEntriesPerAppend));
         }
 
         this.state = follower;
@@ -85,7 +79,10 @@ public class RaftImpl implements Runnable {
         meta.init();
         reset(meta.getTerm());
 
-        raftLog.init();
+        raftLog.init(meta);
+        if (c.appliedTo > -1) {
+            raftLog.appliedTo(c.appliedTo);
+        }
 
         tickGenerator.scheduleWithFixedDelay(() -> {
             boolean wakeup = false;
@@ -95,7 +92,7 @@ public class RaftImpl implements Runnable {
                 wakeup = true;
             }
 
-            if (pingTickCounter.incrementAndGet() >= pingIntervalTicks) {
+            if (pingTickCounter.incrementAndGet() >= c.pingIntervalTicks) {
                 pingTickCounter.set(0);
                 pingTickerTimeout.compareAndSet(false, true);
                 wakeup = true;
@@ -105,7 +102,7 @@ public class RaftImpl implements Runnable {
                 wakeUpWorker();
             }
 
-        }, tickIntervalMs, tickIntervalMs, TimeUnit.MILLISECONDS);
+        }, c.tickIntervalMs, c.tickIntervalMs, TimeUnit.MILLISECONDS);
 
         workerThread.start();
 
@@ -117,8 +114,8 @@ public class RaftImpl implements Runnable {
                         "pingIntervalTicks={}\n" +
                         "suggectElectionTimeoutTicks={}\n" +
                         "raftLog={}\n",
-                this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, tickIntervalMs, pingIntervalTicks,
-                suggestElectionTimeoutTicks, raftLog);
+                this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, c.tickIntervalMs, c.pingIntervalTicks,
+                c.suggestElectionTimeoutTicks, raftLog);
     }
 
     boolean isLeader() {
@@ -164,13 +161,13 @@ public class RaftImpl implements Runnable {
         return status;
     }
 
-    CompletableFuture<RaftResponse> proposeData(final List<byte[]> entries) {
+    CompletableFuture<ProposalResponse> proposeData(final List<byte[]> entries) {
         logger.debug("node {} receives proposal with {} entries", this, entries.size());
 
         return doPropose(entries, LogEntry.EntryType.LOG);
     }
 
-    CompletableFuture<RaftResponse> proposeConfigChange(final String peerId, final ConfigChange.ConfigChangeAction action) {
+    CompletableFuture<ProposalResponse> proposeConfigChange(final String peerId, final ConfigChange.ConfigChangeAction action) {
         ConfigChange change = ConfigChange.newBuilder()
                 .setAction(action)
                 .setPeerId(peerId)
@@ -182,14 +179,14 @@ public class RaftImpl implements Runnable {
         return doPropose(data, LogEntry.EntryType.CONFIG);
     }
 
-    CompletableFuture<RaftResponse> proposeTransferLeader(final String transfereeId) {
+    CompletableFuture<ProposalResponse> proposeTransferLeader(final String transfereeId) {
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(transfereeId.getBytes());
 
         return doPropose(data, LogEntry.EntryType.TRANSFER_LEADER);
     }
 
-    private CompletableFuture<RaftResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
+    private CompletableFuture<ProposalResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
         List<LogEntry> logEntries =
                 datas.stream().map(d ->
                         LogEntry.newBuilder()
@@ -198,13 +195,13 @@ public class RaftImpl implements Runnable {
                                 .build()).collect(Collectors.toList());
 
         Proposal proposal = new Proposal(logEntries, type);
-        CompletableFuture<RaftResponse> future;
+        CompletableFuture<ProposalResponse> future;
         if (getState() == State.LEADER) {
             future = proposal.getFuture();
             proposalQueue.add(proposal);
             wakeUpWorker();
         } else {
-            future = CompletableFuture.completedFuture(new RaftResponse(leaderId, ErrorMsg.NOT_LEADER));
+            future = CompletableFuture.completedFuture(ProposalResponse.errorWithLeaderHint(leaderId, ErrorMsg.NOT_LEADER));
         }
         return future;
     }
@@ -395,10 +392,10 @@ public class RaftImpl implements Runnable {
         ErrorMsg error = null;
         try {
             if (getState() == State.LEADER) {
-                if (transfereeId != null) {
+                if (transferLeaderFuture != null) {
                     error = ErrorMsg.LEADER_TRANSFERRING;
                 } else {
-                    switch (proposal.type) {
+                    switch (proposal.getType()) {
                         case CONFIG:
                             if (existsPendingConfigChange) {
                                 error = ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION;
@@ -409,21 +406,22 @@ public class RaftImpl implements Runnable {
                             // fall through
                         case LOG:
                             final int term = meta.getTerm();
-                            raftLog.leaderAsyncAppend(term, proposal.entries)
-                                    .whenComplete((lastIndex, err) -> {
-                                        if (err != null) {
-                                            panic("async append logs failed", err);
-                                        } else {
-                                            // it's OK if this node has stepped-down and surrendered leadership before we
-                                            // update index because we don't use RaftPeerNode on follower or candidate
-                                            RaftPeerNode leaderNode = peerNodes.get(selfId);
-                                            leaderNode.updateIndexes(lastIndex);
-                                        }
-                                    });
+                            int newLastIndex = raftLog.leaderAsyncAppend(term, proposal.getEntries(), (lastIndex, err) -> {
+                                if (err != null) {
+                                    panic("async append logs failed", err);
+                                } else {
+                                    // it's OK if this node has stepped-down and surrendered leadership before we
+                                    // update index because we don't use RaftPeerNode on follower or candidate
+                                    RaftPeerNode leaderNode = peerNodes.get(selfId);
+                                    leaderNode.updateIndexes(lastIndex);
+                                }
+                            });
+
+                            pendingProposal.addFuture(newLastIndex, proposal.getFuture());
                             broadcastAppendEntries();
-                            break;
+                            return;
                         case TRANSFER_LEADER:
-                            String transereeId = new String(proposal.entries.get(0).getData().toByteArray());
+                            String transereeId = new String(proposal.getEntries().get(0).getData().toByteArray());
 
                             if (transereeId.equals(selfId)) {
                                 error = ErrorMsg.ALLREADY_LEADER;
@@ -438,7 +436,7 @@ public class RaftImpl implements Runnable {
                             logger.info("node {} start transfer leadership to {}", this, transereeId);
 
                             electionTickCounter.set(0);
-                            this.transfereeId = transereeId;
+                            transferLeaderFuture = new TransferLeaderFuture(transereeId, proposal.getFuture());
                             RaftPeerNode n = peerNodes.get(transereeId);
                             if (n.getMatchIndex() == raftLog.getLastIndex()) {
                                 logger.info("node {} send timeout immediately to {} because it already " +
@@ -448,7 +446,7 @@ public class RaftImpl implements Runnable {
                                 n.sendAppend(meta.getTerm());
                             }
 
-                            break;
+                            return;
                     }
                 }
             } else {
@@ -459,7 +457,7 @@ public class RaftImpl implements Runnable {
             error = ErrorMsg.INTERNAL_ERROR;
         }
 
-        proposal.future.complete(new RaftResponse(leaderId, error));
+        proposal.getFuture().complete(ProposalResponse.errorWithLeaderHint(leaderId, error));
     }
 
     private void broadcastAppendEntries() {
@@ -477,38 +475,38 @@ public class RaftImpl implements Runnable {
 
     private void processNewCommitedLogs(List<LogEntry> commitedLogs) {
         assert commitedLogs != null;
-        if (!commitedLogs.isEmpty()) {
-            List<LogEntry> withoutConfigLogs = new ArrayList<>(commitedLogs.size());
-            for (LogEntry e : commitedLogs) {
-                if (e.getType() == LogEntry.EntryType.CONFIG) {
-                    try {
-                        ConfigChange change = ConfigChange.parseFrom(e.getData());
-                        String peerId = change.getPeerId();
-                        switch (change.getAction()) {
-                            case ADD_NODE:
-                                addNode(peerId);
-                                break;
-                            case REMOVE_NODE:
-                                removeNode(peerId);
-                                break;
-                            default:
-                                String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
-                                        this, e);
-                                throw new RuntimeException(errorMsg);
+        assert !commitedLogs.isEmpty();
 
-                        }
-                    } catch (InvalidProtocolBufferException ex) {
-                        String errorMsg = String.format("node %s failed to parse ConfigChange msg: %s", this, e);
-                        throw new RuntimeException(errorMsg, ex);
+        List<LogEntry> withoutConfigLogs = new ArrayList<>(commitedLogs.size());
+        for (LogEntry e : commitedLogs) {
+            if (e.getType() == LogEntry.EntryType.CONFIG) {
+                try {
+                    ConfigChange change = ConfigChange.parseFrom(e.getData());
+                    String peerId = change.getPeerId();
+                    switch (change.getAction()) {
+                        case ADD_NODE:
+                            addNode(peerId);
+                            break;
+                        case REMOVE_NODE:
+                            removeNode(peerId);
+                            break;
+                        default:
+                            String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
+                                    this, e);
+                            throw new RuntimeException(errorMsg);
+
                     }
-                } else {
-                    withoutConfigLogs.add(e);
+                } catch (InvalidProtocolBufferException ex) {
+                    String errorMsg = String.format("node %s failed to parse ConfigChange msg: %s", this, e);
+                    throw new RuntimeException(errorMsg, ex);
                 }
+            } else {
+                withoutConfigLogs.add(e);
             }
-
-            LogEntry lastLog = commitedLogs.get(commitedLogs.size() - 1);
-            stateMachine.onProposalCommitted(withoutConfigLogs, lastLog.getIndex());
         }
+
+        LogEntry lastLog = commitedLogs.get(commitedLogs.size() - 1);
+        stateMachine.onProposalCommitted(withoutConfigLogs, lastLog.getIndex());
     }
 
     private void addNode(final String peerId) {
@@ -517,9 +515,9 @@ public class RaftImpl implements Runnable {
                         this,
                         raftLog,
                         raftLog.getLastIndex() + 1,
-                        RaftImpl.this.maxEntriesPerAppend));
+                        c.maxEntriesPerAppend));
 
-        logger.info("node {} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
+        logger.info("node {} addFuture peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
         stateMachine.onNodeAdded(peerId);
 
         existsPendingConfigChange = false;
@@ -533,8 +531,10 @@ public class RaftImpl implements Runnable {
 
         if (getState() == State.LEADER) {
             // abort transfer leadership when transferee was removed from cluster
-            if (peerId.equals(transfereeId)) {
-                transfereeId = null;
+            if (transferLeaderFuture != null && peerId.equals(transferLeaderFuture.getTransfereeId())) {
+                transferLeaderFuture.getResponseFuture()
+                        .complete(ProposalResponse.error(ErrorMsg.TRANSFER_ABORTED_BY_TRANSFEREE_REMOVED));
+                transferLeaderFuture = null;
             }
 
             // quorum has changed, check if there's any pending entries
@@ -633,14 +633,19 @@ public class RaftImpl implements Runnable {
         }
 
         leaderId = null;
-        transfereeId = null;
+
+        // I think we don't have any scenario that need to reset transferLeaderFuture to null
+        // but for safety we add an assert and reset it to null anyway
+        assert transferLeaderFuture == null;
+        transferLeaderFuture = null;
+
         clearTickCounters();
         electionTickerTimeout.getAndSet(false);
         pingTickerTimeout.getAndSet(false);
 
         // we need to reset election timeout on every time state changed and every
         // reelection in candidate state to avoid split vote
-        electionTimeoutTicks = RaftImpl.generateElectionTimeoutTicks(RaftImpl.this.suggestElectionTimeoutTicks);
+        electionTimeoutTicks = RaftImpl.generateElectionTimeoutTicks(c.suggestElectionTimeoutTicks);
     }
 
     private void clearTickCounters() {
@@ -720,11 +725,16 @@ public class RaftImpl implements Runnable {
 
     private void tryCommitTo(int commitTo) {
         if (logger.isDebugEnabled()) {
-            logger.debug("node {} try commit to {} from leader with current commitIndex: {} and lastIndex: {}",
+            logger.debug("node {} try commit to {} with current commitIndex: {} and lastIndex: {}",
                     this, commitTo, raftLog.getCommitIndex(), raftLog.getLastIndex());
         }
+
         List<LogEntry> newCommitedLogs = raftLog.tryCommitTo(commitTo);
-        processNewCommitedLogs(newCommitedLogs);
+        if (!newCommitedLogs.isEmpty()) {
+            meta.setCommitIndex(commitTo);
+            processNewCommitedLogs(newCommitedLogs);
+            pendingProposal.completeFutures(commitTo);
+        }
     }
 
     private void processSnapshot(RaftCommand cmd) {
@@ -768,8 +778,8 @@ public class RaftImpl implements Runnable {
         remainPeerIds.addAll(peerNodes.keySet());
 
         for (String peerId : snapshot.getPeerIdsList()) {
-            RaftPeerNode node = new RaftPeerNode(peerId, this, this.raftLog, lastIndex + 1,
-                    RaftImpl.this.maxEntriesPerAppend);
+            RaftPeerNode node = new RaftPeerNode(peerId, this, raftLog, lastIndex + 1,
+                    c.maxEntriesPerAppend);
             if (peerId.equals(selfId)) {
                 node.updateIndexes(lastIndex - 1);
             }
@@ -800,6 +810,8 @@ public class RaftImpl implements Runnable {
             // ignore and continue shutdown
         }
         broker.shutdown();
+        // we can call onShutdown and shutdown on stateMachine successively
+        // shutdown will wait onShutdown to finish
         stateMachine.onShutdown();
         stateMachine.shutdown();
         raftLog.shutdown();
@@ -814,26 +826,6 @@ public class RaftImpl implements Runnable {
                 ", leaderId='" + leaderId + '\'' +
                 ", state=" + getState() +
                 '}';
-    }
-
-    private static class Proposal {
-        private final List<LogEntry> entries;
-        private final LogEntry.EntryType type;
-        private final CompletableFuture<RaftResponse> future;
-
-        Proposal(List<LogEntry> entries, LogEntry.EntryType type) {
-            this.entries = entries;
-            this.type = type;
-            this.future = new CompletableFuture<>();
-        }
-
-        List<LogEntry> getEntries() {
-            return entries;
-        }
-
-        CompletableFuture<RaftResponse> getFuture() {
-            return future;
-        }
     }
 
     static class Context {
@@ -858,14 +850,21 @@ public class RaftImpl implements Runnable {
         public Context finish() {
             logger.debug("node {} finish leader", RaftImpl.this);
             stateMachine.onLeaderFinish();
+            if (transferLeaderFuture != null) {
+                transferLeaderFuture.getResponseFuture().complete(ProposalResponse.success());
+                transferLeaderFuture = null;
+            }
             return cxt;
         }
 
         @Override
         public void onElectionTimeout() {
-            if (transfereeId != null) {
-                logger.info("node {} abort transfer leadership to {} due to timeout", RaftImpl.this, transfereeId);
-                transfereeId = null;
+            if (transferLeaderFuture  != null) {
+                logger.info("node {} abort transfer leadership to {} due to timeout", RaftImpl.this,
+                        transferLeaderFuture.getTransfereeId());
+                transferLeaderFuture.getResponseFuture()
+                        .complete(ProposalResponse.error(ErrorMsg.TIMEOUT));
+                transferLeaderFuture  = null;
             }
         }
 
@@ -892,8 +891,8 @@ public class RaftImpl implements Runnable {
                                 broadcastAppendEntries();
                             }
 
-                            if (transfereeId != null
-                                    && transfereeId.equals(cmd.getFrom())
+                            if (transferLeaderFuture != null
+                                    && transferLeaderFuture.getTransfereeId().equals(cmd.getFrom())
                                     && node.getMatchIndex() == raftLog.getLastIndex()) {
                                 logger.info("node {} send timeout to {} after it has up to date logs", RaftImpl.this, cmd.getFrom());
                                 node.sendTimeout(selfTerm);

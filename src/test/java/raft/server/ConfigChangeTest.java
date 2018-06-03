@@ -38,8 +38,8 @@ public class ConfigChangeTest {
     public void testAddNodeToFollower() throws Exception {
         String newNode = "new node 004";
         RaftNode follower = TestingRaftCluster.getFollowers().get(0);
-        CompletableFuture<RaftResponse> f = follower.addNode(newNode);
-        RaftResponse resp = f.get();
+        CompletableFuture<ProposalResponse> f = follower.addNode(newNode);
+        ProposalResponse resp = f.get();
         assertFalse(resp.isSuccess());
         assertEquals(ErrorMsg.NOT_LEADER, resp.getError());
 
@@ -56,10 +56,9 @@ public class ConfigChangeTest {
         RaftNode leader = TestingRaftCluster.waitGetLeader();
 
         String newNode = "new node 004";
-        CompletableFuture<RaftResponse> f = leader.addNode(newNode);
-        RaftResponse resp = f.get();
+        CompletableFuture<ProposalResponse> f = leader.addNode(newNode);
+        ProposalResponse resp = f.get();
         assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
 
         HashSet<String> newPeerIds = new HashSet<>(peerIdSet);
         newPeerIds.add(newNode);
@@ -82,11 +81,10 @@ public class ConfigChangeTest {
 
         String successNewNode = "success new node 004";
         String failedNewNode = "failed new node 005";
-        CompletableFuture<RaftResponse> f1 = leader.addNode(successNewNode);
-        CompletableFuture<RaftResponse> f2 = leader.addNode(failedNewNode);
-        RaftResponse resp = f1.get();
+        CompletableFuture<ProposalResponse> f1 = leader.addNode(successNewNode);
+        CompletableFuture<ProposalResponse> f2 = leader.addNode(failedNewNode);
+        ProposalResponse resp = f1.get();
         assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
         resp = f2.get();
         assertFalse(resp.isSuccess());
         assertEquals(ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION, resp.getError());
@@ -110,10 +108,9 @@ public class ConfigChangeTest {
         RaftNode leader = TestingRaftCluster.waitGetLeader();
 
         String removePeerId = "not exists node";
-        CompletableFuture<RaftResponse> f = leader.removeNode(removePeerId);
-        RaftResponse resp = f.get();
+        CompletableFuture<ProposalResponse> f = leader.removeNode(removePeerId);
+        ProposalResponse resp = f.get();
         assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
 
         peerIdSet.stream().map(TestingRaftCluster::getNodeById).forEach(node -> {
             assertNotNull(node);
@@ -132,10 +129,9 @@ public class ConfigChangeTest {
         RaftNode leader = TestingRaftCluster.waitGetLeader();
 
         String removePeerId = TestingRaftCluster.getFollowers().get(0).getId();
-        CompletableFuture<RaftResponse> f = leader.removeNode(removePeerId);
-        RaftResponse resp = f.get();
+        CompletableFuture<ProposalResponse> f = leader.removeNode(removePeerId);
+        ProposalResponse resp = f.get();
         assertTrue(resp.isSuccess());
-        assertNull(resp.getError());
 
         peerIdSet.remove(removePeerId);
         peerIdSet.stream().map(TestingRaftCluster::getNodeById).forEach(node -> {
@@ -157,8 +153,8 @@ public class ConfigChangeTest {
         RaftNode leader = TestingRaftCluster.waitGetLeader();
 
         String leaderId = leader.getId();
-        CompletableFuture<RaftResponse> f = leader.removeNode(leaderId);
-        RaftResponse resp = f.get();
+        CompletableFuture<ProposalResponse> f = leader.removeNode(leaderId);
+        ProposalResponse resp = f.get();
         assertFalse(resp.isSuccess());
         assertEquals(ErrorMsg.FORBID_REMOVE_LEADER, resp.getError());
     }

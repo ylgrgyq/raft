@@ -64,21 +64,25 @@ public class RaftPersistentStateTest {
         final int term = ThreadLocalRandom.current().nextInt(1, 100);
         initState.setTerm(term);
         initState.setVotedFor(voteFor);
+        initState.setCommitIndex(ThreadLocalRandom.current().nextInt(1000, 10000));
 
         RaftPersistentState loadedState = new RaftPersistentState(testingDirectory, raftId);
         loadedState.init();
 
         assertEquals(initState.getTerm(), loadedState.getTerm());
         assertEquals(initState.getVotedFor(), loadedState.getVotedFor());
+        assertEquals(initState.getCommitIndex(), loadedState.getCommitIndex());
 
         final String voteFor2 = "Barack Obama";
         int term2 = ThreadLocalRandom.current().nextInt(100, 200);
         loadedState.setTermAndVotedFor(term2, voteFor2);
+        loadedState.setCommitIndex(ThreadLocalRandom.current().nextInt(10000, 20000));
 
         RaftPersistentState loadedState2 = new RaftPersistentState(testingDirectory, raftId);
         loadedState2.init();
 
         assertEquals(loadedState.getTerm(), loadedState2.getTerm());
         assertEquals(loadedState.getVotedFor(), loadedState2.getVotedFor());
+        assertEquals(loadedState.getCommitIndex(), loadedState2.getCommitIndex());
     }
 }

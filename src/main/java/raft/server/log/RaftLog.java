@@ -1,18 +1,20 @@
 package raft.server.log;
 
+import raft.server.RaftPersistentState;
 import raft.server.proto.LogEntry;
 import raft.server.proto.Snapshot;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 
 /**
  * Author: ylgrgyq
  * Date: 18/5/16
  */
 public interface RaftLog {
-    void init();
+    void init(RaftPersistentState meta);
 
     int getLastIndex();
 
@@ -26,7 +28,7 @@ public interface RaftLog {
 
     boolean match(int term, int index);
 
-    CompletableFuture<Integer> leaderAsyncAppend(int term, List<LogEntry> entries);
+    int leaderAsyncAppend(int term, List<LogEntry> entries, BiConsumer<? super Integer, ? super Throwable> action);
 
     int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries);
 
