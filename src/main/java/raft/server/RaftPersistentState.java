@@ -1,6 +1,5 @@
 package raft.server;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import raft.server.proto.PBRaftPersistentState;
 
@@ -13,6 +12,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.zip.CRC32;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 /**
@@ -23,21 +23,23 @@ public class RaftPersistentState {
     private static final short magic = 8102;
     private static final short version = 0x01;
     private static final String fileNamePrefix = "raft_persistent_state";
+    // persistent state record header length: magic, version, buffer length, and checksum
+    private static final int headerLength = Short.BYTES + Short.BYTES + Integer.BYTES + Long.BYTES;
 
     private String votedFor;
     private int term;
-    private int commitIndex = -1;
+    private int commitIndex;
     private Path stateFileDirPath;
     private Path stateFilePath;
     private volatile boolean initialized;
 
     public RaftPersistentState(String stateFileDir, String raftId) {
-        Preconditions.checkArgument(! Strings.isNullOrEmpty(stateFileDir));
-        Preconditions.checkArgument(! Strings.isNullOrEmpty(raftId));
+        checkArgument(! Strings.isNullOrEmpty(stateFileDir));
+        checkArgument(! Strings.isNullOrEmpty(raftId));
 
         this.stateFileDirPath = Paths.get(stateFileDir);
 
-        Preconditions.checkArgument(Files.notExists(stateFileDirPath) || Files.isDirectory(stateFileDirPath),
+        checkArgument(Files.notExists(stateFileDirPath) || Files.isDirectory(stateFileDirPath),
                 "\"%s\" must be a directory to hold raft state file", stateFileDir);
 
         this.stateFilePath = Paths.get(stateFileDir + "/" + fileNamePrefix + "_" + raftId);
@@ -51,6 +53,10 @@ public class RaftPersistentState {
         if (Files.exists(stateFileDirPath)) {
             if (Files.exists(stateFilePath)) {
                 try {
+                    if (Files.size(stateFilePath) > 512) {
+                        throw new IllegalStateException(String.format("state file: \"%s\" is too large", stateFilePath));
+                    }
+
                     byte[] raw = Files.readAllBytes(stateFilePath);
                     ByteBuffer buffer = ByteBuffer.wrap(raw);
                     if (magic != buffer.getShort()) {
@@ -65,6 +71,7 @@ public class RaftPersistentState {
                         throw new IllegalStateException(msg);
                     }
 
+                    // TODO use byte to encode length instead of int ?
                     int length = buffer.getInt();
                     byte[] meta = new byte[length];
                     buffer.get(meta);
@@ -100,6 +107,7 @@ public class RaftPersistentState {
         term = 0;
         votedFor = null;
         initialized = true;
+        commitIndex = -1;
     }
 
     public String getVotedFor() {
@@ -110,7 +118,7 @@ public class RaftPersistentState {
 
     public void setVotedFor(String votedFor) {
         checkState(initialized, "should initialize RaftPersistentState before using it");
-        Preconditions.checkArgument(votedFor == null || ! votedFor.isEmpty(), "votedFor should not be empty string");
+        checkArgument(votedFor == null || ! votedFor.isEmpty(), "votedFor should not be empty string");
 
         this.votedFor = votedFor;
         this.persistent();
@@ -162,8 +170,7 @@ public class RaftPersistentState {
 
         byte[] meta = state.toByteArray();
 
-        // allocate a buffer for magic, version, buffer length, serialized state and checksum
-        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES + Short.BYTES + Integer.BYTES + meta.length + Long.BYTES);
+        ByteBuffer buffer = ByteBuffer.allocate(headerLength + meta.length);
         buffer.putShort(magic);
         buffer.putShort(version);
         buffer.putInt(meta.length);

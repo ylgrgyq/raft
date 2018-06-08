@@ -26,7 +26,7 @@ import static org.mockito.Mockito.mock;
  * Date: 18/5/10
  */
 public class StateMachineProxyTest {
-    private final RaftLog raftLog = new RaftLogImpl(new MemoryFakePersistentStorage());
+    private final RaftLog raftLog = new RaftLogImpl(new MemoryBasedTestingStorage());
 
     @Test
     public void testNormalCase() throws Exception {
