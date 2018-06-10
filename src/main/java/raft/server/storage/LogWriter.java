@@ -1,0 +1,98 @@
+package raft.server.storage;
+
+import raft.server.proto.LogEntry;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.util.List;
+import java.util.zip.CRC32;
+
+/**
+ * Author: ylgrgyq
+ * Date: 18/6/10
+ */
+class LogWriter {
+    private int blockOffset;
+    private FileChannel workingFileChannel;
+
+    LogWriter(FileChannel workingFileChannel) {
+        this.workingFileChannel = workingFileChannel;
+        this.blockOffset = 0;
+    }
+
+    long append(List<LogEntry> entries) throws IOException {
+        long startPosition = workingFileChannel.position();
+        for (LogEntry e : entries) {
+            doAppend(e.toByteArray());
+        }
+        workingFileChannel.force(true);
+        return startPosition;
+    }
+
+    private void doAppend(byte[] data) throws IOException {
+        ByteBuffer writeBuffer = ByteBuffer.wrap(data);
+        int dataSizeRemain = writeBuffer.remaining();
+        boolean begin = true;
+
+        while (dataSizeRemain > 0) {
+            int blockLeft = Constant.kBlockSize - blockOffset;
+
+            if (blockLeft < Constant.kHeaderSize) {
+                paddingBlock(blockLeft);
+                blockOffset = 0;
+            }
+
+            assert Constant.kBlockSize - blockOffset - Constant.kHeaderSize >= 0;
+
+            final RecordType type;
+            final int blockForDataAvailable = blockLeft - Constant.kHeaderSize;
+            final int fragmentSize = Math.min(blockForDataAvailable, dataSizeRemain);
+            final boolean end = fragmentSize == dataSizeRemain;
+            if (begin && end) {
+                type = RecordType.kFullType;
+            } else if (begin) {
+                type = RecordType.kFirstType;
+            } else if (end) {
+                type = RecordType.kLastType;
+            } else {
+                type = RecordType.kMiddleType;
+            }
+
+            // TODO implement a new ByteBuffer to avoid copy bytes
+            byte[] out = new byte[fragmentSize];
+            writeBuffer.get(out);
+            writeRecord(type, out);
+
+            begin = false;
+            blockOffset += fragmentSize;
+            dataSizeRemain -= fragmentSize;
+        }
+    }
+
+    private void paddingBlock(int blockLeft) throws IOException{
+        assert blockLeft >= 0 : String.format("blockLeft:%s", blockLeft);
+
+        if (blockLeft > 0) {
+            // padding with bytes array full of zero
+            ByteBuffer buffer = ByteBuffer.allocate(blockLeft);
+            workingFileChannel.write(buffer);
+        }
+    }
+
+    private void writeRecord(RecordType type, byte[] out) throws IOException{
+        assert blockOffset + Constant.kHeaderSize + out.length <= Constant.kBlockSize;
+
+        ByteBuffer buffer = ByteBuffer.allocate(Constant.kHeaderSize);
+        CRC32 checksum = new CRC32();
+        checksum.update(type.getCode());
+        checksum.update(out);
+        buffer.putLong(checksum.getValue());
+        buffer.putShort((short) out.length);
+        buffer.put(type.getCode());
+
+        workingFileChannel.write(buffer);
+        workingFileChannel.write(ByteBuffer.wrap(out));
+        blockOffset += out.length + Constant.kHeaderSize;
+    }
+}
