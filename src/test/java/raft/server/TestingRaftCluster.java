@@ -58,7 +58,7 @@ class TestingRaftCluster {
     }
 
     static void clearPreviousPersistentStateFor(String peerId) {
-        RaftPersistentState state = new RaftPersistentState(persistentStateDir, peerId);
+        RaftPersistentState state = new RaftPersistentState(persistentStateDir, peerId, false);
         state.setTermAndVotedFor(0, null);
     }
 

@@ -6,10 +6,7 @@ import raft.server.proto.PBRaftPersistentState;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.util.zip.CRC32;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -26,16 +23,18 @@ public class RaftPersistentState {
     // persistent state record header length: magic, version, buffer length, and checksum
     private static final int headerLength = Short.BYTES + Short.BYTES + Integer.BYTES + Long.BYTES;
 
+    private final Path stateFileDirPath;
+    private final OpenOption[] openFileOpts;
+
     private String votedFor;
     private int term;
     private int commitIndex;
-    private Path stateFileDirPath;
     private Path stateFilePath;
     private volatile boolean initialized;
 
-    public RaftPersistentState(String stateFileDir, String raftId) {
-        checkArgument(! Strings.isNullOrEmpty(stateFileDir));
-        checkArgument(! Strings.isNullOrEmpty(raftId));
+    public RaftPersistentState(String stateFileDir, String raftId, boolean syncWriteFile) {
+        checkArgument(!Strings.isNullOrEmpty(stateFileDir));
+        checkArgument(!Strings.isNullOrEmpty(raftId));
 
         this.stateFileDirPath = Paths.get(stateFileDir);
 
@@ -43,6 +42,19 @@ public class RaftPersistentState {
                 "\"%s\" must be a directory to hold raft state file", stateFileDir);
 
         this.stateFilePath = Paths.get(stateFileDir + "/" + fileNamePrefix + "_" + raftId);
+
+        if (syncWriteFile) {
+            openFileOpts = new OpenOption[]{StandardOpenOption.SYNC,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE};
+        } else {
+            openFileOpts = new OpenOption[]{
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE
+            };
+        }
     }
 
     public void init() {
@@ -118,7 +130,7 @@ public class RaftPersistentState {
 
     public void setVotedFor(String votedFor) {
         checkState(initialized, "should initialize RaftPersistentState before using it");
-        checkArgument(votedFor == null || ! votedFor.isEmpty(), "votedFor should not be empty string");
+        checkArgument(votedFor == null || !votedFor.isEmpty(), "votedFor should not be empty string");
 
         this.votedFor = votedFor;
         this.persistent();
@@ -181,8 +193,11 @@ public class RaftPersistentState {
         buffer.putLong(checksum.getValue());
         try {
             Path tmpPath = Files.createTempFile(stateFileDirPath, fileNamePrefix, ".tmp_rps");
-            Files.write(tmpPath, buffer.array());
+            Files.write(tmpPath, buffer.array(), openFileOpts);
 
+            // TODO maybe we don't need to replace the existing one. we can just write a new state file with a new name
+            // and leave the old state file as it is (of course, need some way to remove outdated files asynchronously).
+            // On recovery, we just read the newest state file as the legal one
             Files.move(tmpPath, stateFilePath, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
             throw new PersistentStateException(ex);

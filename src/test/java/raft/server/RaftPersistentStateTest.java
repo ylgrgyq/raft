@@ -26,7 +26,7 @@ public class RaftPersistentStateTest {
 
         assertTrue(! Files.exists(testingDirectoryPath));
 
-        RaftPersistentState pState = new RaftPersistentState(testingDirectory, raftId);
+        RaftPersistentState pState = new RaftPersistentState(testingDirectory, raftId, false);
         pState.init();
         assertTrue(Files.exists(testingDirectoryPath));
         assertEquals(0, pState.getTerm());
@@ -46,7 +46,7 @@ public class RaftPersistentStateTest {
 
         assertTrue(Files.exists(testingDirectoryPath));
 
-        RaftPersistentState pState = new RaftPersistentState(testingDirectory, raftId);
+        RaftPersistentState pState = new RaftPersistentState(testingDirectory, raftId, false);
         pState.init();
         assertTrue(Files.exists(testingDirectoryPath));
         assertEquals(0, pState.getTerm());
@@ -56,7 +56,7 @@ public class RaftPersistentStateTest {
 
     @Test
     public void persistent() throws Exception {
-        RaftPersistentState initState = new RaftPersistentState(testingDirectory, raftId);
+        RaftPersistentState initState = new RaftPersistentState(testingDirectory, raftId, false);
         TestUtil.cleanDirectory(testingDirectoryPath);
         initState.init();
 
@@ -66,7 +66,7 @@ public class RaftPersistentStateTest {
         initState.setVotedFor(voteFor);
         initState.setCommitIndex(ThreadLocalRandom.current().nextInt(1000, 10000));
 
-        RaftPersistentState loadedState = new RaftPersistentState(testingDirectory, raftId);
+        RaftPersistentState loadedState = new RaftPersistentState(testingDirectory, raftId, false);
         loadedState.init();
 
         assertEquals(initState.getTerm(), loadedState.getTerm());
@@ -78,7 +78,7 @@ public class RaftPersistentStateTest {
         loadedState.setTermAndVotedFor(term2, voteFor2);
         loadedState.setCommitIndex(ThreadLocalRandom.current().nextInt(10000, 20000));
 
-        RaftPersistentState loadedState2 = new RaftPersistentState(testingDirectory, raftId);
+        RaftPersistentState loadedState2 = new RaftPersistentState(testingDirectory, raftId, false);
         loadedState2.init();
 
         assertEquals(loadedState.getTerm(), loadedState2.getTerm());

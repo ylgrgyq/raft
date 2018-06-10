@@ -17,6 +17,7 @@ public class Config {
     final long suggestElectionTimeoutTicks;
     final int maxEntriesPerAppend;
     final int appliedTo;
+    final boolean syncWriteStateFile;
 
     final List<String> peers;
     final String selfId;
@@ -37,6 +38,7 @@ public class Config {
         this.broker = builder.broker;
         this.storage = builder.storage;
         this.appliedTo = builder.appliedTo;
+        this.syncWriteStateFile = builder.syncWriteStateFile;
     }
 
     public static ConfigBuilder newBuilder() {
@@ -50,6 +52,7 @@ public class Config {
         private int maxEntriesPerAppend = 16;
         private int appliedTo = -1;
         private List<String> peers = Collections.emptyList();
+        private boolean syncWriteStateFile = false;
 
         private StateMachine stateMachine;
         private RaftCommandBroker broker;
@@ -110,6 +113,11 @@ public class Config {
 
         public ConfigBuilder withAppliedTo(int appliedTo) {
             this.appliedTo = appliedTo;
+            return this;
+        }
+
+        public ConfigBuilder withSyncWriteRaftStateFile(boolean syncWriteStateFile) {
+            this.syncWriteStateFile = syncWriteStateFile;
             return this;
         }
 
