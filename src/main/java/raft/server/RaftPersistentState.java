@@ -192,6 +192,7 @@ public class RaftPersistentState {
         checksum.update(buffer.array(), 0, buffer.position());
         buffer.putLong(checksum.getValue());
         try {
+            // TODO do we need to lock state file before write to it
             Path tmpPath = Files.createTempFile(stateFileDirPath, fileNamePrefix, ".tmp_rps");
             Files.write(tmpPath, buffer.array(), openFileOpts);
 

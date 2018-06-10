@@ -13,7 +13,10 @@ public enum RecordType {
     // For fragments
     kFirstType((byte)2),
     kMiddleType((byte)3),
-    kLastType((byte)4);
+    kLastType((byte)4),
+
+    // EOF
+    kEOF((byte)5);
 
     private final byte code;
 
@@ -23,5 +26,15 @@ public enum RecordType {
 
     public byte getCode() {
         return code;
+    }
+
+    public static RecordType getRecordTypeByCode(byte code) {
+        for (RecordType type: RecordType.values()) {
+            if (type.getCode() == code) {
+                return type;
+            }
+        }
+
+        throw new IllegalArgumentException(String.format("type not found by code: %s", code));
     }
 }

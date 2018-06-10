@@ -1,11 +1,8 @@
 package raft.server.storage;
 
-import raft.server.proto.LogEntry;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.List;
 import java.util.zip.CRC32;
 
 /**
@@ -13,24 +10,23 @@ import java.util.zip.CRC32;
  * Date: 18/6/10
  */
 class LogWriter {
+    private final FileChannel workingFileChannel;
     private int blockOffset;
-    private FileChannel workingFileChannel;
 
     LogWriter(FileChannel workingFileChannel) {
         this.workingFileChannel = workingFileChannel;
         this.blockOffset = 0;
     }
 
-    long append(List<LogEntry> entries) throws IOException {
-        long startPosition = workingFileChannel.position();
-        for (LogEntry e : entries) {
-            doAppend(e.toByteArray());
-        }
-        workingFileChannel.force(true);
-        return startPosition;
+    long getPosition() throws IOException{
+        return workingFileChannel.position();
     }
 
-    private void doAppend(byte[] data) throws IOException {
+    void flush() throws IOException{
+        workingFileChannel.force(true);
+    }
+
+    void append(byte[] data) throws IOException{
         ByteBuffer writeBuffer = ByteBuffer.wrap(data);
         int dataSizeRemain = writeBuffer.remaining();
         boolean begin = true;
