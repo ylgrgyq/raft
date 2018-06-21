@@ -61,8 +61,7 @@ class LogReader {
                     }
                     return Optional.of(compact(outPut));
                 case kEOF:
-                    Optional.empty();
-                    break;
+                    return Optional.empty();
             }
         }
     }
@@ -89,17 +88,18 @@ class LogReader {
         while (true) {
             if (buffer.remaining() < Constant.kHeaderSize) {
                 if (eof) {
-                    // TODO we may have remaining buffer but eof == true which means log writer may died in the middle of
-                    // writing this record's header, we need to handle this like fix this file
+                    // TODO we may have remaining buffer but eof is true which means log writer may died in the middle of
+                    // writing this record's header, we need to handle this like fixing this file
                     buffer = ByteBuffer.wrap(empty);
                     return RecordType.kEOF;
                 } else {
                     buffer = ByteBuffer.allocate(Constant.kBlockSize);
                     int readBytes = workingFileChannel.read(buffer);
+                    buffer.flip();
                     if (readBytes < Constant.kBlockSize) {
                         eof = true;
+                        continue;
                     }
-                    continue;
                 }
             }
 
@@ -107,7 +107,7 @@ class LogReader {
             long expectChecksum = buffer.getLong();
             short length = buffer.getShort();
 
-            if (Constant.kHeaderSize + length > buffer.remaining()) {
+            if (length > buffer.remaining()) {
                 if (eof) {
                     // TODO writer died in the middle of writing this record, we need to allow this situation
                     buffer = ByteBuffer.wrap(empty);

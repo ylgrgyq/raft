@@ -14,6 +14,8 @@ class LogWriter {
     private int blockOffset;
 
     LogWriter(FileChannel workingFileChannel) {
+        assert workingFileChannel != null;
+
         this.workingFileChannel = workingFileChannel;
         this.blockOffset = 0;
     }
@@ -27,6 +29,9 @@ class LogWriter {
     }
 
     void append(byte[] data) throws IOException{
+        assert data != null;
+        assert data.length > 0;
+
         ByteBuffer writeBuffer = ByteBuffer.wrap(data);
         int dataSizeRemain = writeBuffer.remaining();
         boolean begin = true;
@@ -37,6 +42,7 @@ class LogWriter {
             if (blockLeft < Constant.kHeaderSize) {
                 paddingBlock(blockLeft);
                 blockOffset = 0;
+                continue;
             }
 
             assert Constant.kBlockSize - blockOffset - Constant.kHeaderSize >= 0;
@@ -55,13 +61,11 @@ class LogWriter {
                 type = RecordType.kMiddleType;
             }
 
-            // TODO implement a new ByteBuffer to avoid copy bytes
             byte[] out = new byte[fragmentSize];
             writeBuffer.get(out);
             writeRecord(type, out);
 
             begin = false;
-            blockOffset += fragmentSize;
             dataSizeRemain -= fragmentSize;
         }
     }
@@ -86,7 +90,7 @@ class LogWriter {
         buffer.putLong(checksum.getValue());
         buffer.putShort((short) out.length);
         buffer.put(type.getCode());
-
+        buffer.flip();
         workingFileChannel.write(buffer);
         workingFileChannel.write(ByteBuffer.wrap(out));
         blockOffset += out.length + Constant.kHeaderSize;

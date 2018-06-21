@@ -31,7 +31,6 @@ public class FileBasedStorage implements PersistentStorage {
     private FileLock storageLock;
     private LogWriter logWriter;
     private int firstIndexInStorage;
-    private int lastIndexInStorage;
     private ConcurrentSkipListMap<Integer, LogEntry> mm;
     private ConcurrentSkipListMap<Integer, LogEntry> imm;
 
@@ -46,6 +45,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         this.mm = new ConcurrentSkipListMap<>();
         this.storageName = storageName;
+        this.firstIndexInStorage = -1;
     }
 
     @Override
@@ -57,10 +57,10 @@ public class FileBasedStorage implements PersistentStorage {
             FileChannel ch = FileChannel.open(lockFilePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             storageLock = ch.tryLock();
             checkState(storageLock != null,
-                    "storage name: \"%s\" under path: \"%s\" is occupied by other process",
+                    "file storage: \"%s\" under path: \"%s\" is occupied by other process",
                     storageName, baseDir);
 
-            Path logFilePath = Paths.get(baseDir, storageName, "log0", ".log");
+            Path logFilePath = Paths.get(baseDir, storageName, "log0.log");
             if (Files.exists(logFilePath)) {
                 checkState(Files.isRegularFile(logFilePath),
                         "%s is not a regular file",
@@ -78,7 +78,7 @@ public class FileBasedStorage implements PersistentStorage {
     private void createStorageDir() throws IOException {
         Path storageDirPath = Paths.get(baseDir, storageName);
         try {
-            Files.createDirectory(storageDirPath);
+            Files.createDirectories(storageDirPath);
         } catch (FileAlreadyExistsException ex) {
             // we don't care if the dir is already exists
         }
@@ -97,11 +97,19 @@ public class FileBasedStorage implements PersistentStorage {
                 break;
             }
         }
+
+        if (firstIndexInStorage < 0) {
+            firstIndexInStorage = mm.firstKey();
+        }
     }
 
     @Override
     public int getLastIndex() {
-        return lastIndexInStorage;
+        if (mm.isEmpty()) {
+            return -1;
+        } else {
+            return mm.lastKey();
+        }
     }
 
     @Override
@@ -145,8 +153,8 @@ public class FileBasedStorage implements PersistentStorage {
             return;
         }
 
-        LogEntry first = entries.get(0);
         if (firstIndexInStorage < 0) {
+            LogEntry first = entries.get(0);
             firstIndexInStorage = first.getIndex();
         }
 
@@ -155,18 +163,11 @@ public class FileBasedStorage implements PersistentStorage {
                 for (LogEntry e : entries) {
                     byte[] data = e.toByteArray();
                     logWriter.append(data);
+                    mm.put(e.getIndex(), e);
                 }
             } catch (IOException ex) {
                 throw new RuntimeException("append log on file based storage failed", ex);
             }
-
-            for (LogEntry e : entries) {
-                mm.put(e.getIndex(), e);
-            }
-
-            LogEntry last = entries.get(entries.size() - 1);
-            assert last.getIndex() > lastIndexInStorage;
-            lastIndexInStorage = last.getIndex();
         } else {
             throw new RuntimeException("make room on file based storage failed");
         }
