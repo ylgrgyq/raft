@@ -37,7 +37,6 @@ public class FileBasedStorage implements PersistentStorage {
     public FileBasedStorage(String storageBaseDir, String storageName) {
         checkNotNull(storageBaseDir);
 
-        this.baseDir = storageBaseDir;
         Path baseDirPath = Paths.get(storageBaseDir);
 
         checkArgument(Files.notExists(baseDirPath) || Files.isDirectory(baseDirPath),
@@ -45,6 +44,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         this.mm = new ConcurrentSkipListMap<>();
         this.storageName = storageName;
+        this.baseDir = storageBaseDir + "/" + storageName;
         this.firstIndexInStorage = -1;
     }
 
@@ -53,14 +53,13 @@ public class FileBasedStorage implements PersistentStorage {
         try {
             createStorageDir();
 
-            Path lockFilePath = Paths.get(baseDir, storageName, storageName);
+            Path lockFilePath = Paths.get(baseDir, storageName);
             FileChannel ch = FileChannel.open(lockFilePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             storageLock = ch.tryLock();
             checkState(storageLock != null,
-                    "file storage: \"%s\" under path: \"%s\" is occupied by other process",
-                    storageName, baseDir);
+                    "file storage: \"%s\" is occupied by other process", baseDir);
 
-            Path logFilePath = Paths.get(baseDir, storageName, "log0.log");
+            Path logFilePath = Paths.get(baseDir, "log0.log");
             if (Files.exists(logFilePath)) {
                 checkState(Files.isRegularFile(logFilePath),
                         "%s is not a regular file",
@@ -76,7 +75,7 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     private void createStorageDir() throws IOException {
-        Path storageDirPath = Paths.get(baseDir, storageName);
+        Path storageDirPath = Paths.get(baseDir);
         try {
             Files.createDirectories(storageDirPath);
         } catch (FileAlreadyExistsException ex) {
@@ -123,7 +122,19 @@ public class FileBasedStorage implements PersistentStorage {
                 "index: %s out of bound, lastIndex: %s",
                 index, lastIndex);
 
-        return mm.get(index).getTerm();
+        LogEntry e = mm.get(index);
+        if (e != null) {
+            return e.getTerm();
+        }
+
+        if (imm != null){
+            e = imm.get(index);
+            if (e != null) {
+                return e.getTerm();
+            }
+        }
+
+        return -1;
     }
 
     @Override
@@ -177,6 +188,36 @@ public class FileBasedStorage implements PersistentStorage {
 
 
         return true;
+    }
+
+    private void writeEntriesToTable() throws IOException{
+        SSTableFileMetaInfo meta = new SSTableFileMetaInfo();
+
+        int fileNumber = FileName.getNextFileNumber();
+        meta.setFileNumber(fileNumber);
+        meta.setFirstIndex(imm.firstKey());
+        meta.setLastIndex(imm.lastKey());
+
+        String tableFileName = FileName.getSSTableName(storageName, fileNumber);
+
+
+        Path tableFile = Paths.get(baseDir, storageName, tableFileName);
+        FileChannel ch = FileChannel.open(tableFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+        TableBuilder tableBuilder = new TableBuilder(ch);
+
+        for (Map.Entry<Integer, LogEntry> entry : imm.entrySet()) {
+            byte[] data = entry.getValue().toByteArray();
+            tableBuilder.add(entry.getKey(), data);
+        }
+
+        tableBuilder.build();
+
+        meta.setFileSize(tableBuilder.getFileSize());
+
+        ch.force(true);
+
+        ch.close();
+
     }
 
     public void compact(int toIndex) {
