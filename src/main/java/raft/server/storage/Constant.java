@@ -16,4 +16,6 @@ class Constant {
     static int kBlockTrailerSize = Long.SIZE;
 
     static long kTableMagicNumber = 24068102;
+
+    static int kMaxMemtableSize = 16777216;
 }

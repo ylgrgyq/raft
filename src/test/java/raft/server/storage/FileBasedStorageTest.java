@@ -25,7 +25,7 @@ public class FileBasedStorageTest {
     }
 
     @Test
-    public void append() throws Exception {
+    public void appendToMm() throws Exception {
         FileBasedStorage storage = new FileBasedStorage(testingDirectory, storageName);
         storage.init();
 
@@ -51,7 +51,7 @@ public class FileBasedStorageTest {
     }
 
     @Test
-    public void recover() throws Exception {
+    public void recoverMmFromLog() throws Exception {
         FileBasedStorage storage = new FileBasedStorage(testingDirectory, storageName);
         storage.init();
 

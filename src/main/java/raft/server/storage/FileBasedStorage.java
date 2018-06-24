@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -31,8 +30,9 @@ public class FileBasedStorage implements PersistentStorage {
     private FileLock storageLock;
     private LogWriter logWriter;
     private int firstIndexInStorage;
-    private ConcurrentSkipListMap<Integer, LogEntry> mm;
-    private ConcurrentSkipListMap<Integer, LogEntry> imm;
+    private Memtable mm;
+    private Memtable imm;
+    private StorageStatus status;
 
     public FileBasedStorage(String storageBaseDir, String storageName) {
         checkNotNull(storageBaseDir);
@@ -42,10 +42,11 @@ public class FileBasedStorage implements PersistentStorage {
         checkArgument(Files.notExists(baseDirPath) || Files.isDirectory(baseDirPath),
                 "\"%s\" must be a directory to hold raft persistent logs", storageBaseDir);
 
-        this.mm = new ConcurrentSkipListMap<>();
+        this.mm = new Memtable();
         this.storageName = storageName;
         this.baseDir = storageBaseDir + "/" + storageName;
         this.firstIndexInStorage = -1;
+        this.status = StorageStatus.NEED_INIT;
     }
 
     @Override
@@ -70,8 +71,10 @@ public class FileBasedStorage implements PersistentStorage {
                 logWriter = new LogWriter(c);
             }
         } catch (IOException t) {
+            status = StorageStatus.ERROR;
             throw new IllegalStateException("init storage failed", t);
         }
+        status = StorageStatus.NORMAL;
     }
 
     private void createStorageDir() throws IOException {
@@ -91,7 +94,7 @@ public class FileBasedStorage implements PersistentStorage {
             Optional<byte[]> logOpt = reader.readLog();
             if (logOpt.isPresent()) {
                 LogEntry e = LogEntry.parseFrom(logOpt.get());
-                mm.put(e.getIndex(), e);
+                mm.add(e.getIndex(), e);
             } else {
                 break;
             }
@@ -104,6 +107,9 @@ public class FileBasedStorage implements PersistentStorage {
 
     @Override
     public int getLastIndex() {
+        checkState(status == StorageStatus.NORMAL,
+                "FileBasedStorage's status is not normal, currently: %s", status);
+
         if (mm.isEmpty()) {
             return -1;
         } else {
@@ -113,6 +119,9 @@ public class FileBasedStorage implements PersistentStorage {
 
     @Override
     public int getTerm(int index) {
+        checkState(status == StorageStatus.NORMAL,
+                "FileBasedStorage's status is not normal, currently: %s", status);
+
         if (index < getFirstIndex()) {
             throw new LogsCompactedException(index);
         }
@@ -139,11 +148,16 @@ public class FileBasedStorage implements PersistentStorage {
 
     @Override
     public int getFirstIndex() {
+        checkState(status == StorageStatus.NORMAL,
+                "FileBasedStorage's status is not normal, currently: %s", status);
         return firstIndexInStorage;
     }
 
     @Override
     public List<LogEntry> getEntries(int start, int end) {
+        checkState(status == StorageStatus.NORMAL,
+                "FileBasedStorage's status is not normal, currently: %s", status);
+
         // TODO currently we do not support start lower than first key
         assert start >= mm.firstKey();
 
@@ -159,6 +173,9 @@ public class FileBasedStorage implements PersistentStorage {
     @Override
     public void append(List<LogEntry> entries) {
         checkNotNull(entries);
+        checkState(status == StorageStatus.NORMAL,
+                "FileBasedStorage's status is not normal, currently: %s", status);
+
         if (entries.isEmpty()) {
             logger.warn("append with empty entries");
             return;
@@ -174,7 +191,7 @@ public class FileBasedStorage implements PersistentStorage {
                 for (LogEntry e : entries) {
                     byte[] data = e.toByteArray();
                     logWriter.append(data);
-                    mm.put(e.getIndex(), e);
+                    mm.add(e.getIndex(), e);
                 }
             } catch (IOException ex) {
                 throw new RuntimeException("append log on file based storage failed", ex);
@@ -185,12 +202,15 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     boolean makeRoomForEntry() {
-
+        if (mm.getMemoryUsedInBytes() > Constant.kMaxMemtableSize) {
+            imm = mm;
+            mm = new Memtable();
+        }
 
         return true;
     }
 
-    private void writeEntriesToTable() throws IOException{
+    private SSTableFileMetaInfo writeMemTableToSSTable() throws IOException{
         SSTableFileMetaInfo meta = new SSTableFileMetaInfo();
 
         int fileNumber = FileName.getNextFileNumber();
@@ -199,25 +219,30 @@ public class FileBasedStorage implements PersistentStorage {
         meta.setLastIndex(imm.lastKey());
 
         String tableFileName = FileName.getSSTableName(storageName, fileNumber);
+        Path tableFile = Paths.get(baseDir, tableFileName);
+        try (FileChannel ch = FileChannel.open(tableFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND)) {
+            TableBuilder tableBuilder = new TableBuilder(ch);
+            for (Map.Entry<Integer, LogEntry> entry : imm.entrySet()) {
+                byte[] data = entry.getValue().toByteArray();
+                tableBuilder.add(entry.getKey(), data);
+            }
 
+            tableBuilder.finishBuild();
 
-        Path tableFile = Paths.get(baseDir, storageName, tableFileName);
-        FileChannel ch = FileChannel.open(tableFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-        TableBuilder tableBuilder = new TableBuilder(ch);
+            if (tableBuilder.getFileSize() > 0) {
+                meta.setFileSize(tableBuilder.getFileSize());
 
-        for (Map.Entry<Integer, LogEntry> entry : imm.entrySet()) {
-            byte[] data = entry.getValue().toByteArray();
-            tableBuilder.add(entry.getKey(), data);
+                ch.force(true);
+            }
         }
 
-        tableBuilder.build();
+        // TODO: load this meta to table cache
 
-        meta.setFileSize(tableBuilder.getFileSize());
+        if (meta.getFileSize() <= 0) {
+            Files.deleteIfExists(tableFile);
+        }
 
-        ch.force(true);
-
-        ch.close();
-
+        return meta;
     }
 
     public void compact(int toIndex) {

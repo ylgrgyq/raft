@@ -24,6 +24,8 @@ public class TableBuilder {
     }
 
     public void add(int k, byte[] v) throws IOException {
+        assert k > lastKey;
+
         if (pendingIndexBlockHandle != null) {
             indexBlock.add(k, pendingIndexBlockHandle.encode());
             pendingIndexBlockHandle = null;
@@ -31,7 +33,7 @@ public class TableBuilder {
 
         long blockSize = dataBlock.add(k, v);
 
-        if (blockSize > Constant.kMaxBlockSize) {
+        if (blockSize >= Constant.kMaxBlockSize) {
             flushDataBlock();
         }
 
@@ -39,12 +41,12 @@ public class TableBuilder {
     }
 
     private void flushDataBlock() throws IOException {
-        pendingIndexBlockHandle = new BlockHandle();
-        writeBlock(pendingIndexBlockHandle, dataBlock);
+        pendingIndexBlockHandle = writeBlock(dataBlock);
         fileChannel.force(true);
     }
 
-    private void writeBlock(BlockHandle handle, BlockBuilder block) throws IOException{
+    private BlockHandle writeBlock(BlockBuilder block) throws IOException{
+        BlockHandle handle = new BlockHandle();
         handle.setOffset(offset);
         handle.setSize(block.getBlockSize());
 
@@ -61,9 +63,11 @@ public class TableBuilder {
 
         dataBlock.reset();
         offset += dataBlock.getBlockSize() + Constant.kBlockTrailerSize;
+
+        return handle;
     }
 
-    public void build() throws IOException {
+    void finishBuild() throws IOException {
         flushDataBlock();
 
         if (pendingIndexBlockHandle != null) {
@@ -71,8 +75,7 @@ public class TableBuilder {
             pendingIndexBlockHandle = null;
         }
 
-        BlockHandle indexBlockHandle = new BlockHandle();
-        writeBlock(indexBlockHandle, indexBlock);
+        BlockHandle indexBlockHandle = writeBlock(indexBlock);
 
         Footer footer = new Footer(indexBlockHandle);
         byte[] footerBytes = footer.encode();
@@ -83,43 +86,5 @@ public class TableBuilder {
 
     long getFileSize() {
         return offset;
-    }
-
-    private static class BlockHandle {
-        private long offset;
-        private long size;
-
-        public void setOffset(long offset) {
-            this.offset = offset;
-        }
-
-        public void setSize(long size) {
-            this.size = size;
-        }
-
-        byte[] encode() {
-            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + Long.BYTES);
-            buffer.putLong(offset);
-            buffer.putLong(size);
-
-            return buffer.array();
-        }
-    }
-
-    private static class Footer {
-        private BlockHandle indexBlockHandle;
-
-        public Footer(BlockHandle indexBlockHandle) {
-            this.indexBlockHandle = indexBlockHandle;
-        }
-
-        byte[] encode() {
-            byte[] indexBlock = indexBlockHandle.encode();
-            ByteBuffer buffer = ByteBuffer.allocate(indexBlock.length + Long.BYTES);
-            buffer.put(indexBlock);
-            buffer.putLong(Constant.kTableMagicNumber);
-
-            return buffer.array();
-        }
     }
 }
