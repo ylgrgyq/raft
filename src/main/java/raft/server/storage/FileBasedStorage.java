@@ -2,6 +2,7 @@ package raft.server.storage;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.ThreadFactoryImpl;
 import raft.server.log.LogsCompactedException;
 import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
@@ -15,6 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -25,6 +29,8 @@ import static com.google.common.base.Preconditions.*;
 public class FileBasedStorage implements PersistentStorage {
     private static final Logger logger = LoggerFactory.getLogger(FileBasedStorage.class.getName());
 
+    private final ExecutorService sstableWriterPool = Executors.newSingleThreadScheduledExecutor(
+            new ThreadFactoryImpl("SSTable-Writer-"));
     private final String baseDir;
     private final String storageName;
     private FileLock storageLock;
@@ -32,7 +38,9 @@ public class FileBasedStorage implements PersistentStorage {
     private int firstIndexInStorage;
     private Memtable mm;
     private Memtable imm;
-    private StorageStatus status;
+    private volatile StorageStatus status;
+    private Future writeSstableFuture;
+    private Object writeSstableSignal;
 
     public FileBasedStorage(String storageBaseDir, String storageName) {
         checkNotNull(storageBaseDir);
@@ -50,7 +58,7 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public void init() {
+    public synchronized void init() {
         try {
             createStorageDir();
 
@@ -74,7 +82,7 @@ public class FileBasedStorage implements PersistentStorage {
             status = StorageStatus.ERROR;
             throw new IllegalStateException("init storage failed", t);
         }
-        status = StorageStatus.NORMAL;
+        status = StorageStatus.OK;
     }
 
     private void createStorageDir() throws IOException {
@@ -106,8 +114,8 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public int getLastIndex() {
-        checkState(status == StorageStatus.NORMAL,
+    public synchronized int getLastIndex() {
+        checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
         if (mm.isEmpty()) {
@@ -118,8 +126,8 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public int getTerm(int index) {
-        checkState(status == StorageStatus.NORMAL,
+    public synchronized int getTerm(int index) {
+        checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
         if (index < getFirstIndex()) {
@@ -147,15 +155,15 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public int getFirstIndex() {
-        checkState(status == StorageStatus.NORMAL,
+    public synchronized int getFirstIndex() {
+        checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
         return firstIndexInStorage;
     }
 
     @Override
     public List<LogEntry> getEntries(int start, int end) {
-        checkState(status == StorageStatus.NORMAL,
+        checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
         // TODO currently we do not support start lower than first key
@@ -171,9 +179,9 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public void append(List<LogEntry> entries) {
+    public synchronized void append(List<LogEntry> entries) {
         checkNotNull(entries);
-        checkState(status == StorageStatus.NORMAL,
+        checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
         if (entries.isEmpty()) {
@@ -201,13 +209,51 @@ public class FileBasedStorage implements PersistentStorage {
         }
     }
 
-    boolean makeRoomForEntry() {
-        if (mm.getMemoryUsedInBytes() > Constant.kMaxMemtableSize) {
-            imm = mm;
-            mm = new Memtable();
-        }
+    private boolean makeRoomForEntry() {
+        try {
+            while (true) {
+                if (status != StorageStatus.OK) {
+                    return false;
+                } else if (mm.getMemoryUsedInBytes() > Constant.kMaxMemtableSize) {
+                    if (imm != null) {
+                        writeSstableFuture.get();
+                        continue;
+                    }
 
-        return true;
+                    int nextLogFileNumber = FileName.getNextFileNumber();
+                    String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
+                    FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
+                            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
+                    logWriter = new LogWriter(logFile);
+                    imm = mm;
+                    mm = new Memtable();
+                    writeSstableFuture = sstableWriterPool.submit(this::writeMemTable);
+                } else {
+                    return true;
+                }
+            }
+        } catch (Throwable t) {
+            logger.error("make room for new entry failed", t);
+        }
+        return false;
+    }
+
+    private void writeMemTable() {
+        try {
+            SSTableFileMetaInfo meta = writeMemTableToSSTable();
+
+            // TODO: write meta to manifest
+
+            imm = null;
+
+            // TODO: delete obsolete files
+
+        } catch (Throwable t) {
+            logger.error("write memtable in background failed", t);
+            synchronized (this) {
+                status = StorageStatus.ERROR;
+            }
+        }
     }
 
     private SSTableFileMetaInfo writeMemTableToSSTable() throws IOException{

@@ -7,20 +7,24 @@ package raft.server.storage;
 public class FileName {
     private static int nextFileNumber = 1;
 
-    public static String getCurrentManifestFileName(String dbName) {
-        return dbName + "_CURRENT";
+    public static String getCurrentManifestFileName(String storageName) {
+        return storageName + "_CURRENT";
     }
 
-    private static String generateFileName(String dbName, int fileNumber, String suffix) {
-        return String.format("%s-%07d.%s", dbName, fileNumber, suffix);
+    private static String generateFileName(String storageName, int fileNumber, String suffix) {
+        return String.format("%s-%07d.%s", storageName, fileNumber, suffix);
     }
 
     public static int getNextFileNumber() {
         return nextFileNumber++;
     }
 
-    public static String getSSTableName(String dbName, int fileNumber){
-        return generateFileName(dbName, fileNumber, "sst");
+    public static String getSSTableName(String storageName, int fileNumber){
+        return generateFileName(storageName, fileNumber, "sst");
+    }
+
+    public static String getLogFileName(String storageName, int fileNumber) {
+        return generateFileName(storageName, fileNumber, "log");
     }
 
     public static void main(String[] args) {
