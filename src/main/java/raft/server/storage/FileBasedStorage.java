@@ -11,10 +11,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,7 +37,8 @@ public class FileBasedStorage implements PersistentStorage {
     private Memtable imm;
     private volatile StorageStatus status;
     private Future writeSstableFuture;
-    private Object writeSstableSignal;
+    private TableCache<LogEntry> tableCache;
+    private List<SSTableFileMetaInfo> metas;
 
     public FileBasedStorage(String storageBaseDir, String storageName) {
         checkNotNull(storageBaseDir);
@@ -55,6 +53,8 @@ public class FileBasedStorage implements PersistentStorage {
         this.baseDir = storageBaseDir + "/" + storageName;
         this.firstIndexInStorage = -1;
         this.status = StorageStatus.NEED_INIT;
+        this.tableCache = new TableCache<>(baseDir, storageName);
+        this.metas = new ArrayList<>();
     }
 
     @Override
@@ -151,6 +151,43 @@ public class FileBasedStorage implements PersistentStorage {
             }
         }
 
+        e = searchSSTable(index);
+        if (e != null) {
+            return e.getTerm();
+        } else {
+            return -1;
+        }
+    }
+
+    private LogEntry searchSSTable(int key) {
+        int metaIndex = findMetaIndex(key);
+        if (metaIndex != -1) {
+            SSTableFileMetaInfo meta = metas.get(metaIndex);
+            LogEntry e = tableCache.get(meta.getFileNumber(), meta.getFileSize(), key);
+            if (e != null) {
+                return e;
+            }
+        }
+
+        return null;
+    }
+
+    private int findMetaIndex(int index) {
+        int start = 0;
+        int end = metas.size();
+
+        while (start < end) {
+            int mid = (start + end) / 2;
+            SSTableFileMetaInfo meta = metas.get(mid);
+            if (index < meta.getFirstIndex()) {
+                end = mid - 1;
+            } else if (index > meta.getLastIndex()) {
+                start = mid + 1;
+            } else {
+                return mid;
+            }
+        }
+
         return -1;
     }
 
@@ -241,12 +278,17 @@ public class FileBasedStorage implements PersistentStorage {
     private void writeMemTable() {
         try {
             SSTableFileMetaInfo meta = writeMemTableToSSTable();
+            metas.add(meta);
 
             // TODO: write meta to manifest
 
-            imm = null;
+            synchronized (this) {
+                imm = null;
 
-            // TODO: delete obsolete files
+                // TODO: delete obsolete files
+
+                writeSstableFuture = null;
+            }
 
         } catch (Throwable t) {
             logger.error("write memtable in background failed", t);
@@ -282,7 +324,7 @@ public class FileBasedStorage implements PersistentStorage {
             }
         }
 
-        // TODO: load this meta to table cache
+        tableCache.loadTable(fileNumber, meta.getFileSize());
 
         if (meta.getFileSize() <= 0) {
             Files.deleteIfExists(tableFile);
@@ -300,6 +342,33 @@ public class FileBasedStorage implements PersistentStorage {
             storageLock.release();
         } catch (IOException ex) {
             //
+        }
+    }
+
+    private class StorageIterator implements SeekableIterator<LogEntry> {
+        private int currentKey;
+        private int currentMetaIndex;
+
+        public StorageIterator() {
+            this.currentKey = getFirstIndex();
+            this.currentMetaIndex = 0;
+        }
+
+        @Override
+        public void seek(int key) {
+            if (key > mm.firstKey()) {
+
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return false;
+        }
+
+        @Override
+        public LogEntry next() {
+            return null;
         }
     }
 }

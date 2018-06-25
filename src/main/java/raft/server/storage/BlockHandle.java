@@ -7,23 +7,31 @@ import java.nio.ByteBuffer;
  * Date: 18/6/24
  */
 class BlockHandle {
-    static int blockHandleSize = Long.BYTES + Long.BYTES;
+    static int blockHandleSize = Long.BYTES + Integer.BYTES;
 
     private long offset;
-    private long size;
+    private int size;
 
     void setOffset(long offset) {
         this.offset = offset;
     }
 
-    public void setSize(long size) {
+    public void setSize(int size) {
         this.size = size;
+    }
+
+    public long getOffset() {
+        return offset;
+    }
+
+    public int getSize() {
+        return size;
     }
 
     byte[] encode() {
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + Long.BYTES);
         buffer.putLong(offset);
-        buffer.putLong(size);
+        buffer.putInt(size);
 
         return buffer.array();
     }
@@ -31,7 +39,7 @@ class BlockHandle {
     void decode(byte[] bytes) {
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
         offset = buffer.getLong();
-        size = buffer.getLong();
+        size = buffer.getInt();
     }
 }
 

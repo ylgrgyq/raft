@@ -10,8 +10,7 @@ import java.util.List;
  */
 class BlockBuilder {
     private List<byte[]> buffers;
-    private long blockSize;
-
+    private int blockSize;
 
     BlockBuilder() {
         this.buffers = new ArrayList<>();
@@ -29,7 +28,7 @@ class BlockBuilder {
         return blockSize;
     }
 
-    long getBlockSize() {
+    int getBlockSize() {
         return blockSize;
     }
 
