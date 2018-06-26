@@ -3,19 +3,19 @@ package raft.server.storage;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.zip.CRC32;
 
 /**
  * Author: ylgrgyq
  * Date: 18/6/24
  */
-public class TableBuilder {
+class TableBuilder {
     private FileChannel fileChannel;
     private BlockBuilder dataBlock;
     private BlockBuilder indexBlock;
     private BlockHandle pendingIndexBlockHandle;
     private int lastKey = -1;
     private long offset;
+    private boolean isFinished;
 
     TableBuilder(FileChannel fileChannel) {
         this.fileChannel = fileChannel;
@@ -23,17 +23,18 @@ public class TableBuilder {
         indexBlock = new BlockBuilder();
     }
 
-    public void add(int k, byte[] v) throws IOException {
+    void add(int k, byte[] v) throws IOException {
         assert k > lastKey;
+        assert !isFinished;
 
         if (pendingIndexBlockHandle != null) {
             indexBlock.add(k, pendingIndexBlockHandle.encode());
             pendingIndexBlockHandle = null;
         }
 
-        long blockSize = dataBlock.add(k, v);
+        dataBlock.add(k, v);
 
-        if (blockSize >= Constant.kMaxBlockSize) {
+        if (dataBlock.getCurrentEstimateBlockSize() >= Constant.kMaxBlockSize) {
             flushDataBlock();
         }
 
@@ -48,26 +49,21 @@ public class TableBuilder {
     private BlockHandle writeBlock(BlockBuilder block) throws IOException{
         BlockHandle handle = new BlockHandle();
         handle.setOffset(offset);
-        handle.setSize(block.getBlockSize());
 
-        CRC32 checksum = new CRC32();
-        for(byte[] data : block.getBlockContents()) {
-            checksum.update(data);
-            fileChannel.write(ByteBuffer.wrap(data));
-        }
-
-        ByteBuffer trailer = ByteBuffer.allocate(Constant.kBlockTrailerSize);
-        trailer.putLong(checksum.getValue());
-        trailer.flip();
-        fileChannel.write(trailer);
+        int blockSize = block.writeBlock(fileChannel);
+        handle.setSize(blockSize);
 
         dataBlock.reset();
-        offset += dataBlock.getBlockSize() + Constant.kBlockTrailerSize;
+        offset += blockSize;
 
         return handle;
     }
 
     void finishBuild() throws IOException {
+        assert ! isFinished;
+
+        isFinished = true;
+
         flushDataBlock();
 
         if (pendingIndexBlockHandle != null) {
