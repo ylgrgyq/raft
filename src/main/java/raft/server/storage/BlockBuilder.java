@@ -35,7 +35,6 @@ class BlockBuilder {
 
         buffers.add(buffer);
         blockSize += buffer.limit();
-        entryCounter++;
 
         if ((++entryCounter & Constant.kBlockCheckpointInterval - 1) == 0) {
             checkPoints.add(blockSize);
@@ -50,8 +49,8 @@ class BlockBuilder {
                 + Integer.BYTES;
     }
 
-    int writeBlock(FileChannel fileChannel) throws IOException{
-        assert ! isBuilt;
+    long writeBlock(FileChannel fileChannel) throws IOException {
+        assert !isBuilt;
         isBuilt = true;
 
         // append checkpoints
@@ -66,20 +65,24 @@ class BlockBuilder {
 
         // write whole block include block and checkpoints
         CRC32 checksum = new CRC32();
-        for(ByteBuffer buffer : buffers) {
+        for (ByteBuffer buffer : buffers) {
             checksum.update(buffer.array());
         }
         ByteBuffer[] bufferArray = new ByteBuffer[buffers.size()];
         buffers.toArray(bufferArray);
-        fileChannel.write(bufferArray);
 
-        // write tailer
-        ByteBuffer trailer = ByteBuffer.allocate(Constant.kBlockTrailerSize);
-        trailer.putLong(checksum.getValue());
-        trailer.flip();
-        fileChannel.write(trailer);
+        // maybe we have a lot for buffers which may can not be written to channel at once, so we need loop and
+        // tracking how many bytes we have written
+        long written = 0;
+        while (written < blockSize) {
+            written += fileChannel.write(bufferArray);
+        }
 
-        return blockSize + Constant.kBlockTrailerSize;
+        return checksum.getValue();
+    }
+
+    int getBlockSize() {
+        return blockSize;
     }
 
     void reset() {

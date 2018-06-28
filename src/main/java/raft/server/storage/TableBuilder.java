@@ -50,8 +50,15 @@ class TableBuilder {
         BlockHandle handle = new BlockHandle();
         handle.setOffset(offset);
 
-        int blockSize = block.writeBlock(fileChannel);
+        long checksum = block.writeBlock(fileChannel);
+        int blockSize = block.getBlockSize();
         handle.setSize(blockSize);
+
+        // write tailer
+        ByteBuffer trailer = ByteBuffer.allocate(Constant.kBlockTrailerSize);
+        trailer.putLong(checksum);
+        trailer.flip();
+        fileChannel.write(trailer);
 
         dataBlock.reset();
         offset += blockSize;

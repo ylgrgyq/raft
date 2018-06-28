@@ -93,6 +93,9 @@ public class TestUtil {
                 files.forEach(p -> {
                     try {
                         if (p != dirPath) {
+                            if (Files.isDirectory(p)) {
+                                cleanDirectory(p);
+                            }
                             Files.delete(p);
                         }
                     } catch (IOException ex) {
