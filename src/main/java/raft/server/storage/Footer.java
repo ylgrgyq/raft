@@ -15,7 +15,7 @@ class Footer {
         this.indexBlockHandle = indexBlockHandle;
     }
 
-    public BlockHandle getIndexBlockHandle() {
+    BlockHandle getIndexBlockHandle() {
         return indexBlockHandle;
     }
 

@@ -37,7 +37,7 @@ public class FileBasedStorage implements PersistentStorage {
     private Memtable imm;
     private volatile StorageStatus status;
     private Future writeSstableFuture;
-    private TableCache<LogEntry> tableCache;
+    private TableCache tableCache;
     private List<SSTableFileMetaInfo> metas;
 
     public FileBasedStorage(String storageBaseDir, String storageName) {
@@ -53,7 +53,7 @@ public class FileBasedStorage implements PersistentStorage {
         this.baseDir = storageBaseDir + "/" + storageName;
         this.firstIndexInStorage = -1;
         this.status = StorageStatus.NEED_INIT;
-        this.tableCache = new TableCache<>(baseDir, storageName);
+        this.tableCache = new TableCache(baseDir, storageName);
         this.metas = new ArrayList<>();
     }
 
@@ -160,13 +160,17 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     private LogEntry searchSSTable(int key) {
-        int metaIndex = findMetaIndex(key);
-        if (metaIndex != -1) {
-            SSTableFileMetaInfo meta = metas.get(metaIndex);
-            LogEntry e = tableCache.get(meta.getFileNumber(), meta.getFileSize(), key);
-            if (e != null) {
-                return e;
+        try {
+            int metaIndex = findMetaIndex(key);
+            if (metaIndex != -1) {
+                SSTableFileMetaInfo meta = metas.get(metaIndex);
+                List<LogEntry> entries = tableCache.getEntries(meta.getFileNumber(), meta.getFileSize(), key, key + 1);
+                if (entries != null) {
+                    return entries.get(0);
+                }
             }
+        } catch (IOException ex) {
+            //
         }
 
         return null;

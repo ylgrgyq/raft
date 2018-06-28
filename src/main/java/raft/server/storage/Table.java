@@ -1,8 +1,13 @@
 package raft.server.storage;
 
+import raft.server.proto.LogEntry;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -15,12 +20,12 @@ class Table {
     private FileChannel fileChannel;
     private Block indexBlock;
 
-    Table(FileChannel fileChannel, Block indexBlock) {
+    private Table(FileChannel fileChannel, Block indexBlock) {
         this.fileChannel = fileChannel;
         this.indexBlock = indexBlock;
     }
 
-    static Table open(FileChannel fileChannel, long fileSize) throws IOException{
+    static Table open(FileChannel fileChannel, long fileSize) throws IOException {
         long footerOffset = fileSize - Footer.tableFooterSize;
         ByteBuffer footerBuffer = ByteBuffer.allocate(Footer.tableFooterSize);
         fileChannel.read(footerBuffer, footerOffset);
@@ -45,5 +50,31 @@ class Table {
         checkState(expectChecksum != actualChecksum.getValue(), "block checksum mismatch");
 
         return new Block(content);
+    }
+
+    List<LogEntry> getEntries(int start, int end) throws IOException {
+        List<BlockHandle> indexes = indexBlock.getRangeValues(start, end)
+                .stream().map(index -> {
+                    BlockHandle handle = new BlockHandle();
+                    handle.decode(index);
+                    return handle;
+                }).collect(Collectors.toList());
+
+        List<Block> targetBlocks = new ArrayList<>();
+        for (BlockHandle handle : indexes) {
+            targetBlocks.add(readBlock(fileChannel, handle));
+        }
+
+        List<byte[]> entryBytes = targetBlocks.stream().map(block ->
+            block.getRangeValues(start, end)
+        ).flatMap(List::stream).collect(Collectors.toList());
+
+        List<LogEntry> ret = new ArrayList<>(entryBytes.size());
+        for (byte[] bs : entryBytes) {
+            LogEntry e = LogEntry.parseFrom(bs);
+            ret.add(e);
+        }
+
+        return ret;
     }
 }

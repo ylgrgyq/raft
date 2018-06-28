@@ -19,8 +19,9 @@ class BlockBuilder {
     private boolean isBuilt;
 
     BlockBuilder() {
-        this.buffers = new ArrayList<>();
-        this.checkPoints = new ArrayList<>();
+        buffers = new ArrayList<>();
+        checkPoints = new ArrayList<>();
+        checkPoints.add(0);
     }
 
     long add(int k, byte[] v) {
@@ -53,8 +54,6 @@ class BlockBuilder {
         assert ! isBuilt;
         isBuilt = true;
 
-        CRC32 checksum = new CRC32();
-
         // append checkpoints
         ByteBuffer checkpointsBuffer = ByteBuffer.allocate(Integer.BYTES * checkPoints.size() + Integer.BYTES);
         for (Integer checkpoint : checkPoints) {
@@ -66,6 +65,7 @@ class BlockBuilder {
         blockSize += checkpointsBuffer.limit();
 
         // write whole block include block and checkpoints
+        CRC32 checksum = new CRC32();
         for(ByteBuffer buffer : buffers) {
             checksum.update(buffer.array());
         }
@@ -85,6 +85,7 @@ class BlockBuilder {
     void reset() {
         buffers.clear();
         checkPoints.clear();
+        checkPoints.add(0);
         blockSize = 0;
         entryCounter = 0;
         isBuilt = false;

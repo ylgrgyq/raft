@@ -20,7 +20,7 @@ class BlockHandle {
         this.size = size;
     }
 
-    public long getOffset() {
+    long getOffset() {
         return offset;
     }
 
@@ -36,10 +36,12 @@ class BlockHandle {
         return buffer.array();
     }
 
-    void decode(byte[] bytes) {
+    static BlockHandle decode(byte[] bytes) {
+        BlockHandle handle = new BlockHandle();
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
-        offset = buffer.getLong();
-        size = buffer.getInt();
+        handle.setOffset(buffer.getLong());
+        handle.setSize(buffer.getInt());
+        return handle;
     }
 }
 

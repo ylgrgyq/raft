@@ -13,7 +13,7 @@ class Constant {
     static final int kMaxBlockSize = 4096;
 
     // Block Trailer is checksum(Long)
-    static final int kBlockTrailerSize = Long.SIZE;
+    static final int kBlockTrailerSize = Long.BYTES;
 
     static final long kTableMagicNumber = 24068102;
 

@@ -2,31 +2,34 @@ package raft.server.storage;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import raft.server.proto.LogEntry;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 
 /**
  * Author: ylgrgyq
  * Date: 18/6/24
  */
-class TableCache<V> {
+class TableCache {
     private String baseDir;
     private String storageName;
     private Cache<Integer, Table> cache;
 
     TableCache(String baseDir, String storageName) {
+        this.baseDir = baseDir;
         this.storageName = storageName;
         cache = CacheBuilder.newBuilder()
                 .maximumSize(1024)
                 .build();
     }
 
-    V get(int fileNumber, long fileSize, int key) {
-        Table t = cache.getIfPresent(fileNumber);
-        return null;
+    List<LogEntry> getEntries(int fileNumber, long fileSize, int startKey, int endKey) throws IOException {
+        Table t = findTable(fileNumber, fileSize);
+        return t.getEntries(startKey, endKey);
     }
 
     private Table findTable(int fileNumber, long fileSize) throws IOException {
