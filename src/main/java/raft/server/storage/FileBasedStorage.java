@@ -319,10 +319,10 @@ public class FileBasedStorage implements PersistentStorage {
                 tableBuilder.add(entry.getKey(), data);
             }
 
-            tableBuilder.finishBuild();
+            long tableFileSize = tableBuilder.finishBuild();
 
-            if (tableBuilder.getFileSize() > 0) {
-                meta.setFileSize(tableBuilder.getFileSize());
+            if (tableFileSize > 0) {
+                meta.setFileSize(tableFileSize);
 
                 ch.force(true);
             }

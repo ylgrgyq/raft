@@ -42,6 +42,7 @@ class TableBuilder {
     }
 
     private void flushDataBlock() throws IOException {
+        assert ! dataBlock.isEmpty();
         pendingIndexBlockHandle = writeBlock(dataBlock);
         fileChannel.force(true);
     }
@@ -61,17 +62,19 @@ class TableBuilder {
         fileChannel.write(trailer);
 
         dataBlock.reset();
-        offset += blockSize;
+        offset += blockSize + Constant.kBlockTrailerSize;
 
         return handle;
     }
 
-    void finishBuild() throws IOException {
+    long finishBuild() throws IOException {
         assert ! isFinished;
 
         isFinished = true;
 
-        flushDataBlock();
+        if (!dataBlock.isEmpty()) {
+            flushDataBlock();
+        }
 
         if (pendingIndexBlockHandle != null) {
             indexBlock.add(lastKey + 1, pendingIndexBlockHandle.encode());
@@ -85,9 +88,7 @@ class TableBuilder {
         fileChannel.write(ByteBuffer.wrap(footerBytes));
 
         offset += footerBytes.length;
-    }
 
-    long getFileSize() {
         return offset;
     }
 }

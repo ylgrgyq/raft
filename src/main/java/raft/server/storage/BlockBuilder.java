@@ -85,6 +85,10 @@ class BlockBuilder {
         return blockSize;
     }
 
+    boolean isEmpty() {
+        return blockSize == 0;
+    }
+
     void reset() {
         buffers.clear();
         checkPoints.clear();

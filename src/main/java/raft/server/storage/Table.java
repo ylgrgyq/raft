@@ -1,5 +1,7 @@
 package raft.server.storage;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import raft.server.proto.LogEntry;
 
 import java.io.IOException;
@@ -19,6 +21,10 @@ import static com.google.common.base.Preconditions.checkState;
 class Table {
     private FileChannel fileChannel;
     private Block indexBlock;
+    private Cache<Long, Block> blockCache = CacheBuilder.newBuilder()
+            .initialCapacity(1024)
+            .maximumSize(2048)
+            .build();
 
     private Table(FileChannel fileChannel, Block indexBlock) {
         this.fileChannel = fileChannel;
@@ -29,6 +35,7 @@ class Table {
         long footerOffset = fileSize - Footer.tableFooterSize;
         ByteBuffer footerBuffer = ByteBuffer.allocate(Footer.tableFooterSize);
         fileChannel.read(footerBuffer, footerOffset);
+        footerBuffer.flip();
         Footer footer = Footer.decode(footerBuffer.array());
 
         BlockHandle indexBlockHandle = footer.getIndexBlockHandle();
@@ -43,6 +50,7 @@ class Table {
 
         ByteBuffer trailer = ByteBuffer.allocate(Constant.kBlockTrailerSize);
         fileChannel.read(trailer);
+        trailer.flip();
 
         long expectChecksum = trailer.getLong();
         CRC32 actualChecksum = new CRC32();
@@ -54,15 +62,17 @@ class Table {
 
     List<LogEntry> getEntries(int start, int end) throws IOException {
         List<BlockHandle> indexes = indexBlock.getRangeValues(start, end)
-                .stream().map(index -> {
-                    BlockHandle handle = new BlockHandle();
-                    handle.decode(index);
-                    return handle;
-                }).collect(Collectors.toList());
+                .stream()
+                .map(BlockHandle::decode)
+                .collect(Collectors.toList());
 
         List<Block> targetBlocks = new ArrayList<>();
         for (BlockHandle handle : indexes) {
-            targetBlocks.add(readBlock(fileChannel, handle));
+            Block block = blockCache.getIfPresent(handle.getOffset());
+            if (block == null) {
+                block = readBlock(fileChannel, handle);
+            }
+            targetBlocks.add(block);
         }
 
         List<byte[]> entryBytes = targetBlocks.stream().map(block ->

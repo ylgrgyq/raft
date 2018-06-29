@@ -29,7 +29,7 @@ class BlockHandle {
     }
 
     byte[] encode() {
-        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + Long.BYTES);
+        ByteBuffer buffer = ByteBuffer.allocate(blockHandleSize);
         buffer.putLong(offset);
         buffer.putInt(size);
 

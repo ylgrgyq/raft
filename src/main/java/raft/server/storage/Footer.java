@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
  * Date: 18/6/24
  */
 class Footer {
-    static int tableFooterSize = BlockHandle.blockHandleSize;
+    static int tableFooterSize = BlockHandle.blockHandleSize + Long.BYTES;
 
     private BlockHandle indexBlockHandle;
 
@@ -38,8 +38,7 @@ class Footer {
             throw new IllegalStateException("found invalid sstable during checking magic number");
         }
 
-        BlockHandle indexBlockHandle = new BlockHandle();
-        indexBlockHandle.decode(indexBlockHandleBytes);
+        BlockHandle indexBlockHandle = BlockHandle.decode(indexBlockHandleBytes);
         return new Footer(indexBlockHandle);
     }
 }
