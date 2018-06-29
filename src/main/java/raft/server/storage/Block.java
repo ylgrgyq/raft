@@ -8,9 +8,9 @@ import java.util.List;
  * Author: ylgrgyq
  * Date: 18/6/24
  */
-class Block {
-    private ByteBuffer content;
-    private List<Integer> checkpoints;
+class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
+    private final ByteBuffer content;
+    private final List<Integer> checkpoints;
 
     Block(ByteBuffer content) {
         this.content = content;
@@ -29,24 +29,21 @@ class Block {
         content.limit(checkpointStart);
     }
 
-    List<byte[]> getRangeValues(int startKey, int endKey) {
+    List<byte[]> getValuesByKeyRange(int startKey, int endKey) {
         assert startKey < endKey;
 
         List<byte[]> ret = new ArrayList<>();
 
-        int startCheckpoint = findStartCheckpoint(startKey);
-        int cursor = checkpoints.get(startCheckpoint);
-        while (cursor < content.limit()) {
-            content.position(cursor);
-            int k = content.getInt();
-            int len = content.getInt();
-            if (k >= startKey && k < endKey) {
-                byte[] val = readVal(content, len);
-                ret.add(val);
-            } else if (k >= endKey) {
+        SeekableIterator<KeyValueEntry<Integer, byte[]>> iter = iterator();
+        iter.seek(startKey);
+
+        while (iter.hasNext()) {
+            KeyValueEntry<Integer, byte[]> entry = iter.next();
+            if (entry.getKey() < endKey) {
+                ret.add(entry.getVal());
+            } else {
                 break;
             }
-            cursor += len + Integer.BYTES + Integer.BYTES;
         }
 
         return ret;
@@ -90,5 +87,52 @@ class Block {
         return buffer;
     }
 
+    @Override
+    public SeekableIterator<KeyValueEntry<Integer, byte[]>> iterator() {
+        return new Itr(content);
+    }
 
+    private class Itr implements SeekableIterator<KeyValueEntry<Integer, byte[]>> {
+        private final ByteBuffer content;
+        private int offset;
+
+        Itr(ByteBuffer content) {
+            this.content = content;
+        }
+
+        @Override
+        public void seek(int key) {
+            int checkpoint = findStartCheckpoint(key);
+            offset = checkpoints.get(checkpoint);
+            while (offset < content.limit()) {
+                content.position(offset);
+                int k = content.getInt();
+                int len = content.getInt();
+                if (k < key) {
+                    offset += len + Integer.BYTES + Integer.BYTES;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return offset < content.limit();
+        }
+
+        @Override
+        public KeyValueEntry<Integer, byte[]> next() {
+            assert offset < content.limit();
+
+            content.position(offset);
+            int k = content.getInt();
+            int len = content.getInt();
+            byte[] val = readVal(content, len);
+
+            offset += len + Integer.BYTES + Integer.BYTES;
+
+            return new KeyValueEntry<>(k, val);
+        }
+    }
 }

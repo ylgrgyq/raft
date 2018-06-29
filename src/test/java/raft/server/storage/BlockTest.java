@@ -60,7 +60,7 @@ public class BlockTest {
         int cursor = firstIndex;
         while (cursor < lastIndex + 1) {
             int step = ThreadLocalRandom.current().nextInt(10, 1000);
-            List<byte[]> actual = block.getRangeValues(cursor, cursor + step);
+            List<byte[]> actual = block.getValuesByKeyRange(cursor, cursor + step);
             List<LogEntry> expect = entries.subList(cursor - firstIndex, Math.min(cursor + step - firstIndex, entries.size()));
             for (int i = 0; i < expect.size(); i++) {
                 assertEquals(expect.get(i), LogEntry.parseFrom(actual.get(i)));

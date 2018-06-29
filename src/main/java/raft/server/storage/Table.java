@@ -61,7 +61,7 @@ class Table {
     }
 
     List<LogEntry> getEntries(int start, int end) throws IOException {
-        List<BlockHandle> indexes = indexBlock.getRangeValues(start, end)
+        List<BlockHandle> indexes = indexBlock.getValuesByKeyRange(start, end)
                 .stream()
                 .map(BlockHandle::decode)
                 .collect(Collectors.toList());
@@ -76,7 +76,7 @@ class Table {
         }
 
         List<byte[]> entryBytes = targetBlocks.stream().map(block ->
-            block.getRangeValues(start, end)
+            block.getValuesByKeyRange(start, end)
         ).flatMap(List::stream).collect(Collectors.toList());
 
         List<LogEntry> ret = new ArrayList<>(entryBytes.size());
