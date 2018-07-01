@@ -17,8 +17,8 @@ import static com.google.common.base.Preconditions.checkState;
  * Author: ylgrgyq
  * Date: 18/6/10
  */
-class Table implements Iterable<KeyValueEntry<Integer, LogEntry>> {
-    private static final Cache<Long, Block> dataBlockCache = CacheBuilder.newBuilder()
+class Table implements Iterable<LogEntry> {
+    private final Cache<Long, Block> dataBlockCache = CacheBuilder.newBuilder()
             .initialCapacity(1024)
             .maximumSize(2048)
             .build();
@@ -61,15 +61,15 @@ class Table implements Iterable<KeyValueEntry<Integer, LogEntry>> {
     }
 
     List<LogEntry> getEntries(int start, int end) throws IOException {
-        SeekableIterator<KeyValueEntry<Integer, LogEntry>> itr = iterator();
+        SeekableIterator<LogEntry> itr = iterator();
         itr.seek(start);
 
         List<LogEntry> ret = new ArrayList<>();
         while (itr.hasNext()) {
-            KeyValueEntry<Integer, LogEntry> v = itr.next();
-            int k = v.getKey();
+            LogEntry v = itr.next();
+            int k = v.getIndex();
             if (k >= start && k < end) {
-                ret.add(v.getVal());
+                ret.add(v);
             } else {
                 break;
             }
@@ -89,11 +89,11 @@ class Table implements Iterable<KeyValueEntry<Integer, LogEntry>> {
     }
 
     @Override
-    public SeekableIterator<KeyValueEntry<Integer, LogEntry>> iterator() {
+    public SeekableIterator<LogEntry> iterator() {
         return new Itr(indexBlock);
     }
 
-    private class Itr implements SeekableIterator<KeyValueEntry<Integer, LogEntry>> {
+    private class Itr implements SeekableIterator<LogEntry> {
         private final SeekableIterator<KeyValueEntry<Integer, byte[]>> indexBlockIter;
         private SeekableIterator<KeyValueEntry<Integer, byte[]>> innerBlockIter;
 
@@ -135,10 +135,10 @@ class Table implements Iterable<KeyValueEntry<Integer, LogEntry>> {
         }
 
         @Override
-        public KeyValueEntry<Integer, LogEntry> next() {
+        public LogEntry next() {
             try {
                 KeyValueEntry<Integer, byte[]> ret = innerBlockIter.next();
-                return new KeyValueEntry<>(ret.getKey(),LogEntry.parseFrom(ret.getVal()));
+                return LogEntry.parseFrom(ret.getVal());
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }

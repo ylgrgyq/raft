@@ -48,6 +48,11 @@ class TableCache {
         return t;
     }
 
+    public SeekableIterator<LogEntry> iterator(int fileNumber, long fileSize) throws IOException {
+        Table t = findTable(fileNumber, fileSize);
+        return t.iterator();
+    }
+
     public void evict(int fileNumber){
         cache.invalidate(fileNumber);
     }

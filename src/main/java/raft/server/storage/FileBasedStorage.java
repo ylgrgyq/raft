@@ -12,7 +12,6 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -210,13 +209,7 @@ public class FileBasedStorage implements PersistentStorage {
         // TODO currently we do not support start lower than first key
         assert start >= mm.firstKey();
 
-        ConcurrentNavigableMap<Integer, LogEntry> ents = mm.subMap(start, end);
-        List<LogEntry> entries = new ArrayList<>(ents.size());
-        for (Map.Entry<Integer, LogEntry> e: ents.entrySet()) {
-            entries.add(e.getValue());
-        }
-
-        return entries;
+        return mm.getEntries(start, end);
     }
 
     @Override
@@ -349,11 +342,11 @@ public class FileBasedStorage implements PersistentStorage {
         }
     }
 
-    private class StorageIterator implements SeekableIterator<LogEntry> {
+    private class MergingItr implements SeekableIterator<LogEntry> {
         private int currentKey;
         private int currentMetaIndex;
 
-        public StorageIterator() {
+        public MergingItr() {
             this.currentKey = getFirstIndex();
             this.currentMetaIndex = 0;
         }
