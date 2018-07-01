@@ -138,60 +138,25 @@ public class FileBasedStorage implements PersistentStorage {
                 "index: %s out of bound, lastIndex: %s",
                 index, lastIndex);
 
-        LogEntry e = mm.get(index);
-        if (e != null) {
-            return e.getTerm();
-        }
-
-        if (imm != null){
+        LogEntry e;
+        if (imm != null) {
             e = imm.get(index);
             if (e != null) {
                 return e.getTerm();
             }
         }
 
-        e = searchSSTable(index);
+        e = mm.get(index);
         if (e != null) {
             return e.getTerm();
-        } else {
+        }
+
+        List<LogEntry> entries = getEntries(index, index + 1);
+        if (entries.isEmpty()) {
             return -1;
+        } else {
+            return entries.get(0).getTerm();
         }
-    }
-
-    private LogEntry searchSSTable(int key) {
-        try {
-            int metaIndex = findMetaIndex(key);
-            if (metaIndex != -1) {
-                SSTableFileMetaInfo meta = metas.get(metaIndex);
-                List<LogEntry> entries = tableCache.getEntries(meta.getFileNumber(), meta.getFileSize(), key, key + 1);
-                if (entries != null) {
-                    return entries.get(0);
-                }
-            }
-        } catch (IOException ex) {
-            //
-        }
-
-        return null;
-    }
-
-    private int findMetaIndex(int index) {
-        int start = 0;
-        int end = metas.size();
-
-        while (start < end) {
-            int mid = (start + end) / 2;
-            SSTableFileMetaInfo meta = metas.get(mid);
-            if (index < meta.getFirstIndex()) {
-                end = mid - 1;
-            } else if (index > meta.getLastIndex()) {
-                start = mid + 1;
-            } else {
-                return mid;
-            }
-        }
-
-        return -1;
     }
 
     @Override
@@ -205,11 +170,83 @@ public class FileBasedStorage implements PersistentStorage {
     public List<LogEntry> getEntries(int start, int end) {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
+        checkArgument(start < end, "end:%s should greater than start:%s", end, start);
 
-        // TODO currently we do not support start lower than first key
-        assert start >= mm.firstKey();
+        List<LogEntry> entriesOnMem = new ArrayList<>();
+        if (imm != null) {
+            entriesOnMem.addAll(imm.getEntries(start, end));
+            entriesOnMem.addAll(mm.getEntries(start, end));
+            end = imm.firstKey();
+        } else {
+            entriesOnMem.addAll(mm.getEntries(start, end));
+            end = mm.firstKey();
+        }
 
-        return mm.getEntries(start, end);
+        if (start < end) {
+            entriesOnMem.addAll(getEntriesFromSSTable(start, end));
+        }
+
+        return entriesOnMem;
+    }
+
+    private List<LogEntry> getEntriesFromSSTable(int start, int end) {
+        List<LogEntry> ret = new ArrayList<>();
+        try {
+            int cursor = findSearchStartMeta(start);
+            while (cursor < metas.size()) {
+                SSTableFileMetaInfo meta = metas.get(cursor);
+                ret.addAll(tableCache.getEntries(meta.getFileNumber(), meta.getFileSize(), start, end));
+
+                ++cursor;
+            }
+        } catch (IOException ex) {
+            //
+        }
+
+        return ret;
+    }
+
+    // find first SSTableFileMetaInfo in all meta files who's index range
+    // was covered by or intersect with the target index
+    private int findSearchStartMeta(int index) {
+       if (metas.size() > 32) {
+           return binarySearchStartMeta(index);
+       } else {
+           return traverseSearchStartMeta(index);
+       }
+    }
+
+    private int traverseSearchStartMeta(int index) {
+        int i = 0;
+        while (i < metas.size()) {
+            SSTableFileMetaInfo meta = metas.get(i);
+            if (index <= meta.getFirstIndex()) {
+                break;
+            } else if (index <= meta.getLastIndex()) {
+                break;
+            }
+        }
+
+        return i;
+    }
+
+    private int binarySearchStartMeta(int index) {
+        int start = 0;
+        int end = metas.size();
+
+        while (start < end) {
+            int mid = (start + end) / 2;
+            SSTableFileMetaInfo meta = metas.get(mid);
+            if (index >= meta.getFirstIndex() && index <= meta.getLastIndex()) {
+                return index;
+            } else if (index < meta.getFirstIndex()) {
+                end = mid;
+            } else {
+                start = mid + 1;
+            }
+        }
+
+        return start;
     }
 
     @Override
@@ -339,33 +376,6 @@ public class FileBasedStorage implements PersistentStorage {
             storageLock.release();
         } catch (IOException ex) {
             //
-        }
-    }
-
-    private class MergingItr implements SeekableIterator<LogEntry> {
-        private int currentKey;
-        private int currentMetaIndex;
-
-        public MergingItr() {
-            this.currentKey = getFirstIndex();
-            this.currentMetaIndex = 0;
-        }
-
-        @Override
-        public void seek(int key) {
-            if (key > mm.firstKey()) {
-
-            }
-        }
-
-        @Override
-        public boolean hasNext() {
-            return false;
-        }
-
-        @Override
-        public LogEntry next() {
-            return null;
         }
     }
 }

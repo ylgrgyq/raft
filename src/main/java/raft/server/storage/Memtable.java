@@ -2,10 +2,7 @@ package raft.server.storage;
 
 import raft.server.proto.LogEntry;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -26,11 +23,11 @@ class Memtable implements Iterable<LogEntry> {
         memSize += Integer.BYTES + v.getSerializedSize();
     }
 
-    int firstKey() {
+    Integer firstKey() {
         return table.firstKey();
     }
 
-    int lastKey() {
+    Integer lastKey() {
         return table.lastKey();
     }
 
@@ -47,6 +44,10 @@ class Memtable implements Iterable<LogEntry> {
     }
 
     List<LogEntry> getEntries(int start, int end) {
+        if (end < firstKey() || start > lastKey()) {
+            return Collections.emptyList();
+        }
+
         SeekableIterator<LogEntry> iter = iterator();
         iter.seek(start);
 
