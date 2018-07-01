@@ -34,7 +34,7 @@ public class TableTest {
         FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         TableBuilder builder = new TableBuilder(ch);
 
-        List<LogEntry> entries = TestUtil.newLogEntryList(1, 128, 2048);
+        List<LogEntry> entries = TestUtil.newLogEntryList(5000, 128, 4096);
         for (LogEntry e : entries) {
             builder.add(e.getIndex(), e.toByteArray());
         }

@@ -9,7 +9,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -18,13 +17,14 @@ import static com.google.common.base.Preconditions.checkState;
  * Author: ylgrgyq
  * Date: 18/6/10
  */
-class Table {
-    private FileChannel fileChannel;
-    private Block indexBlock;
-    private Cache<Long, Block> blockCache = CacheBuilder.newBuilder()
+class Table implements Iterable<KeyValueEntry<Integer, LogEntry>> {
+    private static final Cache<Long, Block> dataBlockCache = CacheBuilder.newBuilder()
             .initialCapacity(1024)
             .maximumSize(2048)
             .build();
+
+    private final FileChannel fileChannel;
+    private final Block indexBlock;
 
     private Table(FileChannel fileChannel, Block indexBlock) {
         this.fileChannel = fileChannel;
@@ -61,30 +61,87 @@ class Table {
     }
 
     List<LogEntry> getEntries(int start, int end) throws IOException {
-        List<BlockHandle> indexes = indexBlock.getValuesByKeyRange(start, end)
-                .stream()
-                .map(BlockHandle::decode)
-                .collect(Collectors.toList());
+        SeekableIterator<KeyValueEntry<Integer, LogEntry>> itr = iterator();
+        itr.seek(start);
 
-        List<Block> targetBlocks = new ArrayList<>();
-        for (BlockHandle handle : indexes) {
-            Block block = blockCache.getIfPresent(handle.getOffset());
-            if (block == null) {
-                block = readBlock(fileChannel, handle);
+        List<LogEntry> ret = new ArrayList<>();
+        while (itr.hasNext()) {
+            KeyValueEntry<Integer, LogEntry> v = itr.next();
+            int k = v.getKey();
+            if (k >= start && k < end) {
+                ret.add(v.getVal());
+            } else {
+                break;
             }
-            targetBlocks.add(block);
-        }
-
-        List<byte[]> entryBytes = targetBlocks.stream().map(block ->
-            block.getValuesByKeyRange(start, end)
-        ).flatMap(List::stream).collect(Collectors.toList());
-
-        List<LogEntry> ret = new ArrayList<>(entryBytes.size());
-        for (byte[] bs : entryBytes) {
-            LogEntry e = LogEntry.parseFrom(bs);
-            ret.add(e);
         }
 
         return ret;
+    }
+
+    private Block getBlock(BlockHandle handle) throws IOException {
+        Block block = dataBlockCache.getIfPresent(handle.getOffset());
+        if (block == null) {
+            block = readBlock(fileChannel, handle);
+            dataBlockCache.put(handle.getOffset(), block);
+        }
+
+        return block;
+    }
+
+    @Override
+    public SeekableIterator<KeyValueEntry<Integer, LogEntry>> iterator() {
+        return new Itr(indexBlock);
+    }
+
+    private class Itr implements SeekableIterator<KeyValueEntry<Integer, LogEntry>> {
+        private final SeekableIterator<KeyValueEntry<Integer, byte[]>> indexBlockIter;
+        private SeekableIterator<KeyValueEntry<Integer, byte[]>> innerBlockIter;
+
+        Itr(Block indexBlock) {
+            this.indexBlockIter = indexBlock.iterator();
+        }
+
+        @Override
+        public void seek(int key) {
+            indexBlockIter.seek(key);
+            if (indexBlockIter.hasNext()) {
+                innerBlockIter = createInnerBlockIter();
+                innerBlockIter.seek(key);
+            } else {
+                innerBlockIter = null;
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (innerBlockIter == null || !innerBlockIter.hasNext()) {
+                if (indexBlockIter.hasNext()) {
+                    innerBlockIter = createInnerBlockIter();
+                }
+            }
+
+            return innerBlockIter != null && innerBlockIter.hasNext();
+        }
+
+        private SeekableIterator<KeyValueEntry<Integer,byte[]>> createInnerBlockIter() {
+            try {
+                KeyValueEntry<Integer, byte[]> kv = indexBlockIter.next();
+                BlockHandle handle = BlockHandle.decode(kv.getVal());
+                Block block = getBlock(handle);
+                return block.iterator();
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
+
+        @Override
+        public KeyValueEntry<Integer, LogEntry> next() {
+            try {
+                KeyValueEntry<Integer, byte[]> ret = innerBlockIter.next();
+                return new KeyValueEntry<>(ret.getKey(),LogEntry.parseFrom(ret.getVal()));
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
     }
 }
