@@ -32,12 +32,12 @@ public class MemtableTest {
 
     @Test
     public void firstKey() throws Exception {
-        assertEquals(testingEntries.get(0).getIndex(), testingMm.firstKey());
+        assertEquals(testingEntries.get(0).getIndex(), (int)testingMm.firstKey());
     }
 
     @Test
     public void lastKey() throws Exception {
-        assertEquals(testingEntries.get(testingEntries.size() - 1).getIndex(), testingMm.lastKey());
+        assertEquals(testingEntries.get(testingEntries.size() - 1).getIndex(), (int)testingMm.lastKey());
     }
 
     @Test

@@ -37,7 +37,7 @@ public class FileBasedStorage implements PersistentStorage {
     private volatile StorageStatus status;
     private Future writeSstableFuture;
     private TableCache tableCache;
-    private List<SSTableFileMetaInfo> metas;
+    private Manifest manifest;
 
     public FileBasedStorage(String storageBaseDir, String storageName) {
         checkNotNull(storageBaseDir);
@@ -53,7 +53,7 @@ public class FileBasedStorage implements PersistentStorage {
         this.firstIndexInStorage = -1;
         this.status = StorageStatus.NEED_INIT;
         this.tableCache = new TableCache(baseDir, storageName);
-        this.metas = new ArrayList<>();
+        this.manifest = new Manifest(baseDir, storageName);
     }
 
     @Override
@@ -192,61 +192,16 @@ public class FileBasedStorage implements PersistentStorage {
     private List<LogEntry> getEntriesFromSSTable(int start, int end) {
         List<LogEntry> ret = new ArrayList<>();
         try {
-            int cursor = findSearchStartMeta(start);
-            while (cursor < metas.size()) {
-                SSTableFileMetaInfo meta = metas.get(cursor);
+            Iterator<SSTableFileMetaInfo> itr = manifest.searchMetas(start, end);
+            while (itr.hasNext()) {
+                SSTableFileMetaInfo meta = itr.next();
                 ret.addAll(tableCache.getEntries(meta.getFileNumber(), meta.getFileSize(), start, end));
-
-                ++cursor;
             }
         } catch (IOException ex) {
             //
         }
 
         return ret;
-    }
-
-    // find first SSTableFileMetaInfo in all meta files who's index range
-    // was covered by or intersect with the target index
-    private int findSearchStartMeta(int index) {
-       if (metas.size() > 32) {
-           return binarySearchStartMeta(index);
-       } else {
-           return traverseSearchStartMeta(index);
-       }
-    }
-
-    private int traverseSearchStartMeta(int index) {
-        int i = 0;
-        while (i < metas.size()) {
-            SSTableFileMetaInfo meta = metas.get(i);
-            if (index <= meta.getFirstIndex()) {
-                break;
-            } else if (index <= meta.getLastIndex()) {
-                break;
-            }
-        }
-
-        return i;
-    }
-
-    private int binarySearchStartMeta(int index) {
-        int start = 0;
-        int end = metas.size();
-
-        while (start < end) {
-            int mid = (start + end) / 2;
-            SSTableFileMetaInfo meta = metas.get(mid);
-            if (index >= meta.getFirstIndex() && index <= meta.getLastIndex()) {
-                return index;
-            } else if (index < meta.getFirstIndex()) {
-                end = mid;
-            } else {
-                start = mid + 1;
-            }
-        }
-
-        return start;
     }
 
     @Override
@@ -312,7 +267,7 @@ public class FileBasedStorage implements PersistentStorage {
     private void writeMemTable() {
         try {
             SSTableFileMetaInfo meta = writeMemTableToSSTable();
-            metas.add(meta);
+            manifest.registerMeta(meta);
 
             // TODO: write meta to manifest
 
@@ -337,8 +292,8 @@ public class FileBasedStorage implements PersistentStorage {
 
         int fileNumber = FileName.getNextFileNumber();
         meta.setFileNumber(fileNumber);
-        meta.setFirstIndex(imm.firstKey());
-        meta.setLastIndex(imm.lastKey());
+        meta.setFirstKey(imm.firstKey());
+        meta.setLastKey(imm.lastKey());
 
         String tableFileName = FileName.getSSTableName(storageName, fileNumber);
         Path tableFile = Paths.get(baseDir, tableFileName);

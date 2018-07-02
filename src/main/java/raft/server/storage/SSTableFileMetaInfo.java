@@ -4,41 +4,63 @@ package raft.server.storage;
  * Author: ylgrgyq
  * Date: 18/6/10
  */
-public class SSTableFileMetaInfo {
+class SSTableFileMetaInfo {
     private int fileNumber;
-    private int firstIndex;
-    private int lastIndex;
+    private int firstKey;
+    private int lastKey;
     private long fileSize;
 
-    public void setFileNumber(int fileNumber) {
+    void setFileNumber(int fileNumber) {
         this.fileNumber = fileNumber;
     }
 
-    public void setFirstIndex(int firstIndex) {
-        this.firstIndex = firstIndex;
+    void setFirstKey(int firstIndex) {
+        this.firstKey = firstIndex;
     }
 
-    public void setLastIndex(int lastIndex) {
-        this.lastIndex = lastIndex;
+    void setLastKey(int lastIndex) {
+        this.lastKey = lastIndex;
     }
 
-    public void setFileSize(long fileSize) {
+    void setFileSize(long fileSize) {
         this.fileSize = fileSize;
     }
 
-    public int getFileNumber() {
+    int getFileNumber() {
         return fileNumber;
     }
 
-    public int getFirstIndex() {
-        return firstIndex;
+    int getFirstKey() {
+        return firstKey;
     }
 
-    public int getLastIndex() {
-        return lastIndex;
+    int getLastKey() {
+        return lastKey;
     }
 
-    public long getFileSize() {
+    long getFileSize() {
         return fileSize;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof SSTableFileMetaInfo)) return false;
+
+        SSTableFileMetaInfo that = (SSTableFileMetaInfo) o;
+
+        if (fileNumber != that.fileNumber) return false;
+        if (firstKey != that.firstKey) return false;
+        if (lastKey != that.lastKey) return false;
+        return fileSize == that.fileSize;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = fileNumber;
+        result = 31 * result + firstKey;
+        result = 31 * result + lastKey;
+        result = 31 * result + (int) (fileSize ^ (fileSize >>> 32));
+        return result;
     }
 }
