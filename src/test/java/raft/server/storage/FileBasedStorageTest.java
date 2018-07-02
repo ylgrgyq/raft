@@ -7,6 +7,7 @@ import raft.server.proto.LogEntry;
 
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static org.junit.Assert.assertEquals;
 
@@ -21,7 +22,6 @@ public class FileBasedStorageTest {
     @Before
     public void setUp() throws Exception {
         TestUtil.cleanDirectory(Paths.get(testingDirectory, storageName));
-
     }
 
     @Test
@@ -80,4 +80,37 @@ public class FileBasedStorageTest {
         }
     }
 
+    @Test
+    public void appendAndReadEntries() throws Exception {
+        FileBasedStorage storage = new FileBasedStorage(testingDirectory, storageName);
+        storage.init();
+
+        int dataLowSize = 1024;
+        int expectLogCount = Constant.kMaxMemtableSize / dataLowSize;
+        // create at least 2 tables
+        List<LogEntry> expectEntries = TestUtil.newLogEntryList(expectLogCount * 2, dataLowSize, 2048);
+        int firstIndex = expectEntries.get(0).getIndex();
+        int lastIndex = expectEntries.get(expectEntries.size() - 1).getIndex();
+
+        List<List<LogEntry>> batches = TestUtil.randomPartitionLogEntryList(expectEntries);
+        for (List<LogEntry> batch : batches) {
+            storage.append(batch);
+            assertEquals(firstIndex, storage.getFirstIndex());
+            assertEquals(batch.get(batch.size() - 1).getIndex(), storage.getLastIndex());
+        }
+
+        int cursor = firstIndex;
+        while (cursor < lastIndex + 1) {
+            int step = ThreadLocalRandom.current().nextInt(10, 1000);
+            List<LogEntry> actual = storage.getEntries(cursor, cursor + step);
+            List<LogEntry> expect = expectEntries.subList(cursor - firstIndex, Math.min(cursor + step - firstIndex, expectEntries.size()));
+            for (int i = 0; i < expect.size(); i++) {
+                LogEntry expectEntry = expect.get(i);
+                assertEquals(expectEntry, actual.get(i));
+                assertEquals(expectEntry.getTerm(), storage.getTerm(expectEntry.getIndex()));
+            }
+
+            cursor += step;
+        }
+    }
 }

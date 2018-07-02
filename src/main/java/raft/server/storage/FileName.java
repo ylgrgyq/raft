@@ -15,7 +15,7 @@ public class FileName {
         return String.format("%s-%07d.%s", storageName, fileNumber, suffix);
     }
 
-    public static int getNextFileNumber() {
+    public static synchronized int getNextFileNumber() {
         return nextFileNumber++;
     }
 
@@ -25,9 +25,5 @@ public class FileName {
 
     public static String getLogFileName(String storageName, int fileNumber) {
         return generateFileName(storageName, fileNumber, "log");
-    }
-
-    public static void main(String[] args) {
-        System.out.println(FileName.getSSTableName("hahaha", 23));
     }
 }

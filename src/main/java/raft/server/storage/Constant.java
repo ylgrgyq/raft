@@ -17,7 +17,7 @@ class Constant {
 
     static final long kTableMagicNumber = 24068102;
 
-    static final int kMaxMemtableSize = 16777216;
+    static final int kMaxMemtableSize = 8388608;
 
     static final int kBlockCheckpointInterval = 64;
 }

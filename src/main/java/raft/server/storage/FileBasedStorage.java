@@ -14,7 +14,6 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -35,13 +34,12 @@ public class FileBasedStorage implements PersistentStorage {
     private Memtable mm;
     private Memtable imm;
     private volatile StorageStatus status;
-    private Future writeSstableFuture;
     private TableCache tableCache;
     private Manifest manifest;
+    private boolean backgroundWriteSstableRunning;
 
     public FileBasedStorage(String storageBaseDir, String storageName) {
         checkNotNull(storageBaseDir);
-
         Path baseDirPath = Paths.get(storageBaseDir);
 
         checkArgument(Files.notExists(baseDirPath) || Files.isDirectory(baseDirPath),
@@ -54,10 +52,13 @@ public class FileBasedStorage implements PersistentStorage {
         this.status = StorageStatus.NEED_INIT;
         this.tableCache = new TableCache(baseDir, storageName);
         this.manifest = new Manifest(baseDir, storageName);
+        this.backgroundWriteSstableRunning = false;
     }
 
     @Override
     public synchronized void init() {
+        checkState(status == StorageStatus.NEED_INIT,
+                "storage don't need initialization. current status: %s", status);
         try {
             createStorageDir();
 
@@ -167,7 +168,7 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public List<LogEntry> getEntries(int start, int end) {
+    public synchronized List<LogEntry> getEntries(int start, int end) {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
         checkArgument(start < end, "end:%s should greater than start:%s", end, start);
@@ -176,17 +177,24 @@ public class FileBasedStorage implements PersistentStorage {
         if (imm != null) {
             entriesOnMem.addAll(imm.getEntries(start, end));
             entriesOnMem.addAll(mm.getEntries(start, end));
-            end = imm.firstKey();
         } else {
             entriesOnMem.addAll(mm.getEntries(start, end));
-            end = mm.firstKey();
         }
 
-        if (start < end) {
-            entriesOnMem.addAll(getEntriesFromSSTable(start, end));
+        List<LogEntry> ret;
+        if (entriesOnMem.isEmpty()) {
+            ret = getEntriesFromSSTable(start, end);
+        } else {
+            end = entriesOnMem.get(0).getIndex();
+            if (start < end) {
+                ret = getEntriesFromSSTable(start, end);
+                ret.addAll(entriesOnMem);
+            } else {
+                ret = entriesOnMem;
+            }
         }
 
-        return entriesOnMem;
+        return ret;
     }
 
     private List<LogEntry> getEntriesFromSSTable(int start, int end) {
@@ -242,7 +250,7 @@ public class FileBasedStorage implements PersistentStorage {
                     return false;
                 } else if (mm.getMemoryUsedInBytes() > Constant.kMaxMemtableSize) {
                     if (imm != null) {
-                        writeSstableFuture.get();
+                        this.wait();
                         continue;
                     }
 
@@ -253,7 +261,8 @@ public class FileBasedStorage implements PersistentStorage {
                     logWriter = new LogWriter(logFile);
                     imm = mm;
                     mm = new Memtable();
-                    writeSstableFuture = sstableWriterPool.submit(this::writeMemTable);
+                    sstableWriterPool.submit(this::writeMemTable);
+                    backgroundWriteSstableRunning = true;
                 } else {
                     return true;
                 }
@@ -264,19 +273,24 @@ public class FileBasedStorage implements PersistentStorage {
         return false;
     }
 
+    synchronized void waitWriteSstableFinish() throws InterruptedException{
+        if (backgroundWriteSstableRunning) {
+            this.wait();
+        }
+    }
+
     private void writeMemTable() {
         try {
             SSTableFileMetaInfo meta = writeMemTableToSSTable();
             manifest.registerMeta(meta);
-
-            // TODO: write meta to manifest
 
             synchronized (this) {
                 imm = null;
 
                 // TODO: delete obsolete files
 
-                writeSstableFuture = null;
+                backgroundWriteSstableRunning = false;
+                this.notifyAll();
             }
 
         } catch (Throwable t) {
@@ -288,6 +302,8 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     private SSTableFileMetaInfo writeMemTableToSSTable() throws IOException{
+        assert imm != null;
+
         SSTableFileMetaInfo meta = new SSTableFileMetaInfo();
 
         int fileNumber = FileName.getNextFileNumber();
@@ -299,9 +315,9 @@ public class FileBasedStorage implements PersistentStorage {
         Path tableFile = Paths.get(baseDir, tableFileName);
         try (FileChannel ch = FileChannel.open(tableFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND)) {
             TableBuilder tableBuilder = new TableBuilder(ch);
-            for (Map.Entry<Integer, LogEntry> entry : imm.entrySet()) {
-                byte[] data = entry.getValue().toByteArray();
-                tableBuilder.add(entry.getKey(), data);
+            for (LogEntry entry : imm) {
+                byte[] data = entry.toByteArray();
+                tableBuilder.add(entry.getIndex(), data);
             }
 
             long tableFileSize = tableBuilder.finishBuild();

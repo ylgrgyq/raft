@@ -9,7 +9,7 @@ import java.util.List;
  * Date: 18/6/10
  */
 class Manifest {
-    private List<SSTableFileMetaInfo> metas;
+    private final List<SSTableFileMetaInfo> metas;
     private String baseDir;
     private String storageName;
 
@@ -71,6 +71,7 @@ class Manifest {
             } else if (index <= meta.getLastKey()) {
                 break;
             }
+            ++i;
         }
 
         return i;

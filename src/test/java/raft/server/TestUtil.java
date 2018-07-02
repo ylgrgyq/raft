@@ -72,15 +72,15 @@ public class TestUtil {
         List<List<LogEntry>> ret = new ArrayList<>();
 
         int start = 0;
-        int end = ThreadLocalRandom.current().nextInt(list.size() + 1);
+        int end = ThreadLocalRandom.current().nextInt(1, 50);
         while (start < list.size()) {
-            List<LogEntry> batch = list.subList(start, end);
+            List<LogEntry> batch = list.subList(start, Math.min(end, list.size()));
             if (!batch.isEmpty()) {
                 ret.add(batch);
             }
 
             start = end;
-            end = ThreadLocalRandom.current().nextInt(start,list.size() + 1);
+            end = ThreadLocalRandom.current().nextInt(start,start + 50);
         }
 
         return ret;
