@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.server.log.LogsCompactedException;
 import raft.server.log.PersistentStorage;
+import raft.server.log.StorageInternalError;
 import raft.server.proto.LogEntry;
 
 import java.io.IOException;
@@ -28,14 +29,16 @@ public class FileBasedStorage implements PersistentStorage {
             new ThreadFactoryImpl("SSTable-Writer-"));
     private final String baseDir;
     private final String storageName;
+    private final TableCache tableCache;
+    private final Manifest manifest;
+
     private FileLock storageLock;
     private LogWriter logWriter;
     private int firstIndexInStorage;
+    private int lastIndexInStorage;
     private Memtable mm;
     private Memtable imm;
     private volatile StorageStatus status;
-    private TableCache tableCache;
-    private Manifest manifest;
     private boolean backgroundWriteSstableRunning;
 
     public FileBasedStorage(String storageBaseDir, String storageName) {
@@ -114,18 +117,6 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized int getLastIndex() {
-        checkState(status == StorageStatus.OK,
-                "FileBasedStorage's status is not normal, currently: %s", status);
-
-        if (mm.isEmpty()) {
-            return -1;
-        } else {
-            return mm.lastKey();
-        }
-    }
-
-    @Override
     public synchronized int getTerm(int index) {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
@@ -158,6 +149,15 @@ public class FileBasedStorage implements PersistentStorage {
         } else {
             return entries.get(0).getTerm();
         }
+    }
+
+    @Override
+    public synchronized int getLastIndex() {
+        checkState(status == StorageStatus.OK,
+                "FileBasedStorage's status is not normal, currently: %s", status);
+
+        assert !mm.isEmpty() && mm.lastKey() == lastIndexInStorage;
+        return lastIndexInStorage;
     }
 
     @Override
@@ -206,7 +206,8 @@ public class FileBasedStorage implements PersistentStorage {
                 ret.addAll(tableCache.getEntries(meta.getFileNumber(), meta.getFileSize(), start, end));
             }
         } catch (IOException ex) {
-            //
+            throw new StorageInternalError(
+                    String.format("get entries start:%s end:%s from SSTable failed", start, end), ex);
         }
 
         return ret;
@@ -234,12 +235,13 @@ public class FileBasedStorage implements PersistentStorage {
                     byte[] data = e.toByteArray();
                     logWriter.append(data);
                     mm.add(e.getIndex(), e);
+                    lastIndexInStorage = e.getIndex();
                 }
             } catch (IOException ex) {
-                throw new RuntimeException("append log on file based storage failed", ex);
+                throw new StorageInternalError("append log on file based storage failed", ex);
             }
         } else {
-            throw new RuntimeException("make room on file based storage failed");
+            throw new StorageInternalError("make room on file based storage failed");
         }
     }
 
@@ -261,13 +263,13 @@ public class FileBasedStorage implements PersistentStorage {
                     logWriter = new LogWriter(logFile);
                     imm = mm;
                     mm = new Memtable();
-                    sstableWriterPool.submit(this::writeMemTable);
                     backgroundWriteSstableRunning = true;
+                    sstableWriterPool.submit(this::writeMemTable);
                 } else {
                     return true;
                 }
             }
-        } catch (Throwable t) {
+        } catch (IOException | InterruptedException t) {
             logger.error("make room for new entry failed", t);
         }
         return false;
@@ -280,23 +282,25 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     private void writeMemTable() {
+        StorageStatus status = StorageStatus.OK;
         try {
             SSTableFileMetaInfo meta = writeMemTableToSSTable();
             manifest.registerMeta(meta);
 
-            synchronized (this) {
-                imm = null;
-
-                // TODO: delete obsolete files
-
-                backgroundWriteSstableRunning = false;
-                this.notifyAll();
-            }
+            // TODO: delete obsolete files
 
         } catch (Throwable t) {
             logger.error("write memtable in background failed", t);
+            status = StorageStatus.ERROR;
+        } finally {
             synchronized (this) {
-                status = StorageStatus.ERROR;
+                backgroundWriteSstableRunning = false;
+                if (status == StorageStatus.OK) {
+                    imm = null;
+                } else {
+                    this.status = status;
+                }
+                this.notifyAll();
             }
         }
     }
