@@ -21,8 +21,15 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
         checkpoints = new ArrayList<>(checkpointSize);
         int checkpointStart = content.limit() - Integer.BYTES - checkpointSize * Integer.BYTES;
         content.position(checkpointStart);
+        assert checkpointSize > 0;
+        int lastCheckpoint = -1;
         for (int i = 0; i < checkpointSize; i++) {
             int checkpoint = content.getInt();
+            assert lastCheckpoint < checkpoint :
+                    String.format("checkpoint:%s, lastCheckpoint:%s", checkpoint, lastCheckpoint);
+            lastCheckpoint = checkpoint;
+            assert checkpoint < checkpointStart :
+                    String.format("checkpoint:%s, checkpointStart:%s", checkpoint, checkpointStart);
             checkpoints.add(checkpoint);
         }
         content.rewind();
@@ -104,10 +111,12 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
         public void seek(int key) {
             int checkpoint = findStartCheckpoint(key);
             offset = checkpoints.get(checkpoint);
+            assert offset < content.limit();
             while (offset < content.limit()) {
                 content.position(offset);
                 int k = content.getInt();
                 int len = content.getInt();
+                assert len > 0;
                 if (k < key) {
                     offset += len + Integer.BYTES + Integer.BYTES;
                 } else {
@@ -128,6 +137,7 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
             content.position(offset);
             int k = content.getInt();
             int len = content.getInt();
+            assert len > 0;
             byte[] val = readVal(content, len);
 
             offset += len + Integer.BYTES + Integer.BYTES;

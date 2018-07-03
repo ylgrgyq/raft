@@ -12,20 +12,25 @@ import java.util.zip.CRC32;
  * Date: 18/6/24
  */
 class BlockBuilder {
-    private List<ByteBuffer> buffers;
+    private final List<ByteBuffer> buffers;
+    private final List<Integer> checkPoints;
     private int blockSize;
-    private List<Integer> checkPoints;
     private int entryCounter;
     private boolean isBuilt;
 
     BlockBuilder() {
         buffers = new ArrayList<>();
         checkPoints = new ArrayList<>();
-        checkPoints.add(0);
     }
 
     long add(int k, byte[] v) {
         assert !isBuilt;
+        assert v.length > 0 : String.format("actual:%s", v.length);
+        assert entryCounter >= 0 && entryCounter < Integer.MAX_VALUE;
+
+        if ((entryCounter++ & (Constant.kBlockCheckpointInterval - 1)) == 0) {
+            checkPoints.add(blockSize);
+        }
 
         ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + Integer.BYTES + v.length);
         buffer.putInt(k);
@@ -36,21 +41,23 @@ class BlockBuilder {
         buffers.add(buffer);
         blockSize += buffer.limit();
 
-        if ((++entryCounter & Constant.kBlockCheckpointInterval - 1) == 0) {
-            checkPoints.add(blockSize);
-        }
-
         return blockSize;
     }
 
     int getCurrentEstimateBlockSize() {
-        return blockSize +
-                Integer.BYTES * checkPoints.size()
+        return blockSize
+                // checkpoints
+                + Integer.BYTES * checkPoints.size()
+                // checkpoints count
                 + Integer.BYTES;
     }
 
     long writeBlock(FileChannel fileChannel) throws IOException {
         assert !isBuilt;
+        assert fileChannel != null;
+        assert !buffers.isEmpty();
+        assert !checkPoints.isEmpty();
+
         isBuilt = true;
 
         // append checkpoints
@@ -71,13 +78,14 @@ class BlockBuilder {
         ByteBuffer[] bufferArray = new ByteBuffer[buffers.size()];
         buffers.toArray(bufferArray);
 
-        // maybe we have a lot for buffers which may can not be written to channel at once, so we need loop and
+        // maybe we have a lot of buffers which may not be written to channel at once, so we need loop and
         // tracking how many bytes we have written
         long written = 0;
         while (written < blockSize) {
             written += fileChannel.write(bufferArray);
         }
 
+        assert written > 0;
         return checksum.getValue();
     }
 
@@ -92,7 +100,6 @@ class BlockBuilder {
     void reset() {
         buffers.clear();
         checkPoints.clear();
-        checkPoints.add(0);
         blockSize = 0;
         entryCounter = 0;
         isBuilt = false;

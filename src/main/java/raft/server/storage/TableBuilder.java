@@ -18,6 +18,7 @@ class TableBuilder {
     private boolean isFinished;
 
     TableBuilder(FileChannel fileChannel) {
+        assert fileChannel != null;
         this.fileChannel = fileChannel;
         dataBlock = new BlockBuilder();
         indexBlock = new BlockBuilder();
@@ -25,6 +26,7 @@ class TableBuilder {
 
     void add(int k, byte[] v) throws IOException {
         assert k > lastKey;
+        assert v.length > 0;
         assert !isFinished;
 
         if (pendingIndexBlockHandle != null) {
@@ -69,6 +71,7 @@ class TableBuilder {
 
     long finishBuild() throws IOException {
         assert ! isFinished;
+        assert offset > 0;
 
         isFinished = true;
 
