@@ -52,6 +52,7 @@ public class FileBasedStorage implements PersistentStorage {
         this.storageName = storageName;
         this.baseDir = storageBaseDir + "/" + storageName;
         this.firstIndexInStorage = -1;
+        this.lastIndexInStorage = -1;
         this.status = StorageStatus.NEED_INIT;
         this.tableCache = new TableCache(baseDir, storageName);
         this.manifest = new Manifest(baseDir, storageName);
@@ -113,6 +114,10 @@ public class FileBasedStorage implements PersistentStorage {
 
         if (firstIndexInStorage < 0) {
             firstIndexInStorage = mm.firstKey();
+        }
+
+        if (lastIndexInStorage < 0) {
+            lastIndexInStorage = mm.lastKey();
         }
     }
 
