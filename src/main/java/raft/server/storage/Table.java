@@ -2,6 +2,7 @@ package raft.server.storage;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import raft.server.log.StorageInternalError;
 import raft.server.proto.LogEntry;
 
 import java.io.IOException;
@@ -130,17 +131,19 @@ class Table implements Iterable<LogEntry> {
                 Block block = getBlock(handle);
                 return block.iterator();
             } catch (IOException ex) {
-                throw new RuntimeException(ex);
+                throw new StorageInternalError("create inner block iterator failed", ex);
             }
         }
 
         @Override
         public LogEntry next() {
+            assert innerBlockIter != null;
+            assert innerBlockIter.hasNext();
             try {
                 KeyValueEntry<Integer, byte[]> ret = innerBlockIter.next();
                 return LogEntry.parseFrom(ret.getVal());
             } catch (IOException ex) {
-                throw new RuntimeException(ex);
+                throw new StorageInternalError(ex);
             }
         }
     }

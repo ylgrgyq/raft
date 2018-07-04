@@ -173,41 +173,15 @@ public class FileBasedStorage implements PersistentStorage {
                 "FileBasedStorage's status is not normal, currently: %s", status);
         checkArgument(start < end, "end:%s should greater than start:%s", end, start);
 
-        List<LogEntry> entriesOnMem = new ArrayList<>();
-        if (imm != null) {
-            entriesOnMem.addAll(imm.getEntries(start, end));
-            entriesOnMem.addAll(mm.getEntries(start, end));
-        } else {
-            entriesOnMem.addAll(mm.getEntries(start, end));
-        }
-
-        List<LogEntry> ret;
-        if (entriesOnMem.isEmpty()) {
-            ret = getEntriesFromSSTable(start, end);
-        } else {
-            end = entriesOnMem.get(0).getIndex();
-            if (start < end) {
-                ret = getEntriesFromSSTable(start, end);
-                ret.addAll(entriesOnMem);
-            } else {
-                ret = entriesOnMem;
-            }
-        }
-
-        return ret;
-    }
-
-    private List<LogEntry> getEntriesFromSSTable(int start, int end) {
         List<LogEntry> ret = new ArrayList<>();
-        try {
-            Iterator<SSTableFileMetaInfo> itr = manifest.searchMetas(start, end);
-            while (itr.hasNext()) {
-                SSTableFileMetaInfo meta = itr.next();
-                ret.addAll(tableCache.getEntries(meta.getFileNumber(), meta.getFileSize(), start, end));
+        Itr itr = internalIterator(start, end);
+        while (itr.hasNext()) {
+            LogEntry e = itr.next();
+            if (e.getIndex() >= end) {
+                break;
             }
-        } catch (IOException ex) {
-            throw new StorageInternalError(
-                    String.format("get entries start:%s end:%s from SSTable failed", start, end), ex);
+
+            ret.add(e);
         }
 
         return ret;
@@ -351,6 +325,67 @@ public class FileBasedStorage implements PersistentStorage {
             storageLock.release();
         } catch (IOException ex) {
             //
+        }
+    }
+
+    private Itr internalIterator(int start, int end) {
+        List<SeekableIterator<LogEntry>> itrs = getSSTableIterators(start, end);
+        if (imm != null) {
+            itrs.add(imm.iterator());
+        }
+        itrs.add(mm.iterator());
+        for (SeekableIterator<LogEntry> itr : itrs) {
+            itr.seek(start);
+            if (itr.hasNext()) {
+                break;
+            }
+        }
+
+        return new Itr(itrs);
+    }
+
+    private List<SeekableIterator<LogEntry>> getSSTableIterators(int start, int end) {
+        List<SeekableIterator<LogEntry>> ret = new ArrayList<>();
+        try {
+            Iterator<SSTableFileMetaInfo> itr = manifest.searchMetas(start, end);
+            while (itr.hasNext()) {
+                SSTableFileMetaInfo meta = itr.next();
+                ret.add(tableCache.iterator(meta.getFileNumber(), meta.getFileSize()));
+            }
+        } catch (IOException ex) {
+            throw new StorageInternalError(
+                    String.format("get sstable iterators start:%s end:%s from SSTable failed", start, end), ex);
+        }
+
+        return ret;
+    }
+
+    private class Itr implements Iterator<LogEntry> {
+        private final List<SeekableIterator<LogEntry>> iterators;
+        private int lastItrIndex;
+
+        Itr(List<SeekableIterator<LogEntry>> iterators) {
+            this.iterators = iterators;
+        }
+
+        @Override
+        public boolean hasNext() {
+            for (int i = lastItrIndex; i < iterators.size(); i++) {
+                SeekableIterator<LogEntry> itr = iterators.get(i);
+                if (itr.hasNext()) {
+                    lastItrIndex = i;
+                    return true;
+                }
+            }
+
+            lastItrIndex = iterators.size();
+            return false;
+        }
+
+        @Override
+        public LogEntry next() {
+            assert lastItrIndex >= 0 && lastItrIndex < iterators.size();
+            return iterators.get(lastItrIndex).next();
         }
     }
 }
