@@ -34,6 +34,7 @@ public class FileBasedStorage implements PersistentStorage {
 
     private FileLock storageLock;
     private LogWriter logWriter;
+    private int logFileNumber;
     private int firstIndexInStorage;
     private int lastIndexInStorage;
     private Memtable mm;
@@ -77,7 +78,7 @@ public class FileBasedStorage implements PersistentStorage {
                 checkState(Files.isRegularFile(logFilePath),
                         "%s is not a regular file",
                         logFilePath);
-                recoverLogFiles(logFilePath);
+                recoverMmFromLogFiles(logFilePath);
             } else {
                 FileChannel c = FileChannel.open(logFilePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
                 logWriter = new LogWriter(c);
@@ -98,7 +99,7 @@ public class FileBasedStorage implements PersistentStorage {
         }
     }
 
-    private void recoverLogFiles(Path logFilePath) throws IOException{
+    private void recoverMmFromLogFiles(Path logFilePath) throws IOException{
         FileChannel ch = FileChannel.open(logFilePath, StandardOpenOption.READ);
         LogReader reader = new LogReader(ch);
 
@@ -235,11 +236,12 @@ public class FileBasedStorage implements PersistentStorage {
                         continue;
                     }
 
-                    int nextLogFileNumber = FileName.getNextFileNumber();
+                    int nextLogFileNumber = manifest.getNextFileNumber();
                     String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
                     FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
                             StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
                     logWriter = new LogWriter(logFile);
+                    logFileNumber = nextLogFileNumber;
                     imm = mm;
                     mm = new Memtable();
                     backgroundWriteSstableRunning = true;
@@ -266,6 +268,11 @@ public class FileBasedStorage implements PersistentStorage {
             SSTableFileMetaInfo meta = writeMemTableToSSTable();
             manifest.registerMeta(meta);
 
+            ManifestRecord record = new ManifestRecord();
+            record.addMeta(meta);
+            record.setLogNumber(logFileNumber);
+            manifest.logRecord(record);
+
             // TODO: delete obsolete files
 
         } catch (Throwable t) {
@@ -289,7 +296,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         SSTableFileMetaInfo meta = new SSTableFileMetaInfo();
 
-        int fileNumber = FileName.getNextFileNumber();
+        int fileNumber = manifest.getNextFileNumber();
         meta.setFileNumber(fileNumber);
         meta.setFirstKey(imm.firstKey());
         meta.setLastKey(imm.lastKey());

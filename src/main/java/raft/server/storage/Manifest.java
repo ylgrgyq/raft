@@ -1,5 +1,9 @@
 package raft.server.storage;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -10,8 +14,12 @@ import java.util.List;
  */
 class Manifest {
     private final List<SSTableFileMetaInfo> metas;
-    private String baseDir;
-    private String storageName;
+    private final String baseDir;
+    private final String storageName;
+
+    private int nextFileNumber = 1;
+    private LogWriter manifestRecordWriter;
+    private int manifestFileNumber;
 
     Manifest(String baseDir, String storageName) {
         this.baseDir = baseDir;
@@ -23,8 +31,31 @@ class Manifest {
         metas.add(meta);
     }
 
+    void logRecord(ManifestRecord record) throws IOException {
+        record.setNextFileNumber(nextFileNumber);
+
+        String manifestFileName = null;
+        if (manifestRecordWriter == null) {
+            manifestFileNumber = getNextFileNumber();
+            manifestFileName = FileName.getManifestFileName(storageName, manifestFileNumber);
+            FileChannel manifestFile = FileChannel.open(Paths.get(baseDir, manifestFileName),
+                    StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
+            manifestRecordWriter = new LogWriter(manifestFile);
+        }
+
+        manifestRecordWriter.append(record.encode());
+
+        if (manifestFileName != null) {
+            FileName.setCurrentFile(baseDir, storageName, manifestFileNumber);
+        }
+    }
+
     void recover() {
 
+    }
+
+    synchronized int getNextFileNumber() {
+        return nextFileNumber++;
     }
 
     /**

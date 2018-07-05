@@ -8,16 +8,16 @@ class KeyValueEntry<K, V> {
     private final K key;
     private final V val;
 
-    public KeyValueEntry(K key, V val) {
+    KeyValueEntry(K key, V val) {
         this.key = key;
         this.val = val;
     }
 
-    public K getKey() {
+    K getKey() {
         return key;
     }
 
-    public V getVal() {
+    V getVal() {
         return val;
     }
 }
