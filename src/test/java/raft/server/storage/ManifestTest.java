@@ -50,7 +50,7 @@ public class ManifestTest {
         // origin metas' key range is 100 ~ 200, 300 ~ 400, 500 ~ 600, ...., 19900 ~ 20000
         List<SSTableFileMetaInfo> metas = generateFixedIntervalMetas(100, 100, 100);
         for (SSTableFileMetaInfo meta : metas) {
-            testingManifest.registerMeta(meta);
+//            testingManifest.registerMeta(meta);
         }
         searchMetas0(metas);
 
@@ -59,7 +59,7 @@ public class ManifestTest {
         // origin metas' key range is 100 ~ 200, 300 ~ 400, 500 ~ 600, ...., 3100 ~ 3200
         metas = generateFixedIntervalMetas(16, 100, 100);
         for (SSTableFileMetaInfo meta : metas) {
-            testingManifest.registerMeta(meta);
+//            testingManifest.registerMeta(meta);
         }
         searchMetas0(metas);
     }

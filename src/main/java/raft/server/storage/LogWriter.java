@@ -20,6 +20,14 @@ class LogWriter {
         this.blockOffset = 0;
     }
 
+    LogWriter(FileChannel workingFileChannel, long writePosotion) throws IOException {
+        assert workingFileChannel != null;
+
+        workingFileChannel.position(writePosotion);
+        this.workingFileChannel = workingFileChannel;
+        this.blockOffset = 0;
+    }
+
     long getPosition() throws IOException{
         return workingFileChannel.position();
     }

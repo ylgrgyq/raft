@@ -1,5 +1,7 @@
 package raft.server.storage;
 
+import raft.server.proto.LogEntry;
+
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
@@ -7,6 +9,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Author: ylgrgyq
@@ -18,6 +21,7 @@ class Manifest {
     private final String storageName;
 
     private int nextFileNumber = 1;
+    private int logNumber;
     private LogWriter manifestRecordWriter;
     private int manifestFileNumber;
 
@@ -27,12 +31,12 @@ class Manifest {
         this.metas = new ArrayList<>();
     }
 
-    void registerMeta(SSTableFileMetaInfo meta) {
-        metas.add(meta);
+    private void registerMetas(List<SSTableFileMetaInfo> metas) {
+        this.metas.addAll(metas);
     }
 
     void logRecord(ManifestRecord record) throws IOException {
-        record.setNextFileNumber(nextFileNumber);
+        registerMetas(record.getMetas());
 
         String manifestFileName = null;
         if (manifestRecordWriter == null) {
@@ -43,6 +47,7 @@ class Manifest {
             manifestRecordWriter = new LogWriter(manifestFile);
         }
 
+        record.setNextFileNumber(nextFileNumber);
         manifestRecordWriter.append(record.encode());
 
         if (manifestFileName != null) {
@@ -50,12 +55,45 @@ class Manifest {
         }
     }
 
-    void recover() {
+    void recover(String manifestFileName) throws IOException {
+        FileChannel manifestFile = FileChannel.open(Paths.get(baseDir, manifestFileName),
+                StandardOpenOption.READ);
+        LogReader reader = new LogReader(manifestFile);
+        while (true) {
+            Optional<byte[]> logOpt = reader.readLog();
+            if (logOpt.isPresent()) {
+                ManifestRecord record = ManifestRecord.decode(logOpt.get());
+                nextFileNumber = record.getNextFileNumber();
+                logNumber = record.getLogNumber();
+                metas.addAll(record.getMetas());
+            } else {
+                break;
+            }
+        }
+    }
 
+    int getFirstIndex() {
+        if (! metas.isEmpty()) {
+            return metas.get(0).getFirstKey();
+        } else {
+            return -1;
+        }
+    }
+
+    int getLastIndex() {
+        if (! metas.isEmpty()) {
+            return metas.get(metas.size() - 1).getLastKey();
+        } else {
+            return -1;
+        }
     }
 
     synchronized int getNextFileNumber() {
         return nextFileNumber++;
+    }
+
+    int getLogFileNumber() {
+        return logNumber;
     }
 
     /**
