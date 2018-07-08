@@ -45,6 +45,11 @@ class Table implements Iterable<LogEntry> {
         return new Table(fileChannel, indexBlock);
     }
 
+    void close() throws IOException {
+        fileChannel.close();
+        dataBlockCache.invalidateAll();
+    }
+
     private static Block readBlock(FileChannel fileChannel, BlockHandle handle) throws IOException {
         ByteBuffer content = ByteBuffer.allocate(handle.getSize());
         fileChannel.read(content, handle.getOffset());

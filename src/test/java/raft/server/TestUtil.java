@@ -42,13 +42,16 @@ public class TestUtil {
     }
 
     public static List<LogEntry> newLogEntryList(int count, int dataLowSize, int dataUpperSize) {
+        return newLogEntryList(count, dataLowSize, dataUpperSize, 10, 1000);
+    }
+
+    public static List<LogEntry> newLogEntryList(int count, int dataLowSize, int dataUpperSize, int baseTerm, int baseIndex) {
         checkArgument(count < 100000);
-        checkArgument(dataUpperSize < 51200);
 
         List<LogEntry> ret = new ArrayList<>(count);
         List<byte[]> datas = newDataList(count, dataLowSize, dataUpperSize);
-        int term = ThreadLocalRandom.current().nextInt(10, 1000);
-        int index = ThreadLocalRandom.current().nextInt(1000, 10000);
+        int term = ThreadLocalRandom.current().nextInt(baseTerm, 1000);
+        int index = ThreadLocalRandom.current().nextInt(baseIndex, 10000);
         double incTermRatio = (double)1/10;
 
         for (byte[] d : datas) {

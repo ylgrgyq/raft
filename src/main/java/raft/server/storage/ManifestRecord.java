@@ -86,4 +86,24 @@ class ManifestRecord {
 
         return record;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("ManifestRecord{" +
+                "nextFileNumber=" + nextFileNumber +
+                ", logNumber=" + logNumber);
+
+        if (!metas.isEmpty()) {
+            int from = metas.get(0).getFirstKey();
+            int to = metas.get(metas.size() - 1).getLastKey();
+            builder.append(", metaKeysFrom=");
+            builder.append(from);
+            builder.append(", metaKeysTo=");
+            builder.append(to);
+        }
+
+        builder.append("}");
+
+        return builder.toString();
+    }
 }

@@ -1,5 +1,8 @@
 package raft.server.storage;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
@@ -14,6 +17,8 @@ import java.util.Optional;
  * Date: 18/6/10
  */
 class Manifest {
+    private static final Logger logger = LoggerFactory.getLogger(Manifest.class.getName());
+
     private final List<SSTableFileMetaInfo> metas;
     private final String baseDir;
     private final String storageName;
@@ -41,12 +46,15 @@ class Manifest {
             manifestFileNumber = getNextFileNumber();
             manifestFileName = FileName.getManifestFileName(storageName, manifestFileNumber);
             FileChannel manifestFile = FileChannel.open(Paths.get(baseDir, manifestFileName),
-                    StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
             manifestRecordWriter = new LogWriter(manifestFile);
         }
 
         record.setNextFileNumber(nextFileNumber);
         manifestRecordWriter.append(record.encode());
+        manifestRecordWriter.flush();
+
+        logger.debug("written new manifest record {}", record);
 
         if (manifestFileName != null) {
             FileName.setCurrentFile(baseDir, storageName, manifestFileNumber);
@@ -54,18 +62,19 @@ class Manifest {
     }
 
     void recover(String manifestFileName) throws IOException {
-        FileChannel manifestFile = FileChannel.open(Paths.get(baseDir, manifestFileName),
-                StandardOpenOption.READ);
-        LogReader reader = new LogReader(manifestFile);
-        while (true) {
-            Optional<byte[]> logOpt = reader.readLog();
-            if (logOpt.isPresent()) {
-                ManifestRecord record = ManifestRecord.decode(logOpt.get());
-                nextFileNumber = record.getNextFileNumber();
-                logNumber = record.getLogNumber();
-                metas.addAll(record.getMetas());
-            } else {
-                break;
+        try (FileChannel manifestFile = FileChannel.open(Paths.get(baseDir, manifestFileName),
+                StandardOpenOption.READ)) {
+            LogReader reader = new LogReader(manifestFile);
+            while (true) {
+                Optional<byte[]> logOpt = reader.readLog();
+                if (logOpt.isPresent()) {
+                    ManifestRecord record = ManifestRecord.decode(logOpt.get());
+                    nextFileNumber = record.getNextFileNumber();
+                    logNumber = record.getLogNumber();
+                    metas.addAll(record.getMetas());
+                } else {
+                    break;
+                }
             }
         }
     }

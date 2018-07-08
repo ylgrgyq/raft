@@ -36,6 +36,10 @@ class LogWriter {
         workingFileChannel.force(true);
     }
 
+    void close() throws IOException {
+        workingFileChannel.close();
+    }
+
     void append(byte[] data) throws IOException{
         assert data != null;
         assert data.length > 0;

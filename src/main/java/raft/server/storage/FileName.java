@@ -17,6 +17,10 @@ class FileName {
         return String.format("%s-%07d.%s", storageName, fileNumber, suffix);
     }
 
+    static String getLockFileName(String storageName) {
+        return storageName + ".lock";
+    }
+
     static String getSSTableName(String storageName, int fileNumber){
         return generateFileName(storageName, fileNumber, "sst");
     }
@@ -54,26 +58,33 @@ class FileName {
 
         if (fileName.endsWith("_CURRENT")) {
             String[] strs = fileName.split("_");
-            assert strs.length == 2;
+            assert strs.length == 2 : fileName;
             return new FileNameMeta(strs[0], 0, FileType.Current);
+        } else if (fileName.endsWith(".lock")) {
+            String[] strs = fileName.split("\\.");
+            assert strs.length == 2 : fileName;
+            return new FileNameMeta(strs[0], 0, FileType.Lock);
         } else {
-            String[] strs = fileName.split("[\\-\\.]",3);
-            assert strs.length == 3;
-            String storageName = strs[0];
-            int fileNumber = Integer.valueOf(strs[1]);
             FileType type = FileType.Unknown;
-            switch (strs[2]) {
-                case "sst":
-                    type = FileType.SSTable;
-                    break;
-                case "log":
-                    type = FileType.Log;
-                    break;
-                case "mf":
-                    type = FileType.Manifest;
-                    break;
+            String[] strs = fileName.split("[\\-\\.]",3);
+            if (strs.length == 3) {
+                String storageName = strs[0];
+                int fileNumber = Integer.valueOf(strs[1]);
+                switch (strs[2]) {
+                    case "sst":
+                        type = FileType.SSTable;
+                        break;
+                    case "log":
+                        type = FileType.Log;
+                        break;
+                    case "mf":
+                        type = FileType.Manifest;
+                        break;
+                }
+                return new FileNameMeta(storageName, fileNumber, type);
+            } else {
+                return new FileNameMeta("", 0, FileType.Unknown);
             }
-            return new FileNameMeta(storageName, fileNumber, type);
         }
     }
 
@@ -106,6 +117,7 @@ class FileName {
         SSTable,
         Current,
         Log,
-        Manifest
+        Manifest,
+        Lock
     }
 }

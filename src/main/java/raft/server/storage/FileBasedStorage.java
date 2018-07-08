@@ -17,6 +17,7 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
@@ -51,7 +52,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         checkArgument(Files.notExists(baseDirPath) || Files.isDirectory(baseDirPath),
                 "\"%s\" must be a directory to hold raft persistent logs", storageBaseDir);
-        checkArgument(storageName.matches("[A-Za-z0-9].+"),
+        checkArgument(storageName.matches("[A-Za-z0-9]+"),
                 "storage name must not empty and can only contains english alphabet and number, actual:\"%s\"",
                 storageName);
 
@@ -73,7 +74,7 @@ public class FileBasedStorage implements PersistentStorage {
         try {
             createStorageDir();
 
-            Path lockFilePath = Paths.get(baseDir, storageName);
+            Path lockFilePath = Paths.get(baseDir, FileName.getLockFileName(storageName));
             FileChannel ch = FileChannel.open(lockFilePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             storageLock = ch.tryLock();
             checkState(storageLock != null,
@@ -88,13 +89,24 @@ public class FileBasedStorage implements PersistentStorage {
                 int nextLogFileNumber = manifest.getNextFileNumber();
                 String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
                 FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
-                        StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
+                        StandardOpenOption.CREATE, StandardOpenOption.APPEND);
                 logWriter = new LogWriter(logFile);
                 logFileNumber = nextLogFileNumber;
             }
 
             record.setLogNumber(logFileNumber);
             manifest.logRecord(record);
+
+            firstIndexInStorage = manifest.getFirstIndex();
+            if (firstIndexInStorage < 0 && ! mm.isEmpty()) {
+                firstIndexInStorage = mm.firstKey();
+            }
+
+            if (mm.isEmpty()) {
+                lastIndexInStorage = manifest.getLastIndex();
+            } else {
+                lastIndexInStorage = mm.lastKey();
+            }
         } catch (IOException t) {
             status = StorageStatus.ERROR;
             throw new IllegalStateException("init storage failed", t);
@@ -118,7 +130,6 @@ public class FileBasedStorage implements PersistentStorage {
         assert !Strings.isNullOrEmpty(currentManifestFileName);
 
         manifest.recover(currentManifestFileName);
-        firstIndexInStorage = manifest.getFirstIndex();
 
         int logFileNumber = manifest.getLogFileNumber();
         Path baseDirPath = Paths.get(baseDir);
@@ -132,14 +143,6 @@ public class FileBasedStorage implements PersistentStorage {
             FileName.FileNameMeta fileMeta = logsFileMetas.get(i);
             if (! recoverMmFromLogFiles(fileMeta.getFileNumber(), record, i == logsFileMetas.size() - 1)) {
                 break;
-            }
-        }
-
-        if (lastIndexInStorage < 0) {
-            if (mm.isEmpty()) {
-                lastIndexInStorage = manifest.getLastIndex();
-            } else {
-                lastIndexInStorage = mm.lastKey();
             }
         }
     }
@@ -178,7 +181,7 @@ public class FileBasedStorage implements PersistentStorage {
         }
 
         if (lastLogFile && noNewSSTable) {
-            Path path = Paths.get(FileName.getLogFileName(storageName, fileNumber));
+            Path path = Paths.get(baseDir, FileName.getLogFileName(storageName, fileNumber));
             FileChannel logFile = FileChannel.open(path, StandardOpenOption.WRITE);
             logWriter = new LogWriter(logFile, readEndPosition);
             logFileNumber = fileNumber;
@@ -236,7 +239,7 @@ public class FileBasedStorage implements PersistentStorage {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
-        assert !mm.isEmpty() && mm.lastKey() == lastIndexInStorage;
+        assert mm.isEmpty() || mm.lastKey() == lastIndexInStorage;
         return lastIndexInStorage;
     }
 
@@ -283,19 +286,19 @@ public class FileBasedStorage implements PersistentStorage {
             firstIndexInStorage = first.getIndex();
         }
 
-        if (makeRoomForEntry()) {
-            try {
-                for (LogEntry e : entries) {
+        try {
+            for (LogEntry e : entries) {
+                if (makeRoomForEntry()) {
                     byte[] data = e.toByteArray();
                     logWriter.append(data);
                     mm.add(e.getIndex(), e);
                     lastIndexInStorage = e.getIndex();
+                } else {
+                    throw new StorageInternalError("make room on file based storage failed");
                 }
-            } catch (IOException ex) {
-                throw new StorageInternalError("append log on file based storage failed", ex);
             }
-        } else {
-            throw new StorageInternalError("make room on file based storage failed");
+        } catch (IOException ex) {
+            throw new StorageInternalError("append log on file based storage failed", ex);
         }
     }
 
@@ -313,12 +316,16 @@ public class FileBasedStorage implements PersistentStorage {
                     int nextLogFileNumber = manifest.getNextFileNumber();
                     String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
                     FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
-                            StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
+                            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                    if (logWriter != null) {
+                        logWriter.close();
+                    }
                     logWriter = new LogWriter(logFile);
                     logFileNumber = nextLogFileNumber;
                     imm = mm;
                     mm = new Memtable();
                     backgroundWriteSstableRunning = true;
+                    logger.debug("trigger compaction, new log file number=%s", logFileNumber);
                     sstableWriterPool.submit(this::writeMemTable);
                 } else {
                     return true;
@@ -375,7 +382,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         String tableFileName = FileName.getSSTableName(storageName, fileNumber);
         Path tableFile = Paths.get(baseDir, tableFileName);
-        try (FileChannel ch = FileChannel.open(tableFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND)) {
+        try (FileChannel ch = FileChannel.open(tableFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
             TableBuilder tableBuilder = new TableBuilder(ch);
             for (LogEntry entry : mm) {
                 byte[] data = entry.toByteArray();
@@ -404,12 +411,24 @@ public class FileBasedStorage implements PersistentStorage {
 
     }
 
-    public void destroyStorage() {
-        try {
-            storageLock.release();
-        } catch (IOException ex) {
-            //
+    public synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException{
+        checkArgument(timeout > 0);
+
+        long start = System.nanoTime();
+        if (logWriter != null) {
+            logWriter.close();
         }
+
+        tableCache.evictAll();
+        sstableWriterPool.shutdown();
+        try {
+            long remain = unit.toNanos(timeout) - (System.nanoTime() - start);
+            sstableWriterPool.awaitTermination(remain, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException ex) {
+            sstableWriterPool.shutdownNow();
+        }
+
+        storageLock.release();
     }
 
     private Itr internalIterator(int start, int end) {

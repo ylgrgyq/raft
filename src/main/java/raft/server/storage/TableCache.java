@@ -9,6 +9,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Author: ylgrgyq
@@ -48,12 +49,23 @@ class TableCache {
         return t;
     }
 
-    public SeekableIterator<LogEntry> iterator(int fileNumber, long fileSize) throws IOException {
+    SeekableIterator<LogEntry> iterator(int fileNumber, long fileSize) throws IOException {
         Table t = findTable(fileNumber, fileSize);
         return t.iterator();
     }
 
-    public void evict(int fileNumber){
+    void evict(int fileNumber) throws IOException {
+        Table t = cache.getIfPresent(fileNumber);
+        if (t != null) {
+            t.close();
+        }
         cache.invalidate(fileNumber);
+    }
+
+    void evictAll() throws IOException {
+        for(Map.Entry<Integer, Table> e : cache.asMap().entrySet()) {
+            e.getValue().close();
+        }
+        cache.invalidateAll();
     }
 }
