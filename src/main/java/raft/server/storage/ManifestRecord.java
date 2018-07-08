@@ -45,6 +45,11 @@ class ManifestRecord {
         metas.add(meta);
     }
 
+    void addMetas(List<SSTableFileMetaInfo> ms) {
+        assert ms != null && ! ms.isEmpty();
+        metas.addAll(ms);
+    }
+
     byte[] encode(){
         ByteArrayDataOutput out = ByteStreams.newDataOutput();
         out.writeInt(nextFileNumber);

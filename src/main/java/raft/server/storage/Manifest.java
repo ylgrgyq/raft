@@ -1,7 +1,5 @@
 package raft.server.storage;
 
-import raft.server.proto.LogEntry;
-
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
