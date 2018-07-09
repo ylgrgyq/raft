@@ -24,11 +24,19 @@ class Memtable implements Iterable<LogEntry> {
     }
 
     Integer firstKey() {
-        return table.firstKey();
+        if (table.isEmpty()) {
+            return -1;
+        } else {
+            return table.firstKey();
+        }
     }
 
     Integer lastKey() {
-        return table.lastKey();
+        if (table.isEmpty()) {
+            return -1;
+        } else {
+            return table.lastKey();
+        }
     }
 
     boolean isEmpty() {

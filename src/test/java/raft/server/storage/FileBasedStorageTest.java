@@ -48,7 +48,9 @@ public class FileBasedStorageTest {
         reOpen();
 
         checkAllEntries(expectEntries);
-        List<LogEntry> newEntries = TestUtil.newLogEntryList(10, dataLowSize, dataLowSize + 1);
+        LogEntry lastE = expectEntries.get(expectEntries.size() - 1);
+        List<LogEntry> newEntries = TestUtil.newLogEntryList(10, dataLowSize,
+                dataLowSize + 1, lastE.getTerm(), lastE.getIndex());
         for (List<LogEntry> batch : TestUtil.randomPartitionLogEntryList(newEntries)) {
             testingStorage.append(batch);
         }
@@ -61,7 +63,7 @@ public class FileBasedStorageTest {
     }
 
     @Test
-    public void recoverFromEmptyLogFile() throws Exception {
+    public void recoverThenUseNewLogFile() throws Exception {
         int dataLowSize = 1024;
         List<LogEntry> expectEntries = TestUtil.newLogEntryList(10, dataLowSize, dataLowSize + 1);
         testingStorage.append(expectEntries);
@@ -79,7 +81,30 @@ public class FileBasedStorageTest {
         testingStorage.append(newEntries);
 
         checkAllEntries(expectEntries);
-        testingStorage.waitWriteSstableFinish();
+
+        reOpen();
+
+        checkAllEntries(expectEntries);
+    }
+
+    @Test
+    public void recoverDuringCompaction() throws Exception {
+        int dataLowSize = 1024;
+        List<LogEntry> expectEntries = TestUtil.newLogEntryList(10, dataLowSize, dataLowSize + 1);
+        testingStorage.append(expectEntries);
+
+        // trigger compaction
+        LogEntry lastE = expectEntries.get(expectEntries.size() - 1);
+        List<LogEntry> newEntries = TestUtil.newLogEntryList(2,
+                2 * Constant.kMaxMemtableSize,
+                2* Constant.kMaxMemtableSize + 1,
+                lastE.getTerm(),
+                lastE.getIndex()
+        );
+
+        expectEntries.addAll(newEntries);
+        testingStorage.append(newEntries);
+        testingStorage.shutdownNow();
 
         reOpen();
 
@@ -87,7 +112,7 @@ public class FileBasedStorageTest {
     }
 
     private void reOpen() throws IOException {
-        testingStorage.awaitShutdown(5, TimeUnit.SECONDS);
+        testingStorage.awaitShutdown(0, TimeUnit.SECONDS);
 
         testingStorage = new FileBasedStorage(testingDirectory, storageName);
         testingStorage.init();
@@ -95,7 +120,7 @@ public class FileBasedStorageTest {
 
     private void checkAllEntries(List<LogEntry> expectEntries) {
         assertEquals(expectEntries.get(0).getIndex(), testingStorage.getFirstIndex());
-        assertEquals(expectEntries.get(expectEntries.size() - 1).getIndex(), testingStorage.getLastIndex());
+        assertEquals(expectEntries.toString(), expectEntries.get(expectEntries.size() - 1).getIndex(), testingStorage.getLastIndex());
 
         List<LogEntry> actualEntries = testingStorage.getEntries(testingStorage.getFirstIndex(), testingStorage.getLastIndex() + 1);
         for (int i = 0; i < expectEntries.size(); i++) {

@@ -3,6 +3,7 @@ package raft.server.storage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.util.Arrays;
 
 /**
  * Author: ylgrgyq
@@ -34,7 +35,7 @@ class FileName {
     }
 
     static void setCurrentFile(String baseDir, String storageName, int manifestFileNumber) throws IOException {
-        Path tmpPath = Files.createTempFile(Paths.get(baseDir), storageName, ".tmp_mf");
+        Path tmpPath = Files.createTempFile(Paths.get(baseDir), storageName + "_", ".tmp_mf");
         try {
             String manifestFileName = getManifestFileName(storageName, manifestFileNumber);
 
@@ -64,6 +65,10 @@ class FileName {
             String[] strs = fileName.split("\\.");
             assert strs.length == 2 : fileName;
             return new FileNameMeta(strs[0], 0, FileType.Lock);
+        } else if (fileName.endsWith(".tmp_mf")) {
+            String[] strs = fileName.split("_");
+            assert strs.length > 1 : fileName;
+            return new FileNameMeta(strs[0], 0, FileType.TempManifest);
         } else {
             FileType type = FileType.Unknown;
             String[] strs = fileName.split("[\\-\\.]",3);
@@ -118,6 +123,7 @@ class FileName {
         Current,
         Log,
         Manifest,
+        TempManifest,
         Lock
     }
 }

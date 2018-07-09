@@ -36,6 +36,7 @@ public class FileBasedStorage implements PersistentStorage {
     private final TableCache tableCache;
     private final Manifest manifest;
 
+    private FileChannel storageLockChannel;
     private FileLock storageLock;
     private LogWriter logWriter;
     private int logFileNumber;
@@ -53,7 +54,7 @@ public class FileBasedStorage implements PersistentStorage {
         checkArgument(Files.notExists(baseDirPath) || Files.isDirectory(baseDirPath),
                 "\"%s\" must be a directory to hold raft persistent logs", storageBaseDir);
         checkArgument(storageName.matches("[A-Za-z0-9]+"),
-                "storage name must not empty and can only contains english alphabet and number, actual:\"%s\"",
+                "storage name must not empty and can only contains english letters and numbers, actual:\"%s\"",
                 storageName);
 
         this.mm = new Memtable();
@@ -75,10 +76,12 @@ public class FileBasedStorage implements PersistentStorage {
             createStorageDir();
 
             Path lockFilePath = Paths.get(baseDir, FileName.getLockFileName(storageName));
-            FileChannel ch = FileChannel.open(lockFilePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-            storageLock = ch.tryLock();
+            storageLockChannel = FileChannel.open(lockFilePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            storageLock = storageLockChannel.tryLock();
             checkState(storageLock != null,
                     "file storage: \"%s\" is occupied by other process", baseDir);
+
+            logger.debug("start init storage {} under {}", storageName, baseDir);
 
             ManifestRecord record = new ManifestRecord();
             if (Files.exists(Paths.get(baseDir, FileName.getCurrentManifestFileName(storageName)))) {
@@ -89,7 +92,7 @@ public class FileBasedStorage implements PersistentStorage {
                 int nextLogFileNumber = manifest.getNextFileNumber();
                 String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
                 FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
-                        StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                        StandardOpenOption.CREATE, StandardOpenOption.WRITE);
                 logWriter = new LogWriter(logFile);
                 logFileNumber = nextLogFileNumber;
             }
@@ -98,20 +101,33 @@ public class FileBasedStorage implements PersistentStorage {
             manifest.logRecord(record);
 
             firstIndexInStorage = manifest.getFirstIndex();
-            if (firstIndexInStorage < 0 && ! mm.isEmpty()) {
+            if (firstIndexInStorage < 0) {
                 firstIndexInStorage = mm.firstKey();
             }
 
-            if (mm.isEmpty()) {
+            lastIndexInStorage = mm.lastKey();
+            if (lastIndexInStorage < 0) {
                 lastIndexInStorage = manifest.getLastIndex();
-            } else {
-                lastIndexInStorage = mm.lastKey();
             }
+            status = StorageStatus.OK;
         } catch (IOException t) {
-            status = StorageStatus.ERROR;
             throw new IllegalStateException("init storage failed", t);
+        } finally {
+            if (status != StorageStatus.OK) {
+                status = StorageStatus.ERROR;
+                if (storageLockChannel != null) {
+                    try {
+                        if (storageLock != null) {
+                            storageLock.release();
+                        }
+                        storageLockChannel.close();
+                    } catch (IOException ex) {
+                        logger.error("storage release lock failed", ex);
+                    }
+                }
+            }
         }
-        status = StorageStatus.OK;
+
     }
 
     private void createStorageDir() throws IOException {
@@ -141,17 +157,13 @@ public class FileBasedStorage implements PersistentStorage {
 
         for (int i = 0; i < logsFileMetas.size(); ++i) {
             FileName.FileNameMeta fileMeta = logsFileMetas.get(i);
-            if (! recoverMmFromLogFiles(fileMeta.getFileNumber(), record, i == logsFileMetas.size() - 1)) {
-                break;
-            }
+            recoverMmFromLogFiles(fileMeta.getFileNumber(), record, i == logsFileMetas.size() - 1);
         }
     }
 
-    private boolean recoverMmFromLogFiles(int fileNumber, ManifestRecord record, boolean lastLogFile) throws IOException {
+    private void recoverMmFromLogFiles(int fileNumber, ManifestRecord record, boolean lastLogFile) throws IOException {
         Path logFilePath = Paths.get(baseDir, FileName.getLogFileName(storageName, fileNumber));
-        if (!Files.exists(logFilePath)) {
-            return false;
-        }
+        checkState(Files.exists(logFilePath), "log file \"%s\" was deleted during recovery", logFilePath);
 
         long readEndPosition;
         boolean noNewSSTable = true;
@@ -181,8 +193,9 @@ public class FileBasedStorage implements PersistentStorage {
         }
 
         if (lastLogFile && noNewSSTable) {
-            Path path = Paths.get(baseDir, FileName.getLogFileName(storageName, fileNumber));
-            FileChannel logFile = FileChannel.open(path, StandardOpenOption.WRITE);
+            FileChannel logFile = FileChannel.open(logFilePath, StandardOpenOption.WRITE);
+            assert logWriter == null;
+            assert logFileNumber == 0;
             logWriter = new LogWriter(logFile, readEndPosition);
             logFileNumber = fileNumber;
             if (mm != null) {
@@ -195,8 +208,6 @@ public class FileBasedStorage implements PersistentStorage {
             SSTableFileMetaInfo meta = writeMemTableToSSTable(mm);
             record.addMeta(meta);
         }
-
-        return true;
     }
 
     @Override
@@ -239,7 +250,8 @@ public class FileBasedStorage implements PersistentStorage {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
-        assert mm.isEmpty() || mm.lastKey() == lastIndexInStorage;
+        assert mm.isEmpty() || mm.lastKey() == lastIndexInStorage :
+            String.format("actual lastIndex:%s lastIndexInMm:%s", lastIndexInStorage, mm.lastKey());
         return lastIndexInStorage;
     }
 
@@ -316,7 +328,7 @@ public class FileBasedStorage implements PersistentStorage {
                     int nextLogFileNumber = manifest.getNextFileNumber();
                     String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
                     FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
-                            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                            StandardOpenOption.CREATE, StandardOpenOption.WRITE);
                     if (logWriter != null) {
                         logWriter.close();
                     }
@@ -325,7 +337,7 @@ public class FileBasedStorage implements PersistentStorage {
                     imm = mm;
                     mm = new Memtable();
                     backgroundWriteSstableRunning = true;
-                    logger.debug("trigger compaction, new log file number=%s", logFileNumber);
+                    logger.debug("trigger compaction, new log file number={}", logFileNumber);
                     sstableWriterPool.submit(this::writeMemTable);
                 } else {
                     return true;
@@ -344,6 +356,7 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     private void writeMemTable() {
+        logger.debug("start write mem table in background");
         StorageStatus status = StorageStatus.OK;
         try {
             SSTableFileMetaInfo meta = writeMemTableToSSTable(imm);
@@ -354,6 +367,7 @@ public class FileBasedStorage implements PersistentStorage {
             manifest.logRecord(record);
             // TODO: delete obsolete files
 
+            logger.debug("write mem table in background done with manifest record {}", record);
         } catch (Throwable t) {
             logger.error("write memtable in background failed", t);
             status = StorageStatus.ERROR;
@@ -382,7 +396,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         String tableFileName = FileName.getSSTableName(storageName, fileNumber);
         Path tableFile = Paths.get(baseDir, tableFileName);
-        try (FileChannel ch = FileChannel.open(tableFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+        try (FileChannel ch = FileChannel.open(tableFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
             TableBuilder tableBuilder = new TableBuilder(ch);
             for (LogEntry entry : mm) {
                 byte[] data = entry.toByteArray();
@@ -412,23 +426,63 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     public synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException{
-        checkArgument(timeout > 0);
-
-        long start = System.nanoTime();
-        if (logWriter != null) {
-            logWriter.close();
+        checkArgument(timeout >= 0);
+        if (status == StorageStatus.SHUTTING_DOWN) {
+            return;
         }
 
-        tableCache.evictAll();
-        sstableWriterPool.shutdown();
+        status = StorageStatus.SHUTTING_DOWN;
+
+        long start = System.nanoTime();
         try {
-            long remain = unit.toNanos(timeout) - (System.nanoTime() - start);
-            sstableWriterPool.awaitTermination(remain, TimeUnit.NANOSECONDS);
+            waitWriteSstableFinish();
+            sstableWriterPool.shutdown();
+            timeout = unit.toNanos(timeout) - (System.nanoTime() - start);
+            sstableWriterPool.awaitTermination(timeout, TimeUnit.NANOSECONDS);
         } catch (InterruptedException ex) {
             sstableWriterPool.shutdownNow();
         }
 
-        storageLock.release();
+        if (logWriter != null) {
+            logWriter.close();
+        }
+
+        manifest.close();
+
+        tableCache.evictAll();
+
+        if (storageLock != null && storageLock.isValid()) {
+            storageLock.release();
+        }
+
+        if (storageLockChannel != null && storageLockChannel.isOpen()) {
+            storageLockChannel.close();
+        }
+    }
+
+    synchronized void shutdownNow() throws IOException {
+        if (status == StorageStatus.SHUTTING_DOWN) {
+            return;
+        }
+
+        status = StorageStatus.SHUTTING_DOWN;
+        sstableWriterPool.shutdownNow();
+
+        if (logWriter != null) {
+            logWriter.close();
+        }
+
+        manifest.close();
+
+        tableCache.evictAll();
+
+        if (storageLock != null && storageLock.isValid()) {
+            storageLock.release();
+        }
+
+        if (storageLockChannel != null && storageLockChannel.isOpen()) {
+            storageLockChannel.close();
+        }
     }
 
     private Itr internalIterator(int start, int end) {

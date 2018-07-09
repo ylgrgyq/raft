@@ -7,5 +7,6 @@ package raft.server.storage;
 enum StorageStatus {
     NEED_INIT,
     OK,
-    ERROR
+    ERROR,
+    SHUTTING_DOWN
 }

@@ -39,6 +39,8 @@ class Manifest {
     }
 
     void logRecord(ManifestRecord record) throws IOException {
+        assert record.getLogNumber() >= logNumber;
+
         registerMetas(record.getMetas());
 
         String manifestFileName = null;
@@ -46,7 +48,7 @@ class Manifest {
             manifestFileNumber = getNextFileNumber();
             manifestFileName = FileName.getManifestFileName(storageName, manifestFileNumber);
             FileChannel manifestFile = FileChannel.open(Paths.get(baseDir, manifestFileName),
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                    StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             manifestRecordWriter = new LogWriter(manifestFile);
         }
 
@@ -54,7 +56,7 @@ class Manifest {
         manifestRecordWriter.append(record.encode());
         manifestRecordWriter.flush();
 
-        logger.debug("written new manifest record {}", record);
+        logger.debug("written manifest record {} to manifest file number {}", record, manifestFileNumber);
 
         if (manifestFileName != null) {
             FileName.setCurrentFile(baseDir, storageName, manifestFileNumber);
@@ -93,6 +95,10 @@ class Manifest {
         } else {
             return -1;
         }
+    }
+
+    void close() throws IOException {
+        manifestRecordWriter.close();
     }
 
     synchronized int getNextFileNumber() {
