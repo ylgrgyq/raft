@@ -4,8 +4,10 @@ import com.google.protobuf.ByteString;
 import raft.server.proto.LogEntry;
 
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -105,7 +107,17 @@ public class TestUtil {
                         throw new RuntimeException(ex);
                     }
                 });
+            } else {
+                if (Files.notExists(dirPath)) {
+                    try {
+                        Files.createDirectories(dirPath);
+                    } catch (FileAlreadyExistsException ex) {
+                        // we don't care if the dir is already exists
+                    }
+                }
             }
+
+
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }
