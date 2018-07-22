@@ -1,18 +1,15 @@
 package raft.server;
 
-import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 import raft.server.proto.Snapshot;
 
-import java.lang.reflect.Array;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -47,7 +44,7 @@ class TestingRaftCluster {
                 .withSelfID(selfId)
                 .withRaftCommandBroker(broker)
                 .withStateMachine(stateMachine)
-                .withPersistentStorage(new MemoryFakePersistentStorage())
+                .withPersistentStorage(new MemoryBasedTestingStorage())
                 .build();
         return new RaftNode(c);
     }
@@ -61,7 +58,7 @@ class TestingRaftCluster {
     }
 
     static void clearPreviousPersistentStateFor(String peerId) {
-        RaftPersistentState state = new RaftPersistentState(persistentStateDir, peerId);
+        RaftPersistentState state = new RaftPersistentState(persistentStateDir, peerId, false);
         state.setTermAndVotedFor(0, null);
     }
 

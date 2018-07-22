@@ -16,14 +16,14 @@ import static com.google.common.base.Preconditions.checkArgument;
  * Author: ylgrgyq
  * Date: 18/5/27
  */
-public class MemoryFakePersistentStorage implements PersistentStorage {
+public class MemoryBasedTestingStorage implements PersistentStorage {
     private static final Logger logger = LoggerFactory.getLogger(PersistentStorage.class.getName());
 
     // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
     private List<LogEntry> logs = new ArrayList<>();
     private int offset;
 
-    public MemoryFakePersistentStorage(){
+    public MemoryBasedTestingStorage(){
         this.logs.add(PersistentStorage.sentinel);
         this.offset = getFirstIndex();
     }
