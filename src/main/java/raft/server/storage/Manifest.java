@@ -15,7 +15,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -160,6 +159,18 @@ class Manifest {
             } else {
                 return -1;
             }
+        } finally {
+            metasLock.unlock();
+        }
+    }
+
+    int getLowestSSTableFileNumber() {
+        metasLock.lock();
+        try {
+            return metas.stream()
+                    .mapToInt(SSTableFileMetaInfo::getFileNumber)
+                    .min()
+                    .orElse(-1);
         } finally {
             metasLock.unlock();
         }

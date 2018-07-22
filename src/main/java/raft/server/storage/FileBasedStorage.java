@@ -14,7 +14,10 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -369,8 +372,6 @@ public class FileBasedStorage implements PersistentStorage {
 
             manifest.processCompactTask();
 
-            // TODO: delete obsolete files
-
             logger.debug("write mem table in background done with manifest record {}", record);
         } catch (Throwable t) {
             logger.error("write memtable in background failed", t);
@@ -386,6 +387,8 @@ public class FileBasedStorage implements PersistentStorage {
                 this.notifyAll();
             }
         }
+
+        FileName.deleteOutdatedFiles(baseDir, logFileNumber, manifest.getLowestSSTableFileNumber());
     }
 
     private SSTableFileMetaInfo writeMemTableToSSTable(Memtable mm) throws IOException {

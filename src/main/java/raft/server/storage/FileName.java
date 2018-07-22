@@ -1,15 +1,21 @@
 package raft.server.storage;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
  * Date: 18/6/24
  */
 class FileName {
+    private static final Logger logger = LoggerFactory.getLogger(FileName.class.getName());
+
     static String getCurrentManifestFileName(String storageName) {
         return storageName + "_CURRENT";
     }
@@ -60,18 +66,18 @@ class FileName {
         if (fileName.endsWith("_CURRENT")) {
             String[] strs = fileName.split("_");
             assert strs.length == 2 : fileName;
-            return new FileNameMeta(strs[0], 0, FileType.Current);
+            return new FileNameMeta(fileName, strs[0], 0, FileType.Current);
         } else if (fileName.endsWith(".lock")) {
             String[] strs = fileName.split("\\.");
             assert strs.length == 2 : fileName;
-            return new FileNameMeta(strs[0], 0, FileType.Lock);
+            return new FileNameMeta(fileName, strs[0], 0, FileType.Lock);
         } else if (fileName.endsWith(".tmp_mf")) {
             String[] strs = fileName.split("_");
             assert strs.length > 1 : fileName;
-            return new FileNameMeta(strs[0], 0, FileType.TempManifest);
+            return new FileNameMeta(fileName, strs[0], 0, FileType.TempManifest);
         } else {
             FileType type = FileType.Unknown;
-            String[] strs = fileName.split("[\\-\\.]",3);
+            String[] strs = fileName.split("[\\-.]",3);
             if (strs.length == 3) {
                 String storageName = strs[0];
                 int fileNumber = Integer.valueOf(strs[1]);
@@ -86,22 +92,63 @@ class FileName {
                         type = FileType.Manifest;
                         break;
                 }
-                return new FileNameMeta(storageName, fileNumber, type);
+                return new FileNameMeta(fileName, storageName, fileNumber, type);
             } else {
-                return new FileNameMeta("", 0, FileType.Unknown);
+                return new FileNameMeta(fileName, "", 0, FileType.Unknown);
             }
         }
     }
 
+    static void deleteOutdatedFiles(String baseDir, int logFileNumber, int lowestSSTableFileNumber) {
+        try {
+            Path dirPath = Paths.get(baseDir);
+            assert Files.isDirectory(dirPath);
+            List<Path> outdatedFilePaths = Files.walk(dirPath)
+                    .filter(p -> Files.isRegularFile(p))
+                    .map(p -> parseFileName(p.getFileName().toString()))
+                    .filter(meta -> {
+                        switch (meta.getType()){
+                            case Current:
+                            case Lock:
+                            case TempManifest:
+                            case Manifest:
+                                return true;
+                            case Unknown:
+                                return false;
+                            case Log:
+                                return meta.getFileNumber() < logFileNumber;
+                            case SSTable:
+                                return meta.getFileNumber() < lowestSSTableFileNumber;
+                            default:
+                                return false;
+                        }
+                    })
+                    .map(meta -> Paths.get(baseDir, meta.getFileName()))
+                    .collect(Collectors.toList());
+
+            for (Path path : outdatedFilePaths) {
+                Files.deleteIfExists(path);
+            }
+        } catch (Throwable t) {
+            logger.error("delete outdated files failed", t);
+        }
+    }
+
     static class FileNameMeta {
+        private final String fileName;
         private final String storageName;
         private final int fileNumber;
         private final FileType type;
 
-        FileNameMeta(String storageName, int fileNumber, FileType type) {
+        FileNameMeta(String fileName, String storageName, int fileNumber, FileType type) {
+            this.fileName = fileName;
             this.storageName = storageName;
             this.fileNumber = fileNumber;
             this.type = type;
+        }
+
+        String getFileName() {
+            return fileName;
         }
 
         String getStorageName() {
