@@ -9,11 +9,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * Author: ylgrgyq
@@ -26,7 +26,7 @@ public class ManifestTest {
     private Manifest testingManifest;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         TestUtil.cleanDirectory(Paths.get(testingDirectory));
     }
 
@@ -73,13 +73,8 @@ public class ManifestTest {
         assertEquals(firstIndex, expectMetas.get(0).getFirstKey());
         assertEquals(lastIndex, expectMetas.get(expectMetas.size() - 1).getLastKey());
 
-        Iterator<SSTableFileMetaInfo> metas = testingManifest.searchMetas(firstIndex, lastIndex + 1);
-        for (SSTableFileMetaInfo meta : expectMetas) {
-            assertTrue(metas.hasNext());
-            assertEquals(meta, metas.next());
-        }
-
-        assertFalse(metas.hasNext());
+        List<SSTableFileMetaInfo> metas = testingManifest.searchMetas(firstIndex, lastIndex + 1);
+        assertEquals(expectMetas, metas);
     }
 
     private ManifestRecord logManifestRecord(List<SSTableFileMetaInfo> expectMetas) throws IOException {
@@ -136,33 +131,29 @@ public class ManifestTest {
 
             List<SSTableFileMetaInfo> expectMetas = metas.subList(start, end);
             int index = 0;
-            Iterator<SSTableFileMetaInfo> itr = testingManifest.searchMetas(startKey - 20, endKey + 60);
-            while (itr.hasNext()) {
-                SSTableFileMetaInfo meta = itr.next();
+            List<SSTableFileMetaInfo> retMetas = testingManifest.searchMetas(startKey - 20, endKey + 60);
+            for (SSTableFileMetaInfo meta : retMetas) {
                 assertEquals(expectMetas.get(index++), meta);
             }
             assertEquals(expectMetas.size(), index);
 
             index = 0;
-            itr = testingManifest.searchMetas(startKey, endKey + 60);
-            while (itr.hasNext()) {
-                SSTableFileMetaInfo meta = itr.next();
+            retMetas = testingManifest.searchMetas(startKey, endKey + 60);
+            for (SSTableFileMetaInfo meta : retMetas) {
                 assertEquals(expectMetas.get(index++), meta);
             }
             assertEquals(expectMetas.size(), index);
 
             index = 0;
-            itr = testingManifest.searchMetas(startKey + 10, endKey);
-            while (itr.hasNext()) {
-                SSTableFileMetaInfo meta = itr.next();
+            retMetas = testingManifest.searchMetas(startKey + 10, endKey);
+            for (SSTableFileMetaInfo meta : retMetas) {
                 assertEquals(expectMetas.get(index++), meta);
             }
             assertEquals(expectMetas.size(), index);
 
             index = 0;
-            itr = testingManifest.searchMetas(startKey + 100, endKey);
-            while (itr.hasNext()) {
-                SSTableFileMetaInfo meta = itr.next();
+            retMetas = testingManifest.searchMetas(startKey + 100, endKey);
+            for (SSTableFileMetaInfo meta : retMetas) {
                 assertEquals(expectMetas.get(index++), meta);
             }
             assertEquals(expectMetas.size(), index);

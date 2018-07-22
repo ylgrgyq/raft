@@ -15,6 +15,7 @@ import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -365,6 +366,9 @@ public class FileBasedStorage implements PersistentStorage {
             record.addMeta(meta);
             record.setLogNumber(logFileNumber);
             manifest.logRecord(record);
+
+            manifest.processCompactTask();
+
             // TODO: delete obsolete files
 
             logger.debug("write mem table in background done with manifest record {}", record);
@@ -421,8 +425,10 @@ public class FileBasedStorage implements PersistentStorage {
         return meta;
     }
 
-    public void compact(int toIndex) {
+    public CompletableFuture<Integer> compact(int toIndex) {
+        checkArgument(toIndex > 0);
 
+        return manifest.compact(toIndex);
     }
 
     public synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException{
@@ -502,19 +508,17 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     private List<SeekableIterator<LogEntry>> getSSTableIterators(int start, int end) {
-        List<SeekableIterator<LogEntry>> ret = new ArrayList<>();
         try {
-            Iterator<SSTableFileMetaInfo> itr = manifest.searchMetas(start, end);
-            while (itr.hasNext()) {
-                SSTableFileMetaInfo meta = itr.next();
+            List<SSTableFileMetaInfo> metas = manifest.searchMetas(start, end);
+            List<SeekableIterator<LogEntry>> ret = new ArrayList<>(metas.size());
+            for(SSTableFileMetaInfo meta : metas) {
                 ret.add(tableCache.iterator(meta.getFileNumber(), meta.getFileSize()));
             }
+            return ret;
         } catch (IOException ex) {
             throw new StorageInternalError(
                     String.format("get sstable iterators start:%s end:%s from SSTable failed", start, end), ex);
         }
-
-        return ret;
     }
 
     private class Itr implements Iterator<LogEntry> {

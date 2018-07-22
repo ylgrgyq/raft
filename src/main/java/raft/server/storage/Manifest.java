@@ -8,9 +8,11 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Author: ylgrgyq
@@ -19,6 +21,7 @@ import java.util.Optional;
 class Manifest {
     private static final Logger logger = LoggerFactory.getLogger(Manifest.class.getName());
 
+    private final BlockingQueue<CompactTask<Integer>> compactTaskQueue;
     private final List<SSTableFileMetaInfo> metas;
     private final String baseDir;
     private final String storageName;
@@ -32,6 +35,7 @@ class Manifest {
         this.baseDir = baseDir;
         this.storageName = storageName;
         this.metas = new ArrayList<>();
+        this.compactTaskQueue = new LinkedBlockingQueue<>();
     }
 
     private void registerMetas(List<SSTableFileMetaInfo> metas) {
@@ -61,6 +65,29 @@ class Manifest {
         if (manifestFileName != null) {
             FileName.setCurrentFile(baseDir, storageName, manifestFileNumber);
         }
+    }
+
+    void processCompactTask() {
+        int greatestToKey = -1;
+        List<CompactTask<Integer>> tasks = new ArrayList<>();
+        CompactTask<Integer> task;
+        while ((task = compactTaskQueue.poll()) != null){
+            tasks.add(task);
+            if (task.getToKey() > greatestToKey) {
+                greatestToKey = task.getToKey();
+            }
+        }
+
+        List<SSTableFileMetaInfo> remainMetasItr = searchMetas(greatestToKey + 1, Integer.MAX_VALUE);
+
+        // TODO: write remain metas into log
+    }
+
+    CompletableFuture<Integer> compact(int toKey) {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompactTask<Integer> task = new CompactTask<>(future, toKey);
+        compactTaskQueue.add(task);
+        return future;
     }
 
     void recover(String manifestFileName) throws IOException {
@@ -98,7 +125,9 @@ class Manifest {
     }
 
     void close() throws IOException {
-        manifestRecordWriter.close();
+        if (manifestRecordWriter != null) {
+            manifestRecordWriter.close();
+        }
     }
 
     synchronized int getNextFileNumber() {
@@ -117,7 +146,7 @@ class Manifest {
      *
      * @return iterator for found SSTableFileMetaInfo
      */
-    Iterator<SSTableFileMetaInfo> searchMetas(int startKey, int endKey) {
+    List<SSTableFileMetaInfo> searchMetas(int startKey, int endKey) {
         int startMetaIndex;
         if (metas.size() > 32) {
             startMetaIndex = binarySearchStartMeta(startKey);
@@ -125,23 +154,21 @@ class Manifest {
             startMetaIndex = traverseSearchStartMeta(startKey);
         }
 
-        return new Iterator<SSTableFileMetaInfo>() {
-            private int index = startMetaIndex;
-
-            @Override
-            public boolean hasNext() {
-                if (index < metas.size()) {
-                    SSTableFileMetaInfo meta = metas.get(index);
-                    return meta.getFirstKey() < endKey;
+        List<SSTableFileMetaInfo> retMetas = new ArrayList<>();
+        int index = startMetaIndex;
+        while (true) {
+            if (index < metas.size()) {
+                SSTableFileMetaInfo meta = metas.get(index++);
+                if (meta.getFirstKey() < endKey) {
+                    retMetas.add(meta);
+                    continue;
                 }
-                return false;
             }
 
-            @Override
-            public SSTableFileMetaInfo next() {
-                return metas.get(index++);
-            }
-        };
+            break;
+        }
+
+        return retMetas;
     }
 
     private int traverseSearchStartMeta(int index) {
@@ -176,5 +203,23 @@ class Manifest {
         }
 
         return start;
+    }
+
+    private static class CompactTask <T> {
+        private final CompletableFuture<T> future;
+        private final int toKey;
+
+        CompactTask(CompletableFuture<T> future, int toKey) {
+            this.future = future;
+            this.toKey = toKey;
+        }
+
+        CompletableFuture<T> getFuture() {
+            return future;
+        }
+
+        int getToKey() {
+            return toKey;
+        }
     }
 }
