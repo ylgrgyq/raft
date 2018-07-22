@@ -14,6 +14,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
@@ -27,9 +28,9 @@ class Manifest {
     private final BlockingQueue<CompactTask<Void>> compactTaskQueue;
     private final String baseDir;
     private final String storageName;
-    private final ReentrantReadWriteLock lock;
+    private final List<SSTableFileMetaInfo> metas;
+    private final ReentrantLock metasLock;
 
-    private List<SSTableFileMetaInfo> metas;
     private int nextFileNumber = 1;
     private int logNumber;
     private LogWriter manifestRecordWriter;
@@ -38,13 +39,18 @@ class Manifest {
     Manifest(String baseDir, String storageName) {
         this.baseDir = baseDir;
         this.storageName = storageName;
-        this.metas = new ArrayList<>();
+        this.metas = new CopyOnWriteArrayList<>();
         this.compactTaskQueue = new LinkedBlockingQueue<>();
-        this.lock = new ReentrantReadWriteLock();
+        this.metasLock = new ReentrantLock();
     }
 
     private void registerMetas(List<SSTableFileMetaInfo> metas) {
-        this.metas.addAll(metas);
+        metasLock.lock();
+        try {
+            this.metas.addAll(metas);
+        }finally {
+            metasLock.unlock();
+        }
     }
 
     synchronized void logRecord(ManifestRecord record) throws IOException {
@@ -105,6 +111,7 @@ class Manifest {
         try (FileChannel manifestFile = FileChannel.open(Paths.get(baseDir, manifestFileName),
                 StandardOpenOption.READ)) {
             LogReader reader = new LogReader(manifestFile);
+            List<SSTableFileMetaInfo> ms = new ArrayList<>();
             while (true) {
                 Optional<byte[]> logOpt = reader.readLog();
                 if (logOpt.isPresent()) {
@@ -112,30 +119,49 @@ class Manifest {
                     if (record.getType() == ManifestRecord.Type.PLAIN) {
                         nextFileNumber = record.getNextFileNumber();
                         logNumber = record.getLogNumber();
-                        metas.addAll(record.getMetas());
+                        ms.addAll(record.getMetas());
                     } else {
-                        metas = record.getMetas();
+                        ms = new ArrayList<>(record.getMetas());
                     }
                 } else {
                     break;
                 }
             }
+
+            metasLock.lock();
+            try {
+                // we must make sure that searchMetas will only be called after recovery
+                assert metas.isEmpty();
+                metas.addAll(ms);
+            } finally {
+                metasLock.unlock();
+            }
         }
     }
 
     int getFirstIndex() {
-        if (! metas.isEmpty()) {
-            return metas.get(0).getFirstKey();
-        } else {
-            return -1;
+        metasLock.lock();
+        try {
+            if (!metas.isEmpty()) {
+                return metas.get(0).getFirstKey();
+            } else {
+                return -1;
+            }
+        } finally {
+            metasLock.unlock();
         }
     }
 
     int getLastIndex() {
-        if (! metas.isEmpty()) {
-            return metas.get(metas.size() - 1).getLastKey();
-        } else {
-            return -1;
+        metasLock.lock();
+        try {
+            if (!metas.isEmpty()) {
+                return metas.get(metas.size() - 1).getLastKey();
+            } else {
+                return -1;
+            }
+        } finally {
+            metasLock.unlock();
         }
     }
 
@@ -162,17 +188,22 @@ class Manifest {
      * @return iterator for found SSTableFileMetaInfo
      */
     List<SSTableFileMetaInfo> searchMetas(int startKey, int endKey) {
-        int startMetaIndex;
-        if (metas.size() > 32) {
-            startMetaIndex = binarySearchStartMeta(startKey);
-        } else {
-            startMetaIndex = traverseSearchStartMeta(startKey);
-        }
+        metasLock.lock();
+        try {
+            int startMetaIndex;
+            if (metas.size() > 32) {
+                startMetaIndex = binarySearchStartMeta(startKey);
+            } else {
+                startMetaIndex = traverseSearchStartMeta(startKey);
+            }
 
-        return metas.subList(startMetaIndex, metas.size())
-                .stream()
-                .filter(meta -> meta.getFirstKey() < endKey)
-                .collect(Collectors.toList());
+            return metas.subList(startMetaIndex, metas.size())
+                    .stream()
+                    .filter(meta -> meta.getFirstKey() < endKey)
+                    .collect(Collectors.toList());
+        } finally {
+            metasLock.unlock();
+        }
     }
 
     private int traverseSearchStartMeta(int index) {
