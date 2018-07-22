@@ -12,7 +12,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -21,11 +24,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 class Manifest {
     private static final Logger logger = LoggerFactory.getLogger(Manifest.class.getName());
 
-    private final BlockingQueue<CompactTask<Integer>> compactTaskQueue;
-    private final List<SSTableFileMetaInfo> metas;
+    private final BlockingQueue<CompactTask<Void>> compactTaskQueue;
     private final String baseDir;
     private final String storageName;
+    private final ReentrantReadWriteLock lock;
 
+    private List<SSTableFileMetaInfo> metas;
     private int nextFileNumber = 1;
     private int logNumber;
     private LogWriter manifestRecordWriter;
@@ -36,13 +40,14 @@ class Manifest {
         this.storageName = storageName;
         this.metas = new ArrayList<>();
         this.compactTaskQueue = new LinkedBlockingQueue<>();
+        this.lock = new ReentrantReadWriteLock();
     }
 
     private void registerMetas(List<SSTableFileMetaInfo> metas) {
         this.metas.addAll(metas);
     }
 
-    void logRecord(ManifestRecord record) throws IOException {
+    synchronized void logRecord(ManifestRecord record) throws IOException {
         assert record.getLogNumber() >= logNumber;
 
         registerMetas(record.getMetas());
@@ -67,10 +72,10 @@ class Manifest {
         }
     }
 
-    void processCompactTask() {
+    void processCompactTask() throws IOException {
         int greatestToKey = -1;
-        List<CompactTask<Integer>> tasks = new ArrayList<>();
-        CompactTask<Integer> task;
+        List<CompactTask<Void>> tasks = new ArrayList<>();
+        CompactTask<Void> task;
         while ((task = compactTaskQueue.poll()) != null){
             tasks.add(task);
             if (task.getToKey() > greatestToKey) {
@@ -78,19 +83,25 @@ class Manifest {
             }
         }
 
-        List<SSTableFileMetaInfo> remainMetasItr = searchMetas(greatestToKey + 1, Integer.MAX_VALUE);
+        if (greatestToKey > 0) {
+            List<SSTableFileMetaInfo> remainMetas = searchMetas(greatestToKey + 1, Integer.MAX_VALUE);
+            ManifestRecord record = ManifestRecord.newReplaceAllExistedMetasRecord();
+            record.addMetas(remainMetas);
+            logRecord(record);
 
-        // TODO: write remain metas into log
+        }
+
+        tasks.forEach(t -> t.getFuture().complete(null));
     }
 
-    CompletableFuture<Integer> compact(int toKey) {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
-        CompactTask<Integer> task = new CompactTask<>(future, toKey);
+    CompletableFuture<Void> compact(int toKey) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        CompactTask<Void> task = new CompactTask<>(future, toKey);
         compactTaskQueue.add(task);
         return future;
     }
 
-    void recover(String manifestFileName) throws IOException {
+    synchronized void recover(String manifestFileName) throws IOException {
         try (FileChannel manifestFile = FileChannel.open(Paths.get(baseDir, manifestFileName),
                 StandardOpenOption.READ)) {
             LogReader reader = new LogReader(manifestFile);
@@ -98,9 +109,13 @@ class Manifest {
                 Optional<byte[]> logOpt = reader.readLog();
                 if (logOpt.isPresent()) {
                     ManifestRecord record = ManifestRecord.decode(logOpt.get());
-                    nextFileNumber = record.getNextFileNumber();
-                    logNumber = record.getLogNumber();
-                    metas.addAll(record.getMetas());
+                    if (record.getType() == ManifestRecord.Type.PLAIN) {
+                        nextFileNumber = record.getNextFileNumber();
+                        logNumber = record.getLogNumber();
+                        metas.addAll(record.getMetas());
+                    } else {
+                        metas = record.getMetas();
+                    }
                 } else {
                     break;
                 }
@@ -124,7 +139,7 @@ class Manifest {
         }
     }
 
-    void close() throws IOException {
+    synchronized void close() throws IOException {
         if (manifestRecordWriter != null) {
             manifestRecordWriter.close();
         }
@@ -134,7 +149,7 @@ class Manifest {
         return nextFileNumber++;
     }
 
-    int getLogFileNumber() {
+    synchronized int getLogFileNumber() {
         return logNumber;
     }
 
@@ -154,21 +169,10 @@ class Manifest {
             startMetaIndex = traverseSearchStartMeta(startKey);
         }
 
-        List<SSTableFileMetaInfo> retMetas = new ArrayList<>();
-        int index = startMetaIndex;
-        while (true) {
-            if (index < metas.size()) {
-                SSTableFileMetaInfo meta = metas.get(index++);
-                if (meta.getFirstKey() < endKey) {
-                    retMetas.add(meta);
-                    continue;
-                }
-            }
-
-            break;
-        }
-
-        return retMetas;
+        return metas.subList(startMetaIndex, metas.size())
+                .stream()
+                .filter(meta -> meta.getFirstKey() < endKey)
+                .collect(Collectors.toList());
     }
 
     private int traverseSearchStartMeta(int index) {

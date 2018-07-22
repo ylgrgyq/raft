@@ -14,26 +14,50 @@ import java.util.List;
 class ManifestRecord {
     private int nextFileNumber;
     private int logNumber;
+    private Type type;
     private final List<SSTableFileMetaInfo> metas;
 
-    ManifestRecord() {
+    private ManifestRecord(Type type) {
         this.metas = new ArrayList<>();
+        this.type = type;
+    }
+
+    static ManifestRecord newPlainRecord(){
+        return new ManifestRecord(Type.PLAIN);
+    }
+
+    static ManifestRecord newReplaceAllExistedMetasRecord() {
+        return new ManifestRecord(Type.REPLEASE_METAS);
     }
 
     int getNextFileNumber() {
-        return nextFileNumber;
+        if (type == Type.PLAIN) {
+            return nextFileNumber;
+        } else {
+            return -1;
+        }
     }
 
     void setNextFileNumber(int nextFileNumber) {
+        assert type == Type.PLAIN;
         this.nextFileNumber = nextFileNumber;
     }
 
     int getLogNumber() {
-        return logNumber;
+        if (type == Type.PLAIN) {
+            return logNumber;
+        } else {
+            return -1;
+        }
     }
 
     void setLogNumber(int logNumber) {
+        assert type == Type.PLAIN;
         this.logNumber = logNumber;
+    }
+
+    Type getType() {
+        return type;
     }
 
     List<SSTableFileMetaInfo> getMetas() {
@@ -67,7 +91,7 @@ class ManifestRecord {
     }
 
     static ManifestRecord decode(byte[] bytes) {
-        ManifestRecord record = new ManifestRecord();
+        ManifestRecord record = new ManifestRecord(Type.PLAIN);
 
         ByteArrayDataInput in = ByteStreams.newDataInput(bytes);
         record.setNextFileNumber(in.readInt());
@@ -90,7 +114,8 @@ class ManifestRecord {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("ManifestRecord{" +
-                "nextFileNumber=" + nextFileNumber +
+                "type=" + type +
+                ", nextFileNumber=" + nextFileNumber +
                 ", logNumber=" + logNumber);
 
         if (!metas.isEmpty()) {
@@ -105,5 +130,10 @@ class ManifestRecord {
         builder.append("}");
 
         return builder.toString();
+    }
+
+    enum Type {
+        PLAIN,
+        REPLEASE_METAS
     }
 }

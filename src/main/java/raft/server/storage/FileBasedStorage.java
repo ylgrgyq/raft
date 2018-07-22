@@ -84,7 +84,7 @@ public class FileBasedStorage implements PersistentStorage {
 
             logger.debug("start init storage {} under {}", storageName, baseDir);
 
-            ManifestRecord record = new ManifestRecord();
+            ManifestRecord record = ManifestRecord.newPlainRecord();
             if (Files.exists(Paths.get(baseDir, FileName.getCurrentManifestFileName(storageName)))) {
                 recoverStorage(record);
             }
@@ -362,7 +362,7 @@ public class FileBasedStorage implements PersistentStorage {
         try {
             SSTableFileMetaInfo meta = writeMemTableToSSTable(imm);
 
-            ManifestRecord record = new ManifestRecord();
+            ManifestRecord record = ManifestRecord.newPlainRecord();
             record.addMeta(meta);
             record.setLogNumber(logFileNumber);
             manifest.logRecord(record);
@@ -425,7 +425,7 @@ public class FileBasedStorage implements PersistentStorage {
         return meta;
     }
 
-    public CompletableFuture<Integer> compact(int toIndex) {
+    public CompletableFuture<Void> compact(int toIndex) {
         checkArgument(toIndex > 0);
 
         return manifest.compact(toIndex);
