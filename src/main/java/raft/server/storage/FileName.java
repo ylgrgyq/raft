@@ -113,7 +113,7 @@ class FileName {
                             case Lock:
                             case TempManifest:
                             case Manifest:
-                                return true;
+                                return false;
                             case Unknown:
                                 return false;
                             case Log:

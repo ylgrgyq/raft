@@ -84,7 +84,7 @@ public class ManifestTest {
         while (i < expectMetas.size()) {
             int count = ThreadLocalRandom.current().nextInt(1, 10);
             List<SSTableFileMetaInfo> batch = expectMetas.subList(i, Math.min(i + count, expectMetas.size()));
-            record = new ManifestRecord();
+            record = ManifestRecord.newPlainRecord();
             record.setLogNumber(logNumber);
             record.addMetas(batch);
             if (ThreadLocalRandom.current().nextDouble() > 0.5) {
@@ -104,7 +104,7 @@ public class ManifestTest {
         testingManifest = new Manifest(testingDirectory, storageName);
         // origin metas' key range is 100 ~ 200, 300 ~ 400, 500 ~ 600, ...., 19900 ~ 20000
         List<SSTableFileMetaInfo> metas = generateFixedIntervalMetas(100, 100, 100);
-        ManifestRecord record = new ManifestRecord();
+        ManifestRecord record = ManifestRecord.newPlainRecord();
         record.addMetas(metas);
         testingManifest.logRecord(record);
         searchMetas0(metas);
@@ -115,7 +115,7 @@ public class ManifestTest {
         testingManifest = new Manifest(testingDirectory, storageName);
         // origin metas' key range is 100 ~ 200, 300 ~ 400, 500 ~ 600, ...., 3100 ~ 3200
         List<SSTableFileMetaInfo> metas = generateFixedIntervalMetas(16, 100, 100);
-        ManifestRecord record = new ManifestRecord();
+        ManifestRecord record = ManifestRecord.newPlainRecord();
         record.addMetas(metas);
         testingManifest.logRecord(record);
         searchMetas0(metas);
