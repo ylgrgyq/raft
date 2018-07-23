@@ -94,6 +94,13 @@ class Manifest {
             record.addMetas(remainMetas);
             logRecord(record);
 
+            metasLock.lock();
+            try {
+                metas.clear();
+                metas.addAll(remainMetas);
+            }finally {
+                metasLock.unlock();
+            }
         }
 
         tasks.forEach(t -> t.getFuture().complete(null));

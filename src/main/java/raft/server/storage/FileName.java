@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -99,15 +100,15 @@ class FileName {
         }
     }
 
-    static void deleteOutdatedFiles(String baseDir, int logFileNumber, int lowestSSTableFileNumber) {
+    private static List<Path> getOutdatedFiles(String baseDir, int logFileNumber, int lowestUsedSSTableFileNumber) {
         try {
             Path dirPath = Paths.get(baseDir);
             assert Files.isDirectory(dirPath);
-            List<Path> outdatedFilePaths = Files.walk(dirPath)
+            return Files.walk(dirPath)
                     .filter(p -> Files.isRegularFile(p))
                     .map(p -> parseFileName(p.getFileName().toString()))
                     .filter(meta -> {
-                        switch (meta.getType()){
+                        switch (meta.getType()) {
                             case Current:
                             case Lock:
                             case TempManifest:
@@ -118,19 +119,27 @@ class FileName {
                             case Log:
                                 return meta.getFileNumber() < logFileNumber;
                             case SSTable:
-                                return meta.getFileNumber() < lowestSSTableFileNumber;
+                                return meta.getFileNumber() < lowestUsedSSTableFileNumber;
                             default:
                                 return false;
                         }
                     })
                     .map(meta -> Paths.get(baseDir, meta.getFileName()))
                     .collect(Collectors.toList());
+        } catch (Throwable ex) {
+            logger.error("get outdated files under dir:{} failed", baseDir, ex);
+            return Collections.emptyList();
+        }
+    }
 
+    static void deleteOutdatedFiles(String baseDir, int logFileNumber, int lowestUsedSSTableFileNumber) {
+        List<Path> outdatedFilePaths = getOutdatedFiles(baseDir, logFileNumber, lowestUsedSSTableFileNumber);
+        try {
             for (Path path : outdatedFilePaths) {
                 Files.deleteIfExists(path);
             }
         } catch (Throwable t) {
-            logger.error("delete outdated files failed", t);
+            logger.error("delete outdated files:{} failed", outdatedFilePaths, t);
         }
     }
 
