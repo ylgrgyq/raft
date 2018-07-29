@@ -47,10 +47,6 @@ class Memtable implements Iterable<LogEntry> {
         return table.get(k);
     }
 
-    Set<Map.Entry<Integer, LogEntry>> entrySet(){
-        return table.entrySet();
-    }
-
     List<LogEntry> getEntries(int start, int end) {
         if (end < firstKey() || start > lastKey()) {
             return Collections.emptyList();
@@ -81,7 +77,7 @@ class Memtable implements Iterable<LogEntry> {
         return new Itr(table.clone());
     }
 
-    private class Itr implements SeekableIterator<LogEntry> {
+    private static class Itr implements SeekableIterator<LogEntry> {
         private ConcurrentNavigableMap<Integer, LogEntry> innerMap;
         private Map.Entry<Integer, LogEntry> offset;
 

@@ -60,7 +60,7 @@ public abstract class RaftServerCommand extends RaftCommand {
 
         byte[] leaderIdBytes = new byte[length];
         buf.get(leaderIdBytes);
-        this.from = new String(leaderIdBytes);
+        this.from = new String(leaderIdBytes, StandardCharsets.UTF_8);
 
         return buf;
     }

@@ -39,7 +39,7 @@ public class StupidTest {
         }
     }
 
-    public class Delay{
+    public static class Delay{
         Object val;
         Throwable exception;
         IFn fn;

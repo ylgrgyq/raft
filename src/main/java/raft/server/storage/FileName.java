@@ -83,7 +83,7 @@ class FileName {
             String[] strs = fileName.split("[\\-.]", 3);
             if (strs.length == 3) {
                 String storageName = strs[0];
-                int fileNumber = Integer.valueOf(strs[1]);
+                int fileNumber = Integer.parseInt(strs[1]);
                 switch (strs[2]) {
                     case "sst":
                         type = FileType.SSTable;
@@ -93,6 +93,8 @@ class FileName {
                         break;
                     case "mf":
                         type = FileType.Manifest;
+                        break;
+                    default:
                         break;
                 }
                 return new FileNameMeta(fileName, storageName, fileNumber, type);

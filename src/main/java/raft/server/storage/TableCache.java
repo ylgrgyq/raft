@@ -28,11 +28,6 @@ class TableCache {
                 .build();
     }
 
-    List<LogEntry> getEntries(int fileNumber, long fileSize, int startKey, int endKey) throws IOException {
-        Table t = findTable(fileNumber, fileSize);
-        return t.getEntries(startKey, endKey);
-    }
-
     private Table findTable(int fileNumber, long fileSize) throws IOException {
         Table t = cache.getIfPresent(fileNumber);
         if (t == null) {

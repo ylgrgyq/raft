@@ -43,11 +43,11 @@ public class FileBasedStorage implements PersistentStorage {
     private FileChannel storageLockChannel;
     private FileLock storageLock;
     private LogWriter logWriter;
-    private int logFileNumber;
+    private volatile int logFileNumber;
     private int firstIndexInStorage;
     private int lastIndexInStorage;
     private Memtable mm;
-    private Memtable imm;
+    private volatile Memtable imm;
     private volatile StorageStatus status;
     private boolean backgroundWriteSstableRunning;
 
@@ -525,7 +525,7 @@ public class FileBasedStorage implements PersistentStorage {
         }
     }
 
-    private class Itr implements Iterator<LogEntry> {
+    private static class Itr implements Iterator<LogEntry> {
         private final List<SeekableIterator<LogEntry>> iterators;
         private int lastItrIndex;
 

@@ -70,7 +70,7 @@ public class RaftLogImpl implements RaftLog {
         }
     }
 
-    public int getFirstIndex() {
+    public synchronized int getFirstIndex() {
         if (recentSnapshotIndex > 0) {
             return recentSnapshotIndex;
         }
@@ -78,7 +78,7 @@ public class RaftLogImpl implements RaftLog {
         return storage.getFirstIndex();
     }
 
-    public int getLastIndex() {
+    public synchronized int getLastIndex() {
         // buffer always know the last index
         return Math.max(buffer.getLastIndex(), recentSnapshotIndex);
     }

@@ -13,6 +13,7 @@ import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 import raft.server.proto.Snapshot;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -181,7 +182,7 @@ public class RaftImpl implements Runnable {
 
     CompletableFuture<ProposalResponse> proposeTransferLeader(final String transfereeId) {
         ArrayList<byte[]> data = new ArrayList<>();
-        data.add(transfereeId.getBytes());
+        data.add(transfereeId.getBytes(StandardCharsets.UTF_8));
 
         return doPropose(data, LogEntry.EntryType.TRANSFER_LEADER);
     }
@@ -420,7 +421,7 @@ public class RaftImpl implements Runnable {
                             broadcastAppendEntries();
                             return;
                         case TRANSFER_LEADER:
-                            String transereeId = new String(proposal.getEntries().get(0).getData().toByteArray());
+                            String transereeId = new String(proposal.getEntries().get(0).getData().toByteArray(), StandardCharsets.UTF_8);
 
                             if (transereeId.equals(selfId)) {
                                 error = ErrorMsg.ALLREADY_LEADER;
