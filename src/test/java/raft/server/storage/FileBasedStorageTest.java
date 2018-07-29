@@ -6,11 +6,19 @@ import org.junit.Test;
 import raft.server.TestUtil;
 import raft.server.proto.LogEntry;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 
@@ -24,7 +32,7 @@ public class FileBasedStorageTest {
     private static FileBasedStorage testingStorage;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         TestUtil.cleanDirectory(Paths.get(testingDirectory, storageName));
         testingStorage = new FileBasedStorage(testingDirectory, storageName);
         testingStorage.init();
@@ -156,6 +164,87 @@ public class FileBasedStorageTest {
             }
 
             cursor += step;
+        }
+    }
+
+    private Set<Integer> getSstableFileNumbers() {
+        Path dirPath = Paths.get(testingDirectory);
+        assert Files.isDirectory(dirPath);
+        File dirFile = new File(testingDirectory + "/" + storageName);
+        File[] files = dirFile.listFiles();
+
+        if (files != null) {
+            return Arrays.stream(files)
+                    .filter(File::isFile)
+                    .map(File::getName)
+                    .map(FileName::parseFileName)
+                    .filter(meta -> meta.getType() == FileName.FileType.SSTable)
+                    .map(FileName.FileNameMeta::getFileNumber)
+                    .collect(Collectors.toSet());
+        } else {
+            return Collections.emptySet();
+        }
+    }
+
+    private LogEntry triggerCompaction(LogEntry lastE) throws InterruptedException {
+        List<LogEntry> newEntries = TestUtil.newLogEntryList(1,
+                Constant.kMaxMemtableSize + 1,
+                Constant.kMaxMemtableSize + 2,
+                lastE.getTerm(),
+                lastE.getIndex()
+        );
+
+        testingStorage.append(newEntries);
+        testingStorage.waitWriteSstableFinish();
+        return newEntries.get(0);
+    }
+
+    @Test
+    public void compact() throws Exception {
+        int dataLowSize = 1024;
+        int expectSstableCount = 3;
+        int entryPerTable = Constant.kMaxMemtableSize / dataLowSize;
+        List<LogEntry> expectEntries = TestUtil.newLogEntryList(entryPerTable * expectSstableCount, dataLowSize);
+        int firstIndex = expectEntries.get(0).getIndex();
+        int lastIndex = expectEntries.get(expectEntries.size() - 1).getIndex();
+
+        List<List<LogEntry>> batches = TestUtil.randomPartitionLogEntryList(expectEntries);
+        for (List<LogEntry> batch : batches) {
+            testingStorage.append(batch);
+            assertEquals(firstIndex, testingStorage.getFirstIndex());
+            assertEquals(batch.get(batch.size() - 1).getIndex(), testingStorage.getLastIndex());
+        }
+
+        // trigger compaction
+        LogEntry lastE = expectEntries.get(expectEntries.size() - 1);
+        lastE = triggerCompaction(lastE);
+        testingStorage.waitWriteSstableFinish();
+
+        Set<Integer> sstableFileNumbers = getSstableFileNumbers();
+        assertEquals(expectSstableCount, sstableFileNumbers.size());
+        int compactCursor = firstIndex + entryPerTable / 2;
+        while (compactCursor < lastIndex + 1) {
+            CompletableFuture<Void> future = testingStorage.compact(compactCursor);
+            lastE = triggerCompaction(lastE);
+            testingStorage.waitWriteSstableFinish();
+            future.get();
+            sstableFileNumbers = getSstableFileNumbers();
+            assertEquals(expectSstableCount + 1, sstableFileNumbers.size());
+
+            int cursor = compactCursor;
+            while (cursor < lastIndex + 1) {
+                int step = ThreadLocalRandom.current().nextInt(10, 1000);
+                List<LogEntry> actual = testingStorage.getEntries(cursor, cursor + step);
+                List<LogEntry> expect = expectEntries.subList(cursor - firstIndex, Math.min(cursor + step - firstIndex, expectEntries.size()));
+                for (int i = 0; i < expect.size(); i++) {
+                    LogEntry expectEntry = expect.get(i);
+                    assertEquals(expectEntry, actual.get(i));
+                    assertEquals(expectEntry.getTerm(), testingStorage.getTerm(expectEntry.getIndex()));
+                }
+
+                cursor += step;
+            }
+            compactCursor += entryPerTable;
         }
     }
 }

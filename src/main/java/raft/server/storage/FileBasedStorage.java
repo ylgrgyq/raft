@@ -362,7 +362,6 @@ public class FileBasedStorage implements PersistentStorage {
     private void writeMemTable() {
         logger.debug("start write mem table in background");
         StorageStatus status = StorageStatus.OK;
-        int lowestUsedSSTableFileNumber;
         try {
             SSTableFileMetaInfo meta = writeMemTableToSSTable(imm);
 
@@ -372,6 +371,9 @@ public class FileBasedStorage implements PersistentStorage {
             manifest.logRecord(record);
 
             manifest.processCompactTask();
+
+            int lowestUsedSSTableFileNumber = manifest.getLowestSSTableFileNumber();
+            FileName.deleteOutdatedFiles(baseDir, logFileNumber, lowestUsedSSTableFileNumber);
 
             logger.debug("write mem table in background done with manifest record {}", record);
         } catch (Throwable t) {
@@ -386,11 +388,8 @@ public class FileBasedStorage implements PersistentStorage {
                     this.status = status;
                 }
                 this.notifyAll();
-                lowestUsedSSTableFileNumber = manifest.getLowestSSTableFileNumber();
             }
         }
-
-        FileName.deleteOutdatedFiles(baseDir, logFileNumber, lowestUsedSSTableFileNumber);
     }
 
     private SSTableFileMetaInfo writeMemTableToSSTable(Memtable mm) throws IOException {

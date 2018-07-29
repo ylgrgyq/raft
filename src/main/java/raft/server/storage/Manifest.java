@@ -53,7 +53,7 @@ class Manifest {
     }
 
     synchronized void logRecord(ManifestRecord record) throws IOException {
-        assert record.getLogNumber() >= logNumber;
+        assert record.getType() != ManifestRecord.Type.PLAIN || record.getLogNumber() >= logNumber;
 
         registerMetas(record.getMetas());
 
@@ -66,7 +66,9 @@ class Manifest {
             manifestRecordWriter = new LogWriter(manifestFile);
         }
 
-        record.setNextFileNumber(nextFileNumber);
+        if (record.getType() == ManifestRecord.Type.PLAIN) {
+            record.setNextFileNumber(nextFileNumber);
+        }
         manifestRecordWriter.append(record.encode());
         manifestRecordWriter.flush();
 
@@ -90,16 +92,20 @@ class Manifest {
 
         if (greatestToKey > 0) {
             List<SSTableFileMetaInfo> remainMetas = searchMetas(greatestToKey + 1, Integer.MAX_VALUE);
-            ManifestRecord record = ManifestRecord.newReplaceAllExistedMetasRecord();
-            record.addMetas(remainMetas);
-            logRecord(record);
+            if (remainMetas.size() < metas.size()) {
+                ManifestRecord record = ManifestRecord.newReplaceAllExistedMetasRecord();
+                record.addMetas(remainMetas);
+                logRecord(record);
 
-            metasLock.lock();
-            try {
-                metas.clear();
-                metas.addAll(remainMetas);
-            }finally {
-                metasLock.unlock();
+                metasLock.lock();
+                try {
+                    metas.clear();
+                    metas.addAll(remainMetas);
+                } finally {
+                    metasLock.unlock();
+                }
+            } else {
+                assert remainMetas.size() == metas.size();
             }
         }
 

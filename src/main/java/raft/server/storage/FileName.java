@@ -3,9 +3,11 @@ package raft.server.storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,7 +31,7 @@ class FileName {
         return storageName + ".lock";
     }
 
-    static String getSSTableName(String storageName, int fileNumber){
+    static String getSSTableName(String storageName, int fileNumber) {
         return generateFileName(storageName, fileNumber, "sst");
     }
 
@@ -78,7 +80,7 @@ class FileName {
             return new FileNameMeta(fileName, strs[0], 0, FileType.TempManifest);
         } else {
             FileType type = FileType.Unknown;
-            String[] strs = fileName.split("[\\-.]",3);
+            String[] strs = fileName.split("[\\-.]", 3);
             if (strs.length == 3) {
                 String storageName = strs[0];
                 int fileNumber = Integer.valueOf(strs[1]);
@@ -102,30 +104,36 @@ class FileName {
 
     private static List<Path> getOutdatedFiles(String baseDir, int logFileNumber, int lowestUsedSSTableFileNumber) {
         try {
-            Path dirPath = Paths.get(baseDir);
-            assert Files.isDirectory(dirPath);
-            return Files.walk(dirPath)
-                    .filter(p -> Files.isRegularFile(p))
-                    .map(p -> parseFileName(p.getFileName().toString()))
-                    .filter(meta -> {
-                        switch (meta.getType()) {
-                            case Current:
-                            case Lock:
-                            case TempManifest:
-                            case Manifest:
-                                return false;
-                            case Unknown:
-                                return false;
-                            case Log:
-                                return meta.getFileNumber() < logFileNumber;
-                            case SSTable:
-                                return meta.getFileNumber() < lowestUsedSSTableFileNumber;
-                            default:
-                                return false;
-                        }
-                    })
-                    .map(meta -> Paths.get(baseDir, meta.getFileName()))
-                    .collect(Collectors.toList());
+            File dirFile = new File(baseDir);
+            File[] files = dirFile.listFiles();
+
+            if (files != null) {
+                return Arrays.stream(files)
+                        .filter(File::isFile)
+                        .map(File::getName)
+                        .map(FileName::parseFileName)
+                        .filter(meta -> {
+                            switch (meta.getType()) {
+                                case Current:
+                                case Lock:
+                                case TempManifest:
+                                case Manifest:
+                                    return false;
+                                case Unknown:
+                                    return false;
+                                case Log:
+                                    return meta.getFileNumber() < logFileNumber;
+                                case SSTable:
+                                    return meta.getFileNumber() < lowestUsedSSTableFileNumber;
+                                default:
+                                    return false;
+                            }
+                        })
+                        .map(meta -> Paths.get(baseDir, meta.getFileName()))
+                        .collect(Collectors.toList());
+            } else {
+                return Collections.emptyList();
+            }
         } catch (Throwable ex) {
             logger.error("get outdated files under dir:{} failed", baseDir, ex);
             return Collections.emptyList();

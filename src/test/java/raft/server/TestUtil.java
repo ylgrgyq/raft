@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -52,8 +51,8 @@ public class TestUtil {
 
         List<LogEntry> ret = new ArrayList<>(count);
         List<byte[]> datas = newDataList(count, dataLowSize, dataUpperSize);
-        int term = ThreadLocalRandom.current().nextInt(baseTerm, 1000);
-        int index = ThreadLocalRandom.current().nextInt(baseIndex, 10000);
+        int term = ThreadLocalRandom.current().nextInt(baseTerm, baseTerm + 1000);
+        int index = ThreadLocalRandom.current().nextInt(baseIndex, baseIndex + 10000);
         double incTermRatio = (double)1/10;
 
         for (byte[] d : datas) {
