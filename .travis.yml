@@ -1,0 +1,7 @@
+language: clojure
+deploy:
+  provider: pages
+  skip_cleanup: true
+  github_token: $TOKEN
+  on:
+    branch: master
