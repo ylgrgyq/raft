@@ -850,6 +850,7 @@ public class RaftImpl implements Runnable {
         public Context finish() {
             logger.debug("node {} finish leader", RaftImpl.this);
             stateMachine.onLeaderFinish();
+            pendingProposal.failedAllFutures();
             if (transferLeaderFuture != null) {
                 transferLeaderFuture.getResponseFuture().complete(ProposalResponse.success());
                 transferLeaderFuture = null;

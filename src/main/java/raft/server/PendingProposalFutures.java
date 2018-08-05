@@ -28,4 +28,12 @@ class PendingProposalFutures {
             pendingProposal.remove(entry.getKey());
         }
     }
+
+    void failedAllFutures() {
+        for (Map.Entry<Integer, CompletableFuture<ProposalResponse>> entry : pendingProposal.entrySet()) {
+            CompletableFuture<ProposalResponse> future = entry.getValue();
+            future.complete(ProposalResponse.error(ErrorMsg.NOT_LEADER));
+            pendingProposal.remove(entry.getKey());
+        }
+    }
 }
