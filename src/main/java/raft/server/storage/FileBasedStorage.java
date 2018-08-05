@@ -197,18 +197,20 @@ public class FileBasedStorage implements PersistentStorage {
             }
 
             readEndPosition = ch.position();
-        }
 
-        if (lastLogFile && noNewSSTable) {
-            FileChannel logFile = FileChannel.open(logFilePath, StandardOpenOption.WRITE);
-            assert logWriter == null;
-            assert logFileNumber == 0;
-            logWriter = new LogWriter(logFile, readEndPosition);
-            logFileNumber = fileNumber;
-            if (mm != null) {
-                this.mm = mm;
-                mm = null;
+            if (lastLogFile && noNewSSTable) {
+                FileChannel logFile = FileChannel.open(logFilePath, StandardOpenOption.WRITE);
+                assert logWriter == null;
+                assert logFileNumber == 0;
+                logWriter = new LogWriter(logFile, readEndPosition);
+                logFileNumber = fileNumber;
+                if (mm != null) {
+                    this.mm = mm;
+                    mm = null;
+                }
             }
+        } catch (BadRecordException ex) {
+            logger.warn("got \"{}\" record in log file:\"{}\". ", ex.getType(), logFilePath);
         }
 
         if (mm != null) {

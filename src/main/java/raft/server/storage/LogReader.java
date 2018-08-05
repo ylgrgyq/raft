@@ -17,20 +17,18 @@ class LogReader {
     private FileChannel workingFileChannel;
     private long initialOffset;
     private ByteBuffer buffer;
-    private HandleBadRecordStrategy strategy;
 
-    LogReader(FileChannel workingFileChannel, HandleBadRecordStrategy strategy) {
-        this(workingFileChannel, 0, strategy);
+    LogReader(FileChannel workingFileChannel) {
+        this(workingFileChannel, 0);
     }
 
-    LogReader(FileChannel workingFileChannel, long initialOffset, HandleBadRecordStrategy strategy) {
+    LogReader(FileChannel workingFileChannel, long initialOffset) {
         this.workingFileChannel = workingFileChannel;
         this.initialOffset = initialOffset;
         this.buffer = emptyBuffer;
-        this.strategy = strategy;
     }
 
-    Optional<byte[]> readLog() throws IOException {
+    Optional<byte[]> readLog() throws IOException, BadRecordException {
         if (initialOffset > 0) {
             skipToInitBlock();
         }
@@ -64,8 +62,7 @@ class LogReader {
                 case kCorruptedRecord:
                 case kUnfinished:
                     buffer = emptyBuffer;
-
-                    break;
+                    throw new BadRecordException(type);
                 case kEOF:
                     buffer = emptyBuffer;
                     return Optional.empty();
@@ -139,9 +136,5 @@ class LogReader {
             buffer.put(bytes);
         }
         return buffer.array();
-    }
-
-    interface HandleBadRecordStrategy {
-        void handle(RecordType type);
     }
 }
