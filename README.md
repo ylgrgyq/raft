@@ -1,6 +1,6 @@
 # raft
 
-[![Build Status](https://travis-ci.org/ylgrgyq/raft.svg?branch=master)](https://travis-ci.org/ylgrgyq/raft)
+[![Build Status](https://travis-ci.com/ylgrgyq/raft.svg?branch=master)](https://travis-ci.com/ylgrgyq/raft)
 
 Write a raft raft to know more about it.
 
