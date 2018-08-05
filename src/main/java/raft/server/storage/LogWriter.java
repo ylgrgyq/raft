@@ -92,19 +92,19 @@ class LogWriter {
         }
     }
 
-    private void writeRecord(RecordType type, byte[] out) throws IOException{
-        assert blockOffset + Constant.kHeaderSize + out.length <= Constant.kBlockSize;
+    private void writeRecord(RecordType type, byte[] blockPayload) throws IOException{
+        assert blockOffset + Constant.kHeaderSize + blockPayload.length <= Constant.kBlockSize;
 
-        ByteBuffer buffer = ByteBuffer.allocate(Constant.kHeaderSize);
+        ByteBuffer headerBuffer = ByteBuffer.allocate(Constant.kHeaderSize);
         CRC32 checksum = new CRC32();
         checksum.update(type.getCode());
-        checksum.update(out);
-        buffer.putLong(checksum.getValue());
-        buffer.putShort((short) out.length);
-        buffer.put(type.getCode());
-        buffer.flip();
-        workingFileChannel.write(buffer);
-        workingFileChannel.write(ByteBuffer.wrap(out));
-        blockOffset += out.length + Constant.kHeaderSize;
+        checksum.update(blockPayload);
+        headerBuffer.putLong(checksum.getValue());
+        headerBuffer.putShort((short) blockPayload.length);
+        headerBuffer.put(type.getCode());
+        headerBuffer.flip();
+        workingFileChannel.write(headerBuffer);
+        workingFileChannel.write(ByteBuffer.wrap(blockPayload));
+        blockOffset += blockPayload.length + Constant.kHeaderSize;
     }
 }

@@ -22,7 +22,7 @@ public enum RecordType {
     kUnfinished((byte)6),
     // For corrupted record
     kCorruptedRecord((byte)7);
-    
+
     private final byte code;
 
     RecordType(byte code) {

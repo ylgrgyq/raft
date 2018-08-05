@@ -21,7 +21,6 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
         checkpoints = new ArrayList<>(checkpointSize);
         int checkpointStart = content.limit() - Integer.BYTES - checkpointSize * Integer.BYTES;
         content.position(checkpointStart);
-        assert checkpointSize > 0;
         int lastCheckpoint = -1;
         for (int i = 0; i < checkpointSize; i++) {
             int checkpoint = content.getInt();

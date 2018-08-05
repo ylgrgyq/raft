@@ -13,20 +13,21 @@ import java.util.zip.CRC32;
  * Date: 18/6/10
  */
 class LogReader {
-    private static final byte[] empty = new byte[0];
+    private static final ByteBuffer emptyBuffer = ByteBuffer.wrap(new byte[0]);
     private FileChannel workingFileChannel;
     private long initialOffset;
     private ByteBuffer buffer;
+    private HandleBadRecordStrategy strategy;
 
-    LogReader(FileChannel workingFileChannel) {
-        this(workingFileChannel, 0);
+    LogReader(FileChannel workingFileChannel, HandleBadRecordStrategy strategy) {
+        this(workingFileChannel, 0, strategy);
     }
 
-    // TODO recovery from encountering bad record instead of always throws exception
-    LogReader(FileChannel workingFileChannel, long initialOffset) {
+    LogReader(FileChannel workingFileChannel, long initialOffset, HandleBadRecordStrategy strategy) {
         this.workingFileChannel = workingFileChannel;
         this.initialOffset = initialOffset;
-        this.buffer = ByteBuffer.wrap(empty);
+        this.buffer = emptyBuffer;
+        this.strategy = strategy;
     }
 
     Optional<byte[]> readLog() throws IOException {
@@ -60,7 +61,13 @@ class LogReader {
                         throw new IllegalStateException();
                     }
                     return Optional.of(compact(outPut));
+                case kCorruptedRecord:
+                case kUnfinished:
+                    buffer = emptyBuffer;
+
+                    break;
                 case kEOF:
+                    buffer = emptyBuffer;
                     return Optional.empty();
             }
         }
@@ -88,10 +95,7 @@ class LogReader {
         while (true) {
             if (buffer.remaining() < Constant.kHeaderSize) {
                 if (eof) {
-                    // TODO we may have remaining buffer but eof is true which means log writer may died in the middle of
-                    // writing this record's header, we need to handle this like fixing this file
-                    buffer = ByteBuffer.wrap(empty);
-                    return RecordType.kEOF;
+                    return buffer.remaining() > 0 ? RecordType.kUnfinished : RecordType.kEOF;
                 } else {
                     buffer = ByteBuffer.allocate(Constant.kBlockSize);
                     int readBytes = workingFileChannel.read(buffer);
@@ -108,12 +112,7 @@ class LogReader {
             short length = buffer.getShort();
 
             if (length > buffer.remaining()) {
-                if (eof) {
-                    // TODO writer died in the middle of writing this record, we need to allow this situation
-                    buffer = ByteBuffer.wrap(empty);
-                    return RecordType.kEOF;
-                }
-                // buffer underflow throw exception on read data from buffer
+                return eof ? RecordType.kUnfinished : RecordType.kCorruptedRecord;
             }
 
             byte typeCode = buffer.get();
@@ -124,8 +123,7 @@ class LogReader {
             actualChecksum.update(buf);
 
             if (actualChecksum.getValue() != expectChecksum) {
-                buffer = ByteBuffer.wrap(empty);
-                throw new IllegalStateException();
+                return RecordType.kCorruptedRecord;
             }
 
             out.add(buf);
@@ -141,5 +139,9 @@ class LogReader {
             buffer.put(bytes);
         }
         return buffer.array();
+    }
+
+    interface HandleBadRecordStrategy {
+        void handle(RecordType type);
     }
 }
