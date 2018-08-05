@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
@@ -120,7 +121,8 @@ class Manifest {
     }
 
     synchronized void recover(String manifestFileName) throws IOException {
-        try (FileChannel manifestFile = FileChannel.open(Paths.get(baseDir, manifestFileName),
+        Path manifestFilePath = Paths.get(baseDir, manifestFileName);
+        try (FileChannel manifestFile = FileChannel.open(manifestFilePath,
                 StandardOpenOption.READ)) {
             LogReader reader = new LogReader(manifestFile);
             List<SSTableFileMetaInfo> ms = new ArrayList<>();
@@ -148,6 +150,10 @@ class Manifest {
             } finally {
                 metasLock.unlock();
             }
+        } catch (BadRecordException ex) {
+            String msg = String.format("Recover manifest from file:\"%s\" failed due to \"%s\" log record",
+                    manifestFileName, manifestFilePath);
+            throw new RuntimeException(msg);
         }
     }
 

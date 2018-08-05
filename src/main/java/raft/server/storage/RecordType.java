@@ -16,7 +16,12 @@ public enum RecordType {
     kLastType((byte)4),
 
     // EOF
-    kEOF((byte)5);
+    kEOF((byte)5),
+
+    // For unfinished record
+    kUnfinished((byte)6),
+    // For corrupted record
+    kCorruptedRecord((byte)7);
 
     private final byte code;
 

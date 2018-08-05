@@ -13,23 +13,23 @@ import java.util.zip.CRC32;
  * Date: 18/6/10
  */
 class LogReader {
-    private static final byte[] empty = new byte[0];
+    private static final ByteBuffer emptyBuffer = ByteBuffer.wrap(new byte[0]);
     private FileChannel workingFileChannel;
     private long initialOffset;
     private ByteBuffer buffer;
+    private boolean eof;
 
     LogReader(FileChannel workingFileChannel) {
         this(workingFileChannel, 0);
     }
 
-    // TODO recovery from encountering bad record instead of always throws exception
     LogReader(FileChannel workingFileChannel, long initialOffset) {
         this.workingFileChannel = workingFileChannel;
         this.initialOffset = initialOffset;
-        this.buffer = ByteBuffer.wrap(empty);
+        this.buffer = emptyBuffer;
     }
 
-    Optional<byte[]> readLog() throws IOException {
+    Optional<byte[]> readLog() throws IOException, BadRecordException {
         if (initialOffset > 0) {
             skipToInitBlock();
         }
@@ -60,7 +60,12 @@ class LogReader {
                         throw new IllegalStateException();
                     }
                     return Optional.of(compact(outPut));
+                case kCorruptedRecord:
+                case kUnfinished:
+                    buffer = emptyBuffer;
+                    throw new BadRecordException(type);
                 case kEOF:
+                    buffer = emptyBuffer;
                     return Optional.empty();
             }
         }
@@ -84,53 +89,45 @@ class LogReader {
     }
 
     private RecordType readRecord(List<byte[]> out) throws IOException {
-        boolean eof = false;
-        while (true) {
-            if (buffer.remaining() < Constant.kHeaderSize) {
-                if (eof) {
-                    // TODO we may have remaining buffer but eof is true which means log writer may died in the middle of
-                    // writing this record's header, we need to handle this like fixing this file
-                    buffer = ByteBuffer.wrap(empty);
-                    return RecordType.kEOF;
-                } else {
-                    buffer = ByteBuffer.allocate(Constant.kBlockSize);
-                    int readBytes = workingFileChannel.read(buffer);
-                    buffer.flip();
-                    if (readBytes < Constant.kBlockSize) {
+        outer:
+        if (buffer.remaining() < Constant.kHeaderSize) {
+            if (eof) {
+                return buffer.remaining() > 0 ? RecordType.kUnfinished : RecordType.kEOF;
+            } else {
+                buffer = ByteBuffer.allocate(Constant.kBlockSize);
+                while (buffer.hasRemaining()) {
+                    int readBs = workingFileChannel.read(buffer);
+                    if (readBs == -1) {
                         eof = true;
-                        continue;
+                        buffer.flip();
+                        break outer;
                     }
                 }
+                buffer.flip();
             }
-
-            CRC32 actualChecksum = new CRC32();
-            long expectChecksum = buffer.getLong();
-            short length = buffer.getShort();
-
-            if (length > buffer.remaining()) {
-                if (eof) {
-                    // TODO writer died in the middle of writing this record, we need to allow this situation
-                    buffer = ByteBuffer.wrap(empty);
-                    return RecordType.kEOF;
-                }
-                // buffer underflow throw exception on read data from buffer
-            }
-
-            byte typeCode = buffer.get();
-            actualChecksum.update(typeCode);
-            RecordType type = RecordType.getRecordTypeByCode(typeCode);
-            byte[] buf = new byte[length];
-            buffer.get(buf);
-            actualChecksum.update(buf);
-
-            if (actualChecksum.getValue() != expectChecksum) {
-                buffer = ByteBuffer.wrap(empty);
-                throw new IllegalStateException();
-            }
-
-            out.add(buf);
-            return type;
         }
+
+        CRC32 actualChecksum = new CRC32();
+        long expectChecksum = buffer.getLong();
+        short length = buffer.getShort();
+
+        if (length > buffer.remaining()) {
+            return eof ? RecordType.kUnfinished : RecordType.kCorruptedRecord;
+        }
+
+        byte typeCode = buffer.get();
+        actualChecksum.update(typeCode);
+        RecordType type = RecordType.getRecordTypeByCode(typeCode);
+        byte[] buf = new byte[length];
+        buffer.get(buf);
+        actualChecksum.update(buf);
+
+        if (actualChecksum.getValue() != expectChecksum) {
+            return RecordType.kCorruptedRecord;
+        }
+
+        out.add(buf);
+        return type;
     }
 
     // TODO find some way to avoid copy bytes

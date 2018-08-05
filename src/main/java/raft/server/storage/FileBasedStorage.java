@@ -9,15 +9,13 @@ import raft.server.log.PersistentStorage;
 import raft.server.log.StorageInternalError;
 import raft.server.proto.LogEntry;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -152,12 +150,17 @@ public class FileBasedStorage implements PersistentStorage {
         manifest.recover(currentManifestFileName);
 
         int logFileNumber = manifest.getLogFileNumber();
-        Path baseDirPath = Paths.get(baseDir);
-        List<FileName.FileNameMeta> logsFileMetas = Files.walk(baseDirPath)
-                .filter(p -> (p != baseDirPath && Files.isRegularFile(p)))
-                .map(p -> FileName.parseFileName(p.toString()))
-                .filter(f -> f.getType() == FileName.FileType.Log && f.getFileNumber() >= logFileNumber)
-                .collect(Collectors.toList());
+        File baseDirFile = new File(baseDir);
+        File[] files = baseDirFile.listFiles();
+        List<FileName.FileNameMeta> logsFileMetas = Collections.emptyList();
+        if (files != null) {
+            logsFileMetas = Arrays.stream(files)
+                    .filter(File::isFile)
+                    .map(File::getName)
+                    .map(FileName::parseFileName)
+                    .filter(meta -> meta.getType() == FileName.FileType.Log && meta.getFileNumber() >= logFileNumber)
+                    .collect(Collectors.toList());
+        }
 
         for (int i = 0; i < logsFileMetas.size(); ++i) {
             FileName.FileNameMeta fileMeta = logsFileMetas.get(i);
@@ -194,18 +197,20 @@ public class FileBasedStorage implements PersistentStorage {
             }
 
             readEndPosition = ch.position();
-        }
 
-        if (lastLogFile && noNewSSTable) {
-            FileChannel logFile = FileChannel.open(logFilePath, StandardOpenOption.WRITE);
-            assert logWriter == null;
-            assert logFileNumber == 0;
-            logWriter = new LogWriter(logFile, readEndPosition);
-            logFileNumber = fileNumber;
-            if (mm != null) {
-                this.mm = mm;
-                mm = null;
+            if (lastLogFile && noNewSSTable) {
+                FileChannel logFile = FileChannel.open(logFilePath, StandardOpenOption.WRITE);
+                assert logWriter == null;
+                assert logFileNumber == 0;
+                logWriter = new LogWriter(logFile, readEndPosition);
+                logFileNumber = fileNumber;
+                if (mm != null) {
+                    this.mm = mm;
+                    mm = null;
+                }
             }
+        } catch (BadRecordException ex) {
+            logger.warn("got \"{}\" record in log file:\"{}\". ", ex.getType(), logFilePath);
         }
 
         if (mm != null) {
