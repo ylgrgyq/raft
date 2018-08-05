@@ -33,10 +33,8 @@ public class LogReplicationTest {
         List<byte[]> dataList = TestUtil.newDataList(logCount);
         CompletableFuture<ProposalResponse> resp = leader.propose(dataList);
         ProposalResponse p = resp.get();
-        assertTrue(p.getLeaderIdHint().isPresent());
-        assertEquals(selfId, p.getLeaderIdHint().get());
         assertTrue(p.isSuccess());
-        assertNull(p.getError());
+        assertEquals(ErrorMsg.NONE, p.getError());
 
         // check raft status after logs proposed
         RaftStatus status = leader.getStatus();
@@ -97,7 +95,6 @@ public class LogReplicationTest {
         assert logCount == dataList.size();
         CompletableFuture<ProposalResponse> resp = leader.propose(dataList);
         ProposalResponse p = resp.get();
-        assertTrue(leaderId, p.getLeaderIdHint().isPresent());
         assertTrue(p.isSuccess());
 
         checkAppliedLogs(leader, logCount, dataList);
