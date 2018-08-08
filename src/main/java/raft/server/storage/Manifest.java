@@ -48,7 +48,7 @@ class Manifest {
         metasLock.lock();
         try {
             this.metas.addAll(metas);
-        }finally {
+        } finally {
             metasLock.unlock();
         }
     }
@@ -84,7 +84,7 @@ class Manifest {
         int greatestToKey = -1;
         List<CompactTask<Void>> tasks = new ArrayList<>();
         CompactTask<Void> task;
-        while ((task = compactTaskQueue.poll()) != null){
+        while ((task = compactTaskQueue.poll()) != null) {
             tasks.add(task);
             if (task.getToKey() > greatestToKey) {
                 greatestToKey = task.getToKey();
@@ -122,9 +122,8 @@ class Manifest {
 
     synchronized void recover(String manifestFileName) throws IOException {
         Path manifestFilePath = Paths.get(baseDir, manifestFileName);
-        try (FileChannel manifestFile = FileChannel.open(manifestFilePath,
-                StandardOpenOption.READ)) {
-            LogReader reader = new LogReader(manifestFile);
+        FileChannel manifestFile = FileChannel.open(manifestFilePath, StandardOpenOption.READ);
+        try (LogReader reader = new LogReader(manifestFile)) {
             List<SSTableFileMetaInfo> ms = new ArrayList<>();
             while (true) {
                 Optional<byte[]> logOpt = reader.readLog();
@@ -213,8 +212,7 @@ class Manifest {
      * find all the SSTableFileMetaInfo who's index range intersect with startIndex and endIndex
      *
      * @param startKey target start key (inclusive)
-     * @param endKey target end key (exclusive)
-     *
+     * @param endKey   target end key (exclusive)
      * @return iterator for found SSTableFileMetaInfo
      */
     List<SSTableFileMetaInfo> searchMetas(int startKey, int endKey) {
@@ -270,7 +268,7 @@ class Manifest {
         return start;
     }
 
-    private static class CompactTask <T> {
+    private static class CompactTask<T> {
         private final CompletableFuture<T> future;
         private final int toKey;
 

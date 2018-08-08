@@ -26,8 +26,6 @@ public class LogTest {
     public void setUp() throws Exception {
         TestUtil.cleanDirectory(Paths.get(testingDirectory));
 
-        BlockBuilder builder = new BlockBuilder();
-
         Path p = Paths.get(testingDirectory, logFileName);
         FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         writer = new LogWriter(ch);
@@ -43,13 +41,14 @@ public class LogTest {
         List<byte[]> actualDatas = new ArrayList<>();
         Path p = Paths.get(testingDirectory, logFileName);
         FileChannel ch = FileChannel.open(p, StandardOpenOption.READ);
-        LogReader reader = new LogReader(ch);
-        while (true) {
-            Optional<byte[]> actual = reader.readLog();
-            if (actual.isPresent()) {
-                actualDatas.add(actual.get());
-            } else {
-                break;
+        try (LogReader reader = new LogReader(ch)) {
+            while (true) {
+                Optional<byte[]> actual = reader.readLog();
+                if (actual.isPresent()) {
+                    actualDatas.add(actual.get());
+                } else {
+                    break;
+                }
             }
         }
 
@@ -78,8 +77,7 @@ public class LogTest {
         FileChannel ch = FileChannel.open(p, StandardOpenOption.WRITE);
         ch.truncate(truncatePos);
         ch = FileChannel.open(p, StandardOpenOption.READ);
-        LogReader reader = new LogReader(ch);
-        try {
+        try (LogReader reader = new LogReader(ch)) {
             while (true) {
                 Optional<byte[]> actual = reader.readLog();
                 if (actual.isPresent()) {

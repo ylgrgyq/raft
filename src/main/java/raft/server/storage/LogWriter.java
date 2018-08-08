@@ -1,5 +1,6 @@
 package raft.server.storage;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -9,7 +10,7 @@ import java.util.zip.CRC32;
  * Author: ylgrgyq
  * Date: 18/6/10
  */
-class LogWriter {
+public class LogWriter implements Closeable {
     private final FileChannel workingFileChannel;
     private int blockOffset;
 
@@ -36,7 +37,8 @@ class LogWriter {
         workingFileChannel.force(true);
     }
 
-    void close() throws IOException {
+    @Override
+    public void close() throws IOException {
         workingFileChannel.close();
     }
 
