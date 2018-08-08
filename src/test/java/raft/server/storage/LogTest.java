@@ -33,7 +33,7 @@ public class LogTest {
 
     @Test
     public void writeReadLog() throws Exception {
-        List<byte[]> expectDatas = TestUtil.newDataList(1000, 1, 2 * Constant.kBlockSize);
+        List<byte[]> expectDatas = TestUtil.newDataList(10000, 1, 2 * Constant.kBlockSize);
         for (byte[] data : expectDatas) {
             writer.append(data);
         }
@@ -60,7 +60,7 @@ public class LogTest {
 
     @Test
     public void readUnfinishedRecord() throws Exception {
-        List<byte[]> expectDatas = TestUtil.newDataList(1000, 1, 2 * Constant.kBlockSize);
+        List<byte[]> expectDatas = TestUtil.newDataList(10000, 1, 2 * Constant.kBlockSize);
 
         List<Long> expectDataEndPos = new ArrayList<>(expectDatas.size());
         for (byte[] data : expectDatas) {

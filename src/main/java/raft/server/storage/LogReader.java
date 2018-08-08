@@ -19,15 +19,17 @@ public class LogReader implements Closeable {
     private long initialOffset;
     private ByteBuffer buffer;
     private boolean eof;
+    private int blockRemain;
 
-    LogReader(FileChannel workingFileChannel) {
+    LogReader(FileChannel workingFileChannel) throws IOException {
         this(workingFileChannel, 0);
     }
 
-    LogReader(FileChannel workingFileChannel, long initialOffset) {
+    LogReader(FileChannel workingFileChannel, long initialOffset) throws IOException {
         this.workingFileChannel = workingFileChannel;
+        this.buffer = workingFileChannel.map(FileChannel.MapMode.READ_ONLY, 0, workingFileChannel.size());
+        this.blockRemain = Math.min(Constant.kBlockSize, buffer.remaining());
         this.initialOffset = initialOffset;
-        this.buffer = emptyBuffer;
     }
 
     Optional<byte[]> readLog() throws IOException, BadRecordException {
@@ -85,50 +87,54 @@ public class LogReader implements Closeable {
         }
 
         if (blockStartPosition > 0) {
+            blockRemain = Math.min(Constant.kBlockSize, buffer.remaining());
             workingFileChannel.position(blockStartPosition);
+            buffer = workingFileChannel.map(FileChannel.MapMode.READ_ONLY,
+                    blockStartPosition, workingFileChannel.size() - blockStartPosition);
         }
     }
 
-    private RecordType readRecord(List<byte[]> out) throws IOException {
-        outer:
-        if (buffer.remaining() < Constant.kHeaderSize) {
-            if (eof) {
-                return buffer.remaining() > 0 ? RecordType.kUnfinished : RecordType.kEOF;
-            } else {
-                buffer = ByteBuffer.allocate(Constant.kBlockSize);
-                while (buffer.hasRemaining()) {
-                    int readBs = workingFileChannel.read(buffer);
-                    if (readBs == -1) {
+    private RecordType readRecord(List<byte[]> out) {
+        while (true) {
+            if (blockRemain < Constant.kHeaderSize) {
+                if (eof) {
+                    return blockRemain > 0 ? RecordType.kUnfinished : RecordType.kEOF;
+                } else {
+                    if (blockRemain > 0) {
+                        buffer.position(buffer.position() + blockRemain);
+                    }
+                    blockRemain = Constant.kBlockSize;
+                    if (buffer.remaining() < Constant.kBlockSize) {
+                        blockRemain = buffer.remaining();
                         eof = true;
-                        buffer.flip();
-                        break outer;
+                        continue;
                     }
                 }
-                buffer.flip();
             }
+
+            CRC32 actualChecksum = new CRC32();
+            long expectChecksum = buffer.getLong();
+            short length = buffer.getShort();
+
+            if (length > blockRemain) {
+                return eof ? RecordType.kUnfinished : RecordType.kCorruptedRecord;
+            }
+
+            byte typeCode = buffer.get();
+            actualChecksum.update(typeCode);
+            RecordType type = RecordType.getRecordTypeByCode(typeCode);
+            byte[] buf = new byte[length];
+            buffer.get(buf);
+            actualChecksum.update(buf);
+
+            if (actualChecksum.getValue() != expectChecksum) {
+                return RecordType.kCorruptedRecord;
+            }
+
+            blockRemain -= length + Constant.kHeaderSize;
+            out.add(buf);
+            return type;
         }
-
-        CRC32 actualChecksum = new CRC32();
-        long expectChecksum = buffer.getLong();
-        short length = buffer.getShort();
-
-        if (length > buffer.remaining()) {
-            return eof ? RecordType.kUnfinished : RecordType.kCorruptedRecord;
-        }
-
-        byte typeCode = buffer.get();
-        actualChecksum.update(typeCode);
-        RecordType type = RecordType.getRecordTypeByCode(typeCode);
-        byte[] buf = new byte[length];
-        buffer.get(buf);
-        actualChecksum.update(buf);
-
-        if (actualChecksum.getValue() != expectChecksum) {
-            return RecordType.kCorruptedRecord;
-        }
-
-        out.add(buf);
-        return type;
     }
 
     // TODO find some way to avoid copy bytes
