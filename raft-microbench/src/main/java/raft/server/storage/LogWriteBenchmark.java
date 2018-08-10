@@ -49,12 +49,14 @@ public class LogWriteBenchmark {
     private static final String testingDirectory = "./target/storage";
     private static final String logFileName = "log_test";
 
-    @Param({"100"})
+    @Param({"false", "true"})
+    private boolean flush;
+    @Param({"10", "100", "1000"})
     private int size;
 
     private byte[] original;
 
-    private LogWriter writer;
+    private LogWriterWithMmap writer;
 
     @Setup
     public void setUp() throws Exception {
@@ -65,8 +67,7 @@ public class LogWriteBenchmark {
 
         Path p = Paths.get(testingDirectory, logFileName);
         FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
-        ch.map(FileChannel.MapMode.READ_WRITE, 0, Integer.MAX_VALUE);
-        writer = new LogWriter(ch);
+        writer = new LogWriterWithMmap(ch);
     }
 
     @TearDown
@@ -77,6 +78,9 @@ public class LogWriteBenchmark {
     @Benchmark
     public void testMethod() throws IOException{
         writer.append(original);
+        if (flush) {
+            writer.flush();
+        }
     }
 
     public static void main(String[] args) throws RunnerException {
