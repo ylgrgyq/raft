@@ -60,7 +60,7 @@ public class LogTest {
 
     @Test
     public void writeReadLog() throws Exception {
-        List<byte[]> expectDatas = TestUtil.newDataList(10000, 1, 2 * Constant.kBlockSize);
+        List<byte[]> expectDatas = TestUtil.newDataList(1000000, 1, 200);
         for (byte[] data : expectDatas) {
             writer.append(data);
         }
@@ -68,7 +68,7 @@ public class LogTest {
         List<byte[]> actualDatas = new ArrayList<>();
         Path p = Paths.get(testingDirectory, logFileName);
         FileChannel ch = FileChannel.open(p, StandardOpenOption.READ);
-        try (LogReader reader = new LogReader(ch)) {
+        try (LogReaderWithMmap reader = new LogReaderWithMmap(ch)) {
             while (true) {
                 Optional<byte[]> actual = reader.readLog();
                 if (actual.isPresent()) {
