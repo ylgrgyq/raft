@@ -6,7 +6,6 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 import org.openjdk.jmh.runner.options.TimeValue;
 
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -14,23 +13,19 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Optional;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 @State(Scope.Thread)
 public class LogReaderBenchmark {
     private static final String testingDirectory = "./src/main/resources/storage";
     private static final String logFileName = "log_test";
 
-    private LogReader2 reader;
+    private LogReader reader;
     private byte[] original = new byte[100];
 
     @Setup
     public void setUp() throws Exception {
         Path p = Paths.get(testingDirectory, logFileName);
         FileChannel ch = FileChannel.open(p, StandardOpenOption.READ);
-        reader = new LogReader2(ch);
+        reader = new LogReader(ch);
         Arrays.fill(original, (byte)2);
         System.out.println("set up called");
     }

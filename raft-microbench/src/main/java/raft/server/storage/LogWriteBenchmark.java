@@ -36,7 +36,6 @@ import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
-import org.openjdk.jmh.runner.options.TimeValue;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -44,14 +43,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.Random;
 
 @State(Scope.Thread)
 public class LogWriteBenchmark {
     private static final String testingDirectory = "./target/storage";
     private static final String logFileName = "log_test";
 
-//    @Param({"10", "1000"})
     @Param({"100"})
     private int size;
 
@@ -64,8 +61,6 @@ public class LogWriteBenchmark {
         Utils.cleanDirectory(Paths.get(testingDirectory));
 
         original = new byte[size];
-//        Random r = new Random();
-//        r.nextBytes(original);
         Arrays.fill(original, (byte)2);
 
         Path p = Paths.get(testingDirectory, logFileName);
@@ -87,7 +82,6 @@ public class LogWriteBenchmark {
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
                 .include(LogWriteBenchmark.class.getSimpleName())
-                .warmupTime(TimeValue.seconds(60))
                 .forks(1)
                 .build();
 
