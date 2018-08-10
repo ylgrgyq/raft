@@ -27,7 +27,8 @@ public class LogReader implements Closeable {
 
     LogReader(FileChannel workingFileChannel, long initialOffset) throws IOException {
         this.workingFileChannel = workingFileChannel;
-        this.buffer = workingFileChannel.map(FileChannel.MapMode.READ_ONLY, 0, workingFileChannel.size());
+        long size = Math.min(workingFileChannel.size(), Integer.MAX_VALUE);
+        this.buffer = workingFileChannel.map(FileChannel.MapMode.READ_ONLY, 0, size);
         this.blockRemain = Math.min(Constant.kBlockSize, buffer.remaining());
         this.initialOffset = initialOffset;
     }
@@ -89,23 +90,36 @@ public class LogReader implements Closeable {
         if (blockStartPosition > 0) {
             blockRemain = Math.min(Constant.kBlockSize, buffer.remaining());
             workingFileChannel.position(blockStartPosition);
+            long size = Math.min(workingFileChannel.size() - blockStartPosition, Integer.MAX_VALUE);
             buffer = workingFileChannel.map(FileChannel.MapMode.READ_ONLY,
-                    blockStartPosition, workingFileChannel.size() - blockStartPosition);
+                    blockStartPosition, size);
         }
     }
 
-    private RecordType readRecord(List<byte[]> out) {
+    private RecordType readRecord(List<byte[]> out) throws IOException {
         while (true) {
             if (blockRemain < Constant.kHeaderSize) {
                 if (eof) {
                     return blockRemain > 0 ? RecordType.kUnfinished : RecordType.kEOF;
                 } else {
+                    if (buffer.remaining() < Constant.kBlockSize) {
+                        long size = Math.min(workingFileChannel.size() - buffer.position(), Integer.MAX_VALUE);
+                        buffer = workingFileChannel.map(FileChannel.MapMode.READ_ONLY,
+                                    buffer.position(), size);
+                    }
+
                     if (blockRemain > 0) {
+                        // need to skip padding area
+                        if (blockRemain > buffer.remaining()) {
+                            return RecordType.kEOF;
+                        }
+
                         buffer.position(buffer.position() + blockRemain);
                     }
-                    blockRemain = Constant.kBlockSize;
-                    if (buffer.remaining() < Constant.kBlockSize) {
-                        blockRemain = buffer.remaining();
+
+                    blockRemain = Math.min(Constant.kBlockSize, buffer.remaining());
+
+                    if (blockRemain < Constant.kBlockSize) {
                         eof = true;
                         continue;
                     }

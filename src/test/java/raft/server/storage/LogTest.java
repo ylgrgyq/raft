@@ -32,6 +32,33 @@ public class LogTest {
     }
 
     @Test
+    public void writeReadHalfBlock() throws Exception {
+        List<byte[]> expectDatas = TestUtil.newDataList(1, 1, Constant.kBlockSize / 2);
+        for (byte[] data : expectDatas) {
+            writer.append(data);
+        }
+
+        List<byte[]> actualDatas = new ArrayList<>();
+        Path p = Paths.get(testingDirectory, logFileName);
+        FileChannel ch = FileChannel.open(p, StandardOpenOption.READ);
+        try (LogReader reader = new LogReader(ch)) {
+            while (true) {
+                Optional<byte[]> actual = reader.readLog();
+                if (actual.isPresent()) {
+                    actualDatas.add(actual.get());
+                } else {
+                    break;
+                }
+            }
+        }
+
+        assertEquals(expectDatas.size(), actualDatas.size());
+        for (int i = 0; i < expectDatas.size(); i++) {
+            assertArrayEquals(expectDatas.get(i), actualDatas.get(i));
+        }
+    }
+
+    @Test
     public void writeReadLog() throws Exception {
         List<byte[]> expectDatas = TestUtil.newDataList(10000, 1, 2 * Constant.kBlockSize);
         for (byte[] data : expectDatas) {
