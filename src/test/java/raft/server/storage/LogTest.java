@@ -20,22 +20,20 @@ import static org.junit.Assert.assertEquals;
 public class LogTest {
     private static final String testingDirectory = "./target/storage";
     private static final String logFileName = "log_test";
-    private LogWriter writer;
+    private LogWriterWithMmap writer;
 
     @Before
     public void setUp() throws Exception {
         TestUtil.cleanDirectory(Paths.get(testingDirectory));
 
-        BlockBuilder builder = new BlockBuilder();
-
         Path p = Paths.get(testingDirectory, logFileName);
-        FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-        writer = new LogWriter(ch);
+        FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
+        writer = new LogWriterWithMmap(ch);
     }
 
     @Test
-    public void writeReadLog() throws Exception {
-        List<byte[]> expectDatas = TestUtil.newDataList(1000, 1, 2 * Constant.kBlockSize);
+    public void writeReadHalfBlock() throws Exception {
+        List<byte[]> expectDatas = TestUtil.newDataList(1, 1, Constant.kBlockSize / 2);
         for (byte[] data : expectDatas) {
             writer.append(data);
         }
@@ -43,13 +41,41 @@ public class LogTest {
         List<byte[]> actualDatas = new ArrayList<>();
         Path p = Paths.get(testingDirectory, logFileName);
         FileChannel ch = FileChannel.open(p, StandardOpenOption.READ);
-        LogReader reader = new LogReader(ch);
-        while (true) {
-            Optional<byte[]> actual = reader.readLog();
-            if (actual.isPresent()) {
-                actualDatas.add(actual.get());
-            } else {
-                break;
+        try (LogReader reader = new LogReader(ch)) {
+            while (true) {
+                Optional<byte[]> actual = reader.readLog();
+                if (actual.isPresent()) {
+                    actualDatas.add(actual.get());
+                } else {
+                    break;
+                }
+            }
+        }
+
+        assertEquals(expectDatas.size(), actualDatas.size());
+        for (int i = 0; i < expectDatas.size(); i++) {
+            assertArrayEquals(expectDatas.get(i), actualDatas.get(i));
+        }
+    }
+
+    @Test
+    public void writeReadLog() throws Exception {
+        List<byte[]> expectDatas = TestUtil.newDataList(1000000, 1, 200);
+        for (byte[] data : expectDatas) {
+            writer.append(data);
+        }
+
+        List<byte[]> actualDatas = new ArrayList<>();
+        Path p = Paths.get(testingDirectory, logFileName);
+        FileChannel ch = FileChannel.open(p, StandardOpenOption.READ);
+        try (LogReader reader = new LogReader(ch)) {
+            while (true) {
+                Optional<byte[]> actual = reader.readLog();
+                if (actual.isPresent()) {
+                    actualDatas.add(actual.get());
+                } else {
+                    break;
+                }
             }
         }
 
@@ -61,7 +87,7 @@ public class LogTest {
 
     @Test
     public void readUnfinishedRecord() throws Exception {
-        List<byte[]> expectDatas = TestUtil.newDataList(1000, 1, 2 * Constant.kBlockSize);
+        List<byte[]> expectDatas = TestUtil.newDataList(10000, 1, 2 * Constant.kBlockSize);
 
         List<Long> expectDataEndPos = new ArrayList<>(expectDatas.size());
         for (byte[] data : expectDatas) {
@@ -78,8 +104,7 @@ public class LogTest {
         FileChannel ch = FileChannel.open(p, StandardOpenOption.WRITE);
         ch.truncate(truncatePos);
         ch = FileChannel.open(p, StandardOpenOption.READ);
-        LogReader reader = new LogReader(ch);
-        try {
+        try (LogReader reader = new LogReader(ch)) {
             while (true) {
                 Optional<byte[]> actual = reader.readLog();
                 if (actual.isPresent()) {

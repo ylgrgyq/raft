@@ -175,8 +175,8 @@ public class FileBasedStorage implements PersistentStorage {
         long readEndPosition;
         boolean noNewSSTable = true;
         Memtable mm = null;
-        try (FileChannel ch = FileChannel.open(logFilePath, StandardOpenOption.READ)) {
-            LogReader reader = new LogReader(ch);
+        FileChannel ch = FileChannel.open(logFilePath, StandardOpenOption.READ);
+        try (LogReader reader = new LogReader(ch)) {
             while (true) {
                 Optional<byte[]> logOpt = reader.readLog();
                 if (logOpt.isPresent()) {
@@ -260,7 +260,7 @@ public class FileBasedStorage implements PersistentStorage {
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
         assert mm.isEmpty() || mm.lastKey() == lastIndexInStorage :
-            String.format("actual lastIndex:%s lastIndexInMm:%s", lastIndexInStorage, mm.lastKey());
+                String.format("actual lastIndex:%s lastIndexInMm:%s", lastIndexInStorage, mm.lastKey());
         return lastIndexInStorage;
     }
 
@@ -440,7 +440,7 @@ public class FileBasedStorage implements PersistentStorage {
         return manifest.compact(toIndex);
     }
 
-    public synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException{
+    public synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException {
         checkArgument(timeout >= 0);
         if (status == StorageStatus.SHUTTING_DOWN) {
             return;
@@ -520,7 +520,7 @@ public class FileBasedStorage implements PersistentStorage {
         try {
             List<SSTableFileMetaInfo> metas = manifest.searchMetas(start, end);
             List<SeekableIterator<LogEntry>> ret = new ArrayList<>(metas.size());
-            for(SSTableFileMetaInfo meta : metas) {
+            for (SSTableFileMetaInfo meta : metas) {
                 ret.add(tableCache.iterator(meta.getFileNumber(), meta.getFileSize()));
             }
             return ret;
