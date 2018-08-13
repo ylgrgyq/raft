@@ -3,6 +3,7 @@ package raft.server.storage;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.zip.CRC32;
 
@@ -13,7 +14,7 @@ import java.util.zip.CRC32;
 public class LogWriterWithMmap implements Closeable {
     private final FileChannel workingFileChannel;
     private int blockOffset;
-    private ByteBuffer buffer;
+    private MappedByteBuffer buffer;
     private long bufferStartPos;
 
     LogWriterWithMmap(FileChannel workingFileChannel) throws IOException {
@@ -37,14 +38,17 @@ public class LogWriterWithMmap implements Closeable {
         return bufferStartPos + buffer.position();
     }
 
-    void flush() throws IOException{
-        workingFileChannel.force(true);
+    void flush() {
+        buffer.force();
     }
 
     @Override
     public void close() throws IOException {
-        workingFileChannel.close();
+        long pos = bufferStartPos + buffer.position();
+        buffer.force();
         buffer = null;
+        workingFileChannel.truncate(pos);
+        workingFileChannel.close();
     }
 
     void append(byte[] data) throws IOException{

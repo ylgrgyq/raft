@@ -20,15 +20,15 @@ import static org.junit.Assert.assertEquals;
 public class LogTest {
     private static final String testingDirectory = "./target/storage";
     private static final String logFileName = "log_test";
-    private LogWriter writer;
+    private LogWriterWithMmap writer;
 
     @Before
     public void setUp() throws Exception {
         TestUtil.cleanDirectory(Paths.get(testingDirectory));
 
         Path p = Paths.get(testingDirectory, logFileName);
-        FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-        writer = new LogWriter(ch);
+        FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
+        writer = new LogWriterWithMmap(ch);
     }
 
     @Test
@@ -68,7 +68,7 @@ public class LogTest {
         List<byte[]> actualDatas = new ArrayList<>();
         Path p = Paths.get(testingDirectory, logFileName);
         FileChannel ch = FileChannel.open(p, StandardOpenOption.READ);
-        try (LogReaderWithMmap reader = new LogReaderWithMmap(ch)) {
+        try (LogReader reader = new LogReader(ch)) {
             while (true) {
                 Optional<byte[]> actual = reader.readLog();
                 if (actual.isPresent()) {

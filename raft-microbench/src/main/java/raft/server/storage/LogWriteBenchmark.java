@@ -36,6 +36,7 @@ import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
+import org.openjdk.jmh.runner.options.TimeValue;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -56,7 +57,7 @@ public class LogWriteBenchmark {
 
     private byte[] original;
 
-    private LogWriterWithMmap writer;
+    private LogWriter writer;
 
     @Setup
     public void setUp() throws Exception {
@@ -66,8 +67,8 @@ public class LogWriteBenchmark {
         Arrays.fill(original, (byte)2);
 
         Path p = Paths.get(testingDirectory, logFileName);
-        FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
-        writer = new LogWriterWithMmap(ch);
+        FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        writer = new LogWriter(ch);
     }
 
     @TearDown
@@ -86,6 +87,7 @@ public class LogWriteBenchmark {
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
                 .include(LogWriteBenchmark.class.getSimpleName())
+                .warmupTime(TimeValue.seconds(2))
                 .forks(1)
                 .build();
 
