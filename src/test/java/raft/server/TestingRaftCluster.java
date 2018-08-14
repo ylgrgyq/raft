@@ -47,8 +47,8 @@ class TestingRaftCluster {
                 .withSelfID(selfId)
                 .withRaftCommandBroker(broker)
                 .withStateMachine(stateMachine)
-//                .withPersistentStorage(new FileBasedStorage(testingStorageDirectory, storageName + selfId.replace(" ", "")))
-                .withPersistentStorage(new MemoryBasedTestingStorage())
+                .withPersistentStorage(new FileBasedStorage(testingStorageDirectory,
+                        storageName + selfId.replace(" ", "")))
                 .build();
         return new RaftNode(c);
     }

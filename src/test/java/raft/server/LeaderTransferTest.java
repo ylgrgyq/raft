@@ -26,6 +26,7 @@ public class LeaderTransferTest {
         peerIdSet.add("004");
         peerIdSet.add("005");
 
+        TestingRaftCluster.cleanStorage();
         TestingRaftCluster.init(new ArrayList<>(peerIdSet));
         TestingRaftCluster.clearClusterPreviousPersistentState();
         TestingRaftCluster.startCluster();
