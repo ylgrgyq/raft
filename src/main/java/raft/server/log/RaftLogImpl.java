@@ -48,6 +48,11 @@ public class RaftLogImpl implements RaftLog {
         storage.init();
 
         int lastIndex = storage.getLastIndex();
+        if (lastIndex < 0) {
+            storage.append(Collections.singletonList(PersistentStorage.sentinel));
+            lastIndex = storage.getLastIndex();
+        }
+
         List<LogEntry> entries = storage.getEntries(lastIndex, lastIndex + 1);
         if (entries.isEmpty()) {
             String msg = String.format("failed to get LogEntry from persistent storage with " +
@@ -59,7 +64,7 @@ public class RaftLogImpl implements RaftLog {
 
         int firstIndex = storage.getFirstIndex();
         // we shell assume every logs in storage is not committed and applied including the first dummy empty log and
-        // init commitIndex and appliedIndex to the index before the firstIndex in storage. Because we don't know where
+        // initialize commitIndex and appliedIndex to the index before the firstIndex in storage. Because we don't know where
         // the log has already committed or applied to at this moment. If we have persistent commitIndex and
         // appliedIndex, we will restore it latter
         this.commitIndex = firstIndex - 1;

@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
 import raft.server.proto.Snapshot;
+import raft.server.storage.FileBasedStorage;
 
 import java.nio.file.Paths;
 import java.util.*;
@@ -21,6 +22,8 @@ class TestingRaftCluster {
     private static final String persistentStateDir = "./target/deep/deep/deep/persistent";
     private static final Config.ConfigBuilder configBuilder = Config.newBuilder()
             .withPersistentStateFileDirPath(persistentStateDir);
+    private static final String testingStorageDirectory = "./target/storage";
+    private static final String storageName = "TestingStorage";
     private static final Map<String, RaftNode> nodes = new ConcurrentHashMap<>();
     private static final Map<String, TestingRaftStateMachine> stateMachines = new ConcurrentHashMap<>();
     private static final TestingBroker broker = new TestingBroker();
@@ -44,6 +47,7 @@ class TestingRaftCluster {
                 .withSelfID(selfId)
                 .withRaftCommandBroker(broker)
                 .withStateMachine(stateMachine)
+//                .withPersistentStorage(new FileBasedStorage(testingStorageDirectory, storageName + selfId.replace(" ", "")))
                 .withPersistentStorage(new MemoryBasedTestingStorage())
                 .build();
         return new RaftNode(c);
@@ -133,6 +137,10 @@ class TestingRaftCluster {
             n.shutdown();
             return null;
         });
+    }
+
+    static void cleanStorage() {
+        TestUtil.cleanDirectory(Paths.get(testingStorageDirectory));
     }
 
     static class TestingRaftStateMachine implements StateMachine {
