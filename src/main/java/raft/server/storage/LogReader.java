@@ -91,7 +91,7 @@ public class LogReader implements Closeable {
 
     private RecordType readRecord(List<byte[]> out) throws IOException {
         outer:
-        if (buffer.remaining() < Constant.kHeaderSize) {
+        while (buffer.remaining() < Constant.kHeaderSize) {
             if (eof) {
                 return buffer.remaining() > 0 ? RecordType.kUnfinished : RecordType.kEOF;
             } else {
@@ -101,10 +101,11 @@ public class LogReader implements Closeable {
                     if (readBs == -1) {
                         eof = true;
                         buffer.flip();
-                        break outer;
+                        continue outer;
                     }
                 }
                 buffer.flip();
+                break;
             }
         }
 

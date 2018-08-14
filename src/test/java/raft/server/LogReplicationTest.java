@@ -1,5 +1,6 @@
 package raft.server;
 
+import org.junit.Before;
 import org.junit.Test;
 import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
@@ -17,6 +18,11 @@ import static org.junit.Assert.*;
  * Date: 18/4/11
  */
 public class LogReplicationTest {
+    @Before
+    public void before() {
+        TestingRaftCluster.cleanStorage();
+    }
+
     @Test
     public void testProposeOnSingleNode() throws Exception {
         String selfId = "single node 001";

@@ -66,7 +66,7 @@ class Table implements Iterable<LogEntry> {
         return new Block(content);
     }
 
-    List<LogEntry> getEntries(int start, int end) throws IOException {
+    List<LogEntry> getEntries(int start, int end) {
         SeekableIterator<LogEntry> itr = iterator();
         itr.seek(start);
 

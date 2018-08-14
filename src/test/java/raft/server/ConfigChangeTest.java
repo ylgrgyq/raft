@@ -24,6 +24,7 @@ public class ConfigChangeTest {
         peerIdSet.add("triple node 002");
         peerIdSet.add("triple node 003");
 
+        TestingRaftCluster.cleanStorage();
         TestingRaftCluster.init(new ArrayList<>(peerIdSet));
         TestingRaftCluster.clearClusterPreviousPersistentState();
         TestingRaftCluster.startCluster();

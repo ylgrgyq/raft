@@ -1,5 +1,6 @@
 package raft.server;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -13,6 +14,11 @@ import static org.junit.Assert.*;
  * Date: 18/4/11
  */
 public class ElectLeaderTest {
+    @Before
+    public void before() {
+        TestingRaftCluster.cleanStorage();
+    }
+
     @Test
     public void testInitSingleNode() throws Exception {
         String selfId = "single node 001";
