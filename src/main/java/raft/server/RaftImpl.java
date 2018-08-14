@@ -20,11 +20,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+
 /**
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-public class RaftImpl implements Runnable {
+public class RaftImpl implements Runnable, Raft {
     private static final Logger logger = LoggerFactory.getLogger(RaftImpl.class.getName());
 
     private final RaftState leader = new Leader();
@@ -44,9 +48,10 @@ public class RaftImpl implements Runnable {
     private final ScheduledExecutorService tickGenerator;
     private final String selfId;
     private final RaftLog raftLog;
-    private final RaftPersistentState meta;
+    private final RaftPersistentMeta meta;
     private final StateMachineProxy stateMachine;
     private final AsyncRaftCommandBrokerProxy broker;
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
     private String leaderId;
     private RaftState state;
@@ -65,7 +70,7 @@ public class RaftImpl implements Runnable {
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
         this.selfId = c.selfId;
-        this.meta = new RaftPersistentState(c.persistentStateFileDirPath, c.selfId, c.syncWriteStateFile);
+        this.meta = new RaftPersistentMeta(c.persistentStateFileDirPath, c.selfId, c.syncWriteStateFile);
         this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
         this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
 
@@ -76,7 +81,12 @@ public class RaftImpl implements Runnable {
         this.state = follower;
     }
 
-    void start() {
+    @Override
+    public void start() {
+        if (! started.compareAndSet(false, true)) {
+            return;
+        }
+
         meta.init();
         reset(meta.getTerm());
 
@@ -119,36 +129,24 @@ public class RaftImpl implements Runnable {
                 c.suggestElectionTimeoutTicks, raftLog);
     }
 
-    boolean isLeader() {
+    @Override
+    public boolean isLeader() {
         return getState() == State.LEADER;
     }
 
-    private ConcurrentHashMap<String, RaftPeerNode> getPeerNodes() {
-        return peerNodes;
-    }
-
-    private int getQuorum() {
-        return peerNodes.size() / 2 + 1;
-    }
-
-    State getState() {
-        return state.getState();
-    }
-
-    String getLeaderId() {
-        return leaderId;
-    }
-
-    String getSelfId() {
+    @Override
+    public String getId() {
         return selfId;
     }
 
-    Optional<Snapshot> getRecentSnapshot(int expectIndex) {
-        return stateMachine.getRecentSnapshot(expectIndex);
+    @Override
+    public State getState() {
+        return state.getState();
     }
 
     // FIXME state may change during getting status
-    RaftStatus getStatus() {
+    @Override
+    public RaftStatus getStatus() {
         RaftStatus status = new RaftStatus();
         status.setTerm(meta.getTerm());
         status.setCommitIndex(raftLog.getCommitIndex());
@@ -162,10 +160,43 @@ public class RaftImpl implements Runnable {
         return status;
     }
 
-    CompletableFuture<ProposalResponse> proposeLog(final List<byte[]> entries) {
-        logger.debug("node {} receives proposal with {} entries", this, entries.size());
+    private ConcurrentHashMap<String, RaftPeerNode> getPeerNodes() {
+        return peerNodes;
+    }
 
-        return doPropose(entries, LogEntry.EntryType.LOG);
+    private int getQuorum() {
+        return peerNodes.size() / 2 + 1;
+    }
+
+    String getLeaderId() {
+        return leaderId;
+    }
+
+    Optional<Snapshot> getRecentSnapshot(int expectIndex) {
+        return stateMachine.getRecentSnapshot(expectIndex);
+    }
+
+    @Override
+    public CompletableFuture<ProposalResponse> addNode(String newNode) {
+        checkNotNull(newNode);
+        checkArgument(! newNode.isEmpty());
+        checkState(started.get(), "raft server not start or already shutdown");
+
+        return proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.ADD_NODE);
+    }
+
+    @Override
+    public CompletableFuture<ProposalResponse> removeNode(String newNode) {
+        checkNotNull(newNode);
+        checkArgument(! newNode.isEmpty());
+        checkState(started.get(), "raft server not start or already shutdown");
+
+        if (newNode.equals(getLeaderId())) {
+            return CompletableFuture.completedFuture(
+                    ProposalResponse.errorWithLeaderHint(getLeaderId(), ErrorMsg.FORBID_REMOVE_LEADER));
+        }
+
+        return proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.REMOVE_NODE);
     }
 
     CompletableFuture<ProposalResponse> proposeConfigChange(final String peerId, final ConfigChange.ConfigChangeAction action) {
@@ -180,11 +211,27 @@ public class RaftImpl implements Runnable {
         return doPropose(data, LogEntry.EntryType.CONFIG);
     }
 
-    CompletableFuture<ProposalResponse> proposeTransferLeader(final String transfereeId) {
+    @Override
+    public CompletableFuture<ProposalResponse> transferLeader(String transfereeId) {
+        checkNotNull(transfereeId);
+        checkArgument(! transfereeId.isEmpty());
+        checkState(started.get(), "raft server not start or already shutdown");
+
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(transfereeId.getBytes(StandardCharsets.UTF_8));
 
         return doPropose(data, LogEntry.EntryType.TRANSFER_LEADER);
+    }
+
+    @Override
+    public CompletableFuture<ProposalResponse> propose(List<byte[]> data) {
+        checkNotNull(data);
+        checkArgument(! data.isEmpty());
+        checkState(started.get(), "raft server not start or already shutdown");
+
+        logger.debug("node {} receives proposal with {} entries", this, data.size());
+
+        return doPropose(data, LogEntry.EntryType.LOG);
     }
 
     private CompletableFuture<ProposalResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
@@ -218,7 +265,10 @@ public class RaftImpl implements Runnable {
         broker.onWriteCommand(builder.build());
     }
 
-    void queueReceivedCommand(RaftCommand cmd) {
+    @Override
+    public void receiveCommand(RaftCommand cmd) {
+        checkNotNull(cmd);
+
         if (!peerNodes.containsKey(cmd.getFrom())) {
             logger.warn("node {} received cmd {} from unknown peer", this, cmd);
             return;
@@ -485,10 +535,10 @@ public class RaftImpl implements Runnable {
                     String peerId = change.getPeerId();
                     switch (change.getAction()) {
                         case ADD_NODE:
-                            addNode(peerId);
+                            addNode0(peerId);
                             break;
                         case REMOVE_NODE:
-                            removeNode(peerId);
+                            removeNode0(peerId);
                             break;
                         default:
                             String errorMsg = String.format("node %s got unrecognized change configuration action: %s",
@@ -509,7 +559,7 @@ public class RaftImpl implements Runnable {
         stateMachine.onProposalCommitted(withoutConfigLogs, lastLog.getIndex());
     }
 
-    private void addNode(final String peerId) {
+    void addNode0(final String peerId) {
         peerNodes.computeIfAbsent(peerId,
                 k -> new RaftPeerNode(peerId,
                         this,
@@ -523,7 +573,7 @@ public class RaftImpl implements Runnable {
         existsPendingConfigChange = false;
     }
 
-    private void removeNode(final String peerId) {
+    void removeNode0(final String peerId) {
         peerNodes.remove(peerId);
 
         logger.info("node {} remove peerId \"{}\" from cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
@@ -799,7 +849,11 @@ public class RaftImpl implements Runnable {
         shutdown();
     }
 
-    void shutdown() {
+    public void shutdown() {
+        if (! started.compareAndSet(true, false)) {
+            return;
+        }
+
         logger.info("shutting down node {} ...", this);
         tickGenerator.shutdown();
         workerRun = false;
