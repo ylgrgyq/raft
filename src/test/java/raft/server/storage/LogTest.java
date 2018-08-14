@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 public class LogTest {
     private static final String testingDirectory = "./target/storage";
     private static final String logFileName = "log_test";
-    private LogWriterWithMmap writer;
+    private LogWriter writer;
 
     @Before
     public void setUp() throws Exception {
@@ -28,7 +28,7 @@ public class LogTest {
 
         Path p = Paths.get(testingDirectory, logFileName);
         FileChannel ch = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
-        writer = new LogWriterWithMmap(ch);
+        writer = new LogWriter(ch);
     }
 
     @Test
@@ -60,7 +60,7 @@ public class LogTest {
 
     @Test
     public void writeReadLog() throws Exception {
-        List<byte[]> expectDatas = TestUtil.newDataList(1000000, 1, 200);
+        List<byte[]> expectDatas = TestUtil.newDataList(1000, 1, 200);
         for (byte[] data : expectDatas) {
             writer.append(data);
         }
@@ -87,7 +87,7 @@ public class LogTest {
 
     @Test
     public void readUnfinishedRecord() throws Exception {
-        List<byte[]> expectDatas = TestUtil.newDataList(10000, 1, 2 * Constant.kBlockSize);
+        List<byte[]> expectDatas = TestUtil.newDataList(1000, 1, 2 * Constant.kBlockSize);
 
         List<Long> expectDataEndPos = new ArrayList<>(expectDatas.size());
         for (byte[] data : expectDatas) {
