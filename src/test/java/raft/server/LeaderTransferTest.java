@@ -39,7 +39,7 @@ public class LeaderTransferTest {
 
     @Test
     public void testRequestTransferLeaderOnFollower() throws Exception {
-        RaftNode follower = TestingRaftCluster.getFollowers().get(0);
+        Raft follower = TestingRaftCluster.getFollowers().get(0);
         CompletableFuture<ProposalResponse> future = follower.transferLeader("some node id");
         ProposalResponse resp = future.get();
         assertFalse(resp.isSuccess());
@@ -48,7 +48,7 @@ public class LeaderTransferTest {
 
     @Test
     public void testTransferLeaderToLeader() throws Exception {
-        RaftNode leader = TestingRaftCluster.waitGetLeader();
+        Raft leader = TestingRaftCluster.waitGetLeader();
         CompletableFuture<ProposalResponse> future = leader.transferLeader(leader.getId());
         ProposalResponse resp = future.get();
         assertFalse(resp.isSuccess());
@@ -57,7 +57,7 @@ public class LeaderTransferTest {
 
     @Test
     public void testTransferLeaderToUnknownPeerId() throws Exception {
-        RaftNode leader = TestingRaftCluster.waitGetLeader();
+        Raft leader = TestingRaftCluster.waitGetLeader();
         CompletableFuture<ProposalResponse> future = leader.transferLeader("some node id");
         ProposalResponse resp = future.get();
         assertFalse(resp.isSuccess());
@@ -66,8 +66,8 @@ public class LeaderTransferTest {
 
     @Test
     public void testImmediateTransfer() throws Exception {
-        RaftNode oldLeader = TestingRaftCluster.waitGetLeader();
-        RaftNode newLeader = TestingRaftCluster.getFollowers().get(0);
+        Raft oldLeader = TestingRaftCluster.waitGetLeader();
+        Raft newLeader = TestingRaftCluster.getFollowers().get(0);
         String newLeaderId = newLeader.getId();
         CompletableFuture<ProposalResponse> future = oldLeader.transferLeader(newLeaderId);
         ProposalResponse resp = future.get();
@@ -82,8 +82,8 @@ public class LeaderTransferTest {
 
     @Test
     public void testTransferLeaderSuccessively() throws Exception {
-        RaftNode oldLeader = TestingRaftCluster.waitGetLeader();
-        RaftNode newLeader = TestingRaftCluster.getFollowers().get(0);
+        Raft oldLeader = TestingRaftCluster.waitGetLeader();
+        Raft newLeader = TestingRaftCluster.getFollowers().get(0);
         String newLeaderId = newLeader.getId();
         CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
         CompletableFuture<ProposalResponse> failedFuture = oldLeader.transferLeader(newLeaderId);
@@ -100,7 +100,7 @@ public class LeaderTransferTest {
 
     @Test
     public void testTransferAfterCatchUp() throws Exception {
-        RaftNode oldLeader = TestingRaftCluster.waitGetLeader();
+        Raft oldLeader = TestingRaftCluster.waitGetLeader();
 
         // propose some logs
         int proposeCount = 10  ;
@@ -136,7 +136,7 @@ public class LeaderTransferTest {
         assertTrue(successFuture.get().isSuccess());
         TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(newLeaderId);
         stateMachine.waitBecomeLeader().get();
-        RaftNode newLeader = TestingRaftCluster.waitGetLeader();
+        Raft newLeader = TestingRaftCluster.waitGetLeader();
         assertEquals(newLeaderId, newLeader.getId());
         assertEquals(State.LEADER, newLeader.getState());
     }

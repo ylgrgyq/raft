@@ -38,7 +38,7 @@ public class ConfigChangeTest {
     @Test
     public void testAddNodeToFollower() throws Exception {
         String newNode = "new node 004";
-        RaftNode follower = TestingRaftCluster.getFollowers().get(0);
+        Raft follower = TestingRaftCluster.getFollowers().get(0);
         CompletableFuture<ProposalResponse> f = follower.addNode(newNode);
         ProposalResponse resp = f.get();
         assertFalse(resp.isSuccess());
@@ -54,7 +54,7 @@ public class ConfigChangeTest {
 
     @Test
     public void testAddNode() throws Exception {
-        RaftNode leader = TestingRaftCluster.waitGetLeader();
+        Raft leader = TestingRaftCluster.waitGetLeader();
 
         String newNode = "new node 004";
         CompletableFuture<ProposalResponse> f = leader.addNode(newNode);
@@ -78,7 +78,7 @@ public class ConfigChangeTest {
 
     @Test
     public void testAddNodeSuccessively() throws Exception {
-        RaftNode leader = TestingRaftCluster.waitGetLeader();
+        Raft leader = TestingRaftCluster.waitGetLeader();
 
         String successNewNode = "success new node 004";
         String failedNewNode = "failed new node 005";
@@ -106,7 +106,7 @@ public class ConfigChangeTest {
 
     @Test
     public void testRemoveNotExistsNode() throws Exception {
-        RaftNode leader = TestingRaftCluster.waitGetLeader();
+        Raft leader = TestingRaftCluster.waitGetLeader();
 
         String removePeerId = "not exists node";
         CompletableFuture<ProposalResponse> f = leader.removeNode(removePeerId);
@@ -127,7 +127,7 @@ public class ConfigChangeTest {
 
     @Test
     public void testRemoveFollower() throws Exception {
-        RaftNode leader = TestingRaftCluster.waitGetLeader();
+        Raft leader = TestingRaftCluster.waitGetLeader();
 
         String removePeerId = TestingRaftCluster.getFollowers().get(0).getId();
         CompletableFuture<ProposalResponse> f = leader.removeNode(removePeerId);
@@ -151,7 +151,7 @@ public class ConfigChangeTest {
 
     @Test
     public void testRemoveLeader() throws Exception {
-        RaftNode leader = TestingRaftCluster.waitGetLeader();
+        Raft leader = TestingRaftCluster.waitGetLeader();
 
         String leaderId = leader.getId();
         CompletableFuture<ProposalResponse> f = leader.removeNode(leaderId);

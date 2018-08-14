@@ -61,7 +61,7 @@ public class RaftImpl implements Runnable, Raft {
     private boolean existsPendingConfigChange = false;
     private TransferLeaderFuture transferLeaderFuture = null;
 
-    RaftImpl(Config c) {
+    public RaftImpl(Config c) {
         Preconditions.checkNotNull(c);
 
         this.c = c;
@@ -199,7 +199,7 @@ public class RaftImpl implements Runnable, Raft {
         return proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.REMOVE_NODE);
     }
 
-    CompletableFuture<ProposalResponse> proposeConfigChange(final String peerId, final ConfigChange.ConfigChangeAction action) {
+    private CompletableFuture<ProposalResponse> proposeConfigChange(final String peerId, final ConfigChange.ConfigChangeAction action) {
         ConfigChange change = ConfigChange.newBuilder()
                 .setAction(action)
                 .setPeerId(peerId)
@@ -559,7 +559,7 @@ public class RaftImpl implements Runnable, Raft {
         stateMachine.onProposalCommitted(withoutConfigLogs, lastLog.getIndex());
     }
 
-    void addNode0(final String peerId) {
+    private void addNode0(final String peerId) {
         peerNodes.computeIfAbsent(peerId,
                 k -> new RaftPeerNode(peerId,
                         this,
@@ -573,7 +573,7 @@ public class RaftImpl implements Runnable, Raft {
         existsPendingConfigChange = false;
     }
 
-    void removeNode0(final String peerId) {
+    private void removeNode0(final String peerId) {
         peerNodes.remove(peerId);
 
         logger.info("node {} remove peerId \"{}\" from cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
@@ -634,21 +634,19 @@ public class RaftImpl implements Runnable, Raft {
         }
     }
 
-    private boolean tryBecomeFollower(int term, String leaderId) {
+    private void tryBecomeFollower(int term, String leaderId) {
         assert Thread.currentThread() == workerThread;
 
         final int selfTerm = meta.getTerm();
         if (term >= selfTerm) {
             transitState(follower, term, leaderId);
-            return true;
         } else {
             logger.error("node {} transient state to {} failed, term = {}, leaderId = {}",
                     this, State.FOLLOWER, term, leaderId);
-            return false;
         }
     }
 
-    private boolean tryBecomeLeader() {
+    private void tryBecomeLeader() {
         assert Thread.currentThread() == workerThread;
 
         if (getState() == State.CANDIDATE) {
@@ -659,19 +657,15 @@ public class RaftImpl implements Runnable, Raft {
             for (RaftPeerNode node : peerNodes.values()) {
                 node.reset(raftLog.getLastIndex() + 1);
             }
-            return true;
         } else {
             logger.error("node {} transient state to {} failed", this, State.LEADER);
-            return false;
         }
     }
 
-    private boolean tryBecomeCandidate() {
+    private void tryBecomeCandidate() {
         assert Thread.currentThread() == workerThread;
 
         transitState(candidate, meta.getTerm(), null);
-
-        return true;
     }
 
     private void reset(int term) {
@@ -824,8 +818,7 @@ public class RaftImpl implements Runnable, Raft {
         stateMachine.installSnapshot(snapshot);
 
         int lastIndex = raftLog.getLastIndex();
-        Set<String> remainPeerIds = new HashSet<>();
-        remainPeerIds.addAll(peerNodes.keySet());
+        Set<String> remainPeerIds = new HashSet<>(peerNodes.keySet());
 
         for (String peerId : snapshot.getPeerIdsList()) {
             RaftPeerNode node = new RaftPeerNode(peerId, this, raftLog, lastIndex + 1,

@@ -2,7 +2,7 @@ syntax = "proto3";
 package raft.server.proto;
 option java_multiple_files = true;
 
-message PBRaftPersistentState {
+message PBRaftPersistentMeta {
     int32 term = 1;
     string votedFor = 2;
     int32 commitIndex = 3;

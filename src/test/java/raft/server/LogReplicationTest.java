@@ -32,7 +32,7 @@ public class LogReplicationTest {
         TestingRaftCluster.init(peers);
         TestingRaftCluster.clearClusterPreviousPersistentState();
         TestingRaftCluster.startCluster();
-        RaftNode leader = TestingRaftCluster.waitGetLeader();
+        Raft leader = TestingRaftCluster.waitGetLeader();
 
         // propose some logs
         int logCount = ThreadLocalRandom.current().nextInt(10, 100);
@@ -63,7 +63,7 @@ public class LogReplicationTest {
         TestingRaftCluster.shutdownCluster();
     }
 
-    private static void checkAppliedLogs(RaftNode node, int logCount, List<byte[]> sourceDataList) {
+    private static void checkAppliedLogs(Raft node, int logCount, List<byte[]> sourceDataList) {
         TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(node.getId());
         List<LogEntry> applied = stateMachine.waitApplied(logCount);
 
@@ -89,7 +89,7 @@ public class LogReplicationTest {
         TestingRaftCluster.init(new ArrayList<>(peerIdSet));
         TestingRaftCluster.clearClusterPreviousPersistentState();
         TestingRaftCluster.startCluster();
-        RaftNode leader = TestingRaftCluster.waitGetLeader();
+        Raft leader = TestingRaftCluster.waitGetLeader();
 
         String leaderId = leader.getId();
         HashSet<String> followerIds = new HashSet<>(peerIdSet);
@@ -105,7 +105,7 @@ public class LogReplicationTest {
 
         checkAppliedLogs(leader, logCount, dataList);
         for (String id : followerIds) {
-            RaftNode node = TestingRaftCluster.getNodeById(id);
+            Raft node = TestingRaftCluster.getNodeById(id);
             checkAppliedLogs(node, logCount, dataList);
         }
 

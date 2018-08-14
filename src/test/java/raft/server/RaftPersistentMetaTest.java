@@ -1,6 +1,5 @@
 package raft.server;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.file.Files;
@@ -15,7 +14,7 @@ import static org.junit.Assert.*;
  * Author: ylgrgyq
  * Date: 18/4/25
  */
-public class RaftPersistentStateTest {
+public class RaftPersistentMetaTest {
     private static final String testingDirectory = "./target/deep/deep/deep/persistent";
     private static final Path testingDirectoryPath = Paths.get(testingDirectory);
     private static final String raftId = "raft 001";
@@ -27,7 +26,7 @@ public class RaftPersistentStateTest {
 
         assertTrue(! Files.exists(testingDirectoryPath));
 
-        RaftPersistentState pState = new RaftPersistentState(testingDirectory, raftId, false);
+        RaftPersistentMeta pState = new RaftPersistentMeta(testingDirectory, raftId, false);
         pState.init();
         assertTrue(Files.exists(testingDirectoryPath));
         assertEquals(0, pState.getTerm());
@@ -47,7 +46,7 @@ public class RaftPersistentStateTest {
 
         assertTrue(Files.exists(testingDirectoryPath));
 
-        RaftPersistentState pState = new RaftPersistentState(testingDirectory, raftId, false);
+        RaftPersistentMeta pState = new RaftPersistentMeta(testingDirectory, raftId, false);
         pState.init();
         assertTrue(Files.exists(testingDirectoryPath));
         assertEquals(0, pState.getTerm());
@@ -57,7 +56,7 @@ public class RaftPersistentStateTest {
 
     @Test
     public void persistent() throws Exception {
-        RaftPersistentState initState = new RaftPersistentState(testingDirectory, raftId, false);
+        RaftPersistentMeta initState = new RaftPersistentMeta(testingDirectory, raftId, false);
         TestUtil.cleanDirectory(testingDirectoryPath);
         initState.init();
 
@@ -67,7 +66,7 @@ public class RaftPersistentStateTest {
         initState.setVotedFor(voteFor);
         initState.setCommitIndex(ThreadLocalRandom.current().nextInt(1000, 10000));
 
-        RaftPersistentState loadedState = new RaftPersistentState(testingDirectory, raftId, false);
+        RaftPersistentMeta loadedState = new RaftPersistentMeta(testingDirectory, raftId, false);
         loadedState.init();
 
         assertEquals(initState.getTerm(), loadedState.getTerm());
@@ -79,7 +78,7 @@ public class RaftPersistentStateTest {
         loadedState.setTermAndVotedFor(term2, voteFor2);
         loadedState.setCommitIndex(ThreadLocalRandom.current().nextInt(10000, 20000));
 
-        RaftPersistentState loadedState2 = new RaftPersistentState(testingDirectory, raftId, false);
+        RaftPersistentMeta loadedState2 = new RaftPersistentMeta(testingDirectory, raftId, false);
         loadedState2.init();
 
         assertEquals(loadedState.getTerm(), loadedState2.getTerm());

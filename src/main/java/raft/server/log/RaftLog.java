@@ -1,6 +1,7 @@
 package raft.server.log;
 
-import raft.server.RaftPersistentState;
+import raft.server.RaftPersistentMeta;
+import raft.server.RaftPersistentMeta;
 import raft.server.proto.LogEntry;
 import raft.server.proto.Snapshot;
 import java.util.List;
@@ -12,7 +13,7 @@ import java.util.function.BiConsumer;
  * Date: 18/5/16
  */
 public interface RaftLog {
-    void init(RaftPersistentState meta);
+    void init(RaftPersistentMeta meta);
 
     int getLastIndex();
 

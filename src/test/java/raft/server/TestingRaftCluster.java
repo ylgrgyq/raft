@@ -24,7 +24,7 @@ class TestingRaftCluster {
             .withPersistentStateFileDirPath(persistentStateDir);
     private static final String testingStorageDirectory = "./target/storage";
     private static final String storageName = "TestingStorage";
-    private static final Map<String, RaftNode> nodes = new ConcurrentHashMap<>();
+    private static final Map<String, Raft> nodes = new ConcurrentHashMap<>();
     private static final Map<String, TestingRaftStateMachine> stateMachines = new ConcurrentHashMap<>();
     private static final TestingBroker broker = new TestingBroker();
 
@@ -34,11 +34,11 @@ class TestingRaftCluster {
         }
     }
 
-    static RaftNode addTestingNode(String peerId, Collection<String> peers) {
+    static Raft addTestingNode(String peerId, Collection<String> peers) {
         return nodes.computeIfAbsent(peerId, k -> createTestingNode(peerId, peers));
     }
 
-    private static RaftNode createTestingNode(String selfId, Collection<String> peers) {
+    private static Raft createTestingNode(String selfId, Collection<String> peers) {
         TestingRaftStateMachine stateMachine = new TestingRaftStateMachine();
         stateMachines.put(selfId, stateMachine);
 
@@ -50,11 +50,11 @@ class TestingRaftCluster {
                 .withPersistentStorage(new FileBasedStorage(testingStorageDirectory,
                         storageName + selfId.replace(" ", "")))
                 .build();
-        return new RaftNode(c);
+        return new RaftImpl(c);
     }
 
     static void startCluster() {
-        nodes.values().forEach(RaftNode::start);
+        nodes.values().forEach(Raft::start);
     }
 
     static void clearClusterPreviousPersistentState() {
@@ -62,19 +62,19 @@ class TestingRaftCluster {
     }
 
     static void clearPreviousPersistentStateFor(String peerId) {
-        RaftPersistentState state = new RaftPersistentState(persistentStateDir, peerId, false);
+        RaftPersistentMeta state = new RaftPersistentMeta(persistentStateDir, peerId, false);
         state.setTermAndVotedFor(0, null);
     }
 
-    static RaftNode waitGetLeader() throws TimeoutException, InterruptedException {
+    static Raft waitGetLeader() throws TimeoutException, InterruptedException {
         return waitGetLeader(defaultTimeoutMs);
     }
 
-    static RaftNode waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException {
+    static Raft waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException {
         long start = System.currentTimeMillis();
         while (true) {
-            ArrayList<RaftNode> possibleLeaderNodes = new ArrayList<>(nodes.size());
-            for (RaftNode n : nodes.values()) {
+            ArrayList<Raft> possibleLeaderNodes = new ArrayList<>(nodes.size());
+            for (Raft n : nodes.values()) {
                 if (n.isLeader()) {
                     possibleLeaderNodes.add(n);
                 }
@@ -101,11 +101,11 @@ class TestingRaftCluster {
         }
     }
 
-    static List<RaftNode> getFollowers() throws TimeoutException, InterruptedException {
+    static List<Raft> getFollowers() throws TimeoutException, InterruptedException {
         waitGetLeader();
-        ArrayList<RaftNode> followers = new ArrayList<>();
-        for (Map.Entry<String, RaftNode> e : nodes.entrySet()) {
-            RaftNode n = e.getValue();
+        ArrayList<Raft> followers = new ArrayList<>();
+        for (Map.Entry<String, Raft> e : nodes.entrySet()) {
+            Raft n = e.getValue();
             if (!n.isLeader()) {
                 followers.add(e.getValue());
             }
@@ -113,7 +113,7 @@ class TestingRaftCluster {
         return followers;
     }
 
-    static RaftNode getNodeById(String peerId) {
+    static Raft getNodeById(String peerId) {
         return nodes.get(peerId);
     }
 
@@ -126,7 +126,7 @@ class TestingRaftCluster {
     }
 
     static void shutdownCluster() {
-        for (RaftNode n : nodes.values()) {
+        for (Raft n : nodes.values()) {
             n.shutdown();
         }
         nodes.clear();
@@ -296,7 +296,7 @@ class TestingRaftCluster {
         public void onWriteCommand(RaftCommand cmd) {
             logger.debug("node {} write command {}", cmd.getFrom(), cmd.toString());
             String to = cmd.getTo();
-            RaftNode toNode = nodes.get(to);
+            Raft toNode = nodes.get(to);
             if (toNode != null) {
                 toNode.receiveCommand(cmd);
             }

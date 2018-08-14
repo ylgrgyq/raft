@@ -63,7 +63,7 @@ class RaftPeerNode {
                 logger.info("prepare to send snapshot with index: {} term: {} to {}", s.getIndex(), s.getTerm(), this);
                 msgBuilder.setType(RaftCommand.CmdType.SNAPSHOT).setSnapshot(snapshot.get());
             } else {
-                logger.warn("snapshot on {} is not ready, skip append to {}", raft.getSelfId(), this);
+                logger.warn("snapshot on {} is not ready, skip append to {}", raft.getId(), this);
                 return;
             }
         } else {
