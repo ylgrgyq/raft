@@ -8,21 +8,21 @@ public interface ConfigChangeOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>string peer_id = 1;</code>
+   * <code>optional string peer_id = 1;</code>
    */
   java.lang.String getPeerId();
   /**
-   * <code>string peer_id = 1;</code>
+   * <code>optional string peer_id = 1;</code>
    */
   com.google.protobuf.ByteString
       getPeerIdBytes();
 
   /**
-   * <code>.raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
+   * <code>optional .raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
    */
   int getActionValue();
   /**
-   * <code>.raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
+   * <code>optional .raft.server.proto.ConfigChange.ConfigChangeAction action = 2;</code>
    */
   raft.server.proto.ConfigChange.ConfigChangeAction getAction();
 }

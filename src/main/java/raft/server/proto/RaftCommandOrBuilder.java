@@ -8,61 +8,61 @@ public interface RaftCommandOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>.raft.server.proto.RaftCommand.CmdType type = 1;</code>
+   * <code>optional .raft.server.proto.RaftCommand.CmdType type = 1;</code>
    */
   int getTypeValue();
   /**
-   * <code>.raft.server.proto.RaftCommand.CmdType type = 1;</code>
+   * <code>optional .raft.server.proto.RaftCommand.CmdType type = 1;</code>
    */
   raft.server.proto.RaftCommand.CmdType getType();
 
   /**
-   * <code>string from = 2;</code>
+   * <code>optional string from = 2;</code>
    */
   java.lang.String getFrom();
   /**
-   * <code>string from = 2;</code>
+   * <code>optional string from = 2;</code>
    */
   com.google.protobuf.ByteString
       getFromBytes();
 
   /**
-   * <code>string to = 3;</code>
+   * <code>optional string to = 3;</code>
    */
   java.lang.String getTo();
   /**
-   * <code>string to = 3;</code>
+   * <code>optional string to = 3;</code>
    */
   com.google.protobuf.ByteString
       getToBytes();
 
   /**
-   * <code>int32 term = 4;</code>
+   * <code>optional int32 term = 4;</code>
    */
   int getTerm();
 
   /**
-   * <code>int32 prev_log_index = 5;</code>
+   * <code>optional int32 prev_log_index = 5;</code>
    */
   int getPrevLogIndex();
 
   /**
-   * <code>int32 prev_log_term = 6;</code>
+   * <code>optional int32 prev_log_term = 6;</code>
    */
   int getPrevLogTerm();
 
   /**
-   * <code>int32 match_index = 7;</code>
+   * <code>optional int32 match_index = 7;</code>
    */
   int getMatchIndex();
 
   /**
-   * <code>int32 leader_commit = 8;</code>
+   * <code>optional int32 leader_commit = 8;</code>
    */
   int getLeaderCommit();
 
   /**
-   * <code>bool success = 9;</code>
+   * <code>optional bool success = 9;</code>
    */
   boolean getSuccess();
 
@@ -91,55 +91,55 @@ public interface RaftCommandOrBuilder extends
       int index);
 
   /**
-   * <code>string leader_id = 11;</code>
+   * <code>optional string leader_id = 11;</code>
    */
   java.lang.String getLeaderId();
   /**
-   * <code>string leader_id = 11;</code>
+   * <code>optional string leader_id = 11;</code>
    */
   com.google.protobuf.ByteString
       getLeaderIdBytes();
 
   /**
-   * <code>int32 last_log_index = 12;</code>
+   * <code>optional int32 last_log_index = 12;</code>
    */
   int getLastLogIndex();
 
   /**
-   * <code>int32 last_log_term = 13;</code>
+   * <code>optional int32 last_log_term = 13;</code>
    */
   int getLastLogTerm();
 
   /**
-   * <code>bool vote_granted = 14;</code>
+   * <code>optional bool vote_granted = 14;</code>
    */
   boolean getVoteGranted();
 
   /**
-   * <code>string leader_hint = 15;</code>
+   * <code>optional string leader_hint = 15;</code>
    */
   java.lang.String getLeaderHint();
   /**
-   * <code>string leader_hint = 15;</code>
+   * <code>optional string leader_hint = 15;</code>
    */
   com.google.protobuf.ByteString
       getLeaderHintBytes();
 
   /**
-   * <code>bool force_election = 16;</code>
+   * <code>optional bool force_election = 16;</code>
    */
   boolean getForceElection();
 
   /**
-   * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
    */
   boolean hasSnapshot();
   /**
-   * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
    */
   raft.server.proto.Snapshot getSnapshot();
   /**
-   * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
    */
   raft.server.proto.SnapshotOrBuilder getSnapshotOrBuilder();
 }

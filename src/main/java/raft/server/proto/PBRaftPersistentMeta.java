@@ -4,18 +4,17 @@
 package raft.server.proto;
 
 /**
- * Protobuf type {@code raft.server.proto.PBRaftPersistentState}
+ * Protobuf type {@code raft.server.proto.PBRaftPersistentMeta}
  */
-public  final class PBRaftPersistentState extends
+public  final class PBRaftPersistentMeta extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:raft.server.proto.PBRaftPersistentState)
-    PBRaftPersistentStateOrBuilder {
-private static final long serialVersionUID = 0L;
-  // Use PBRaftPersistentState.newBuilder() to construct.
-  private PBRaftPersistentState(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+    // @@protoc_insertion_point(message_implements:raft.server.proto.PBRaftPersistentMeta)
+    PBRaftPersistentMetaOrBuilder {
+  // Use PBRaftPersistentMeta.newBuilder() to construct.
+  private PBRaftPersistentMeta(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private PBRaftPersistentState() {
+  private PBRaftPersistentMeta() {
     term_ = 0;
     votedFor_ = "";
     commitIndex_ = 0;
@@ -24,19 +23,14 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public final com.google.protobuf.UnknownFieldSet
   getUnknownFields() {
-    return this.unknownFields;
+    return com.google.protobuf.UnknownFieldSet.getDefaultInstance();
   }
-  private PBRaftPersistentState(
+  private PBRaftPersistentMeta(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     this();
-    if (extensionRegistry == null) {
-      throw new java.lang.NullPointerException();
-    }
     int mutable_bitField0_ = 0;
-    com.google.protobuf.UnknownFieldSet.Builder unknownFields =
-        com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
       boolean done = false;
       while (!done) {
@@ -46,8 +40,7 @@ private static final long serialVersionUID = 0L;
             done = true;
             break;
           default: {
-            if (!parseUnknownFieldProto3(
-                input, unknownFields, extensionRegistry, tag)) {
+            if (!input.skipField(tag)) {
               done = true;
             }
             break;
@@ -76,26 +69,25 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
-      this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentState_descriptor;
+    return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentMeta_descriptor;
   }
 
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentState_fieldAccessorTable
+    return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentMeta_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            raft.server.proto.PBRaftPersistentState.class, raft.server.proto.PBRaftPersistentState.Builder.class);
+            raft.server.proto.PBRaftPersistentMeta.class, raft.server.proto.PBRaftPersistentMeta.Builder.class);
   }
 
   public static final int TERM_FIELD_NUMBER = 1;
   private int term_;
   /**
-   * <code>int32 term = 1;</code>
+   * <code>optional int32 term = 1;</code>
    */
   public int getTerm() {
     return term_;
@@ -104,7 +96,7 @@ private static final long serialVersionUID = 0L;
   public static final int VOTEDFOR_FIELD_NUMBER = 2;
   private volatile java.lang.Object votedFor_;
   /**
-   * <code>string votedFor = 2;</code>
+   * <code>optional string votedFor = 2;</code>
    */
   public java.lang.String getVotedFor() {
     java.lang.Object ref = votedFor_;
@@ -119,7 +111,7 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
-   * <code>string votedFor = 2;</code>
+   * <code>optional string votedFor = 2;</code>
    */
   public com.google.protobuf.ByteString
       getVotedForBytes() {
@@ -138,7 +130,7 @@ private static final long serialVersionUID = 0L;
   public static final int COMMITINDEX_FIELD_NUMBER = 3;
   private int commitIndex_;
   /**
-   * <code>int32 commitIndex = 3;</code>
+   * <code>optional int32 commitIndex = 3;</code>
    */
   public int getCommitIndex() {
     return commitIndex_;
@@ -165,7 +157,6 @@ private static final long serialVersionUID = 0L;
     if (commitIndex_ != 0) {
       output.writeInt32(3, commitIndex_);
     }
-    unknownFields.writeTo(output);
   }
 
   public int getSerializedSize() {
@@ -184,20 +175,20 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(3, commitIndex_);
     }
-    size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
   }
 
+  private static final long serialVersionUID = 0L;
   @java.lang.Override
   public boolean equals(final java.lang.Object obj) {
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof raft.server.proto.PBRaftPersistentState)) {
+    if (!(obj instanceof raft.server.proto.PBRaftPersistentMeta)) {
       return super.equals(obj);
     }
-    raft.server.proto.PBRaftPersistentState other = (raft.server.proto.PBRaftPersistentState) obj;
+    raft.server.proto.PBRaftPersistentMeta other = (raft.server.proto.PBRaftPersistentMeta) obj;
 
     boolean result = true;
     result = result && (getTerm()
@@ -206,7 +197,6 @@ private static final long serialVersionUID = 0L;
         .equals(other.getVotedFor());
     result = result && (getCommitIndex()
         == other.getCommitIndex());
-    result = result && unknownFields.equals(other.unknownFields);
     return result;
   }
 
@@ -216,7 +206,7 @@ private static final long serialVersionUID = 0L;
       return memoizedHashCode;
     }
     int hash = 41;
-    hash = (19 * hash) + getDescriptor().hashCode();
+    hash = (19 * hash) + getDescriptorForType().hashCode();
     hash = (37 * hash) + TERM_FIELD_NUMBER;
     hash = (53 * hash) + getTerm();
     hash = (37 * hash) + VOTEDFOR_FIELD_NUMBER;
@@ -228,69 +218,58 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static raft.server.proto.PBRaftPersistentState parseFrom(
-      java.nio.ByteBuffer data)
-      throws com.google.protobuf.InvalidProtocolBufferException {
-    return PARSER.parseFrom(data);
-  }
-  public static raft.server.proto.PBRaftPersistentState parseFrom(
-      java.nio.ByteBuffer data,
-      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-      throws com.google.protobuf.InvalidProtocolBufferException {
-    return PARSER.parseFrom(data, extensionRegistry);
-  }
-  public static raft.server.proto.PBRaftPersistentState parseFrom(
+  public static raft.server.proto.PBRaftPersistentMeta parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static raft.server.proto.PBRaftPersistentState parseFrom(
+  public static raft.server.proto.PBRaftPersistentMeta parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static raft.server.proto.PBRaftPersistentState parseFrom(byte[] data)
+  public static raft.server.proto.PBRaftPersistentMeta parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static raft.server.proto.PBRaftPersistentState parseFrom(
+  public static raft.server.proto.PBRaftPersistentMeta parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static raft.server.proto.PBRaftPersistentState parseFrom(java.io.InputStream input)
+  public static raft.server.proto.PBRaftPersistentMeta parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static raft.server.proto.PBRaftPersistentState parseFrom(
+  public static raft.server.proto.PBRaftPersistentMeta parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static raft.server.proto.PBRaftPersistentState parseDelimitedFrom(java.io.InputStream input)
+  public static raft.server.proto.PBRaftPersistentMeta parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static raft.server.proto.PBRaftPersistentState parseDelimitedFrom(
+  public static raft.server.proto.PBRaftPersistentMeta parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static raft.server.proto.PBRaftPersistentState parseFrom(
+  public static raft.server.proto.PBRaftPersistentMeta parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static raft.server.proto.PBRaftPersistentState parseFrom(
+  public static raft.server.proto.PBRaftPersistentMeta parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -302,7 +281,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(raft.server.proto.PBRaftPersistentState prototype) {
+  public static Builder newBuilder(raft.server.proto.PBRaftPersistentMeta prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   public Builder toBuilder() {
@@ -317,25 +296,25 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
-   * Protobuf type {@code raft.server.proto.PBRaftPersistentState}
+   * Protobuf type {@code raft.server.proto.PBRaftPersistentMeta}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:raft.server.proto.PBRaftPersistentState)
-      raft.server.proto.PBRaftPersistentStateOrBuilder {
+      // @@protoc_insertion_point(builder_implements:raft.server.proto.PBRaftPersistentMeta)
+      raft.server.proto.PBRaftPersistentMetaOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentState_descriptor;
+      return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentMeta_descriptor;
     }
 
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentState_fieldAccessorTable
+      return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentMeta_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              raft.server.proto.PBRaftPersistentState.class, raft.server.proto.PBRaftPersistentState.Builder.class);
+              raft.server.proto.PBRaftPersistentMeta.class, raft.server.proto.PBRaftPersistentMeta.Builder.class);
     }
 
-    // Construct using raft.server.proto.PBRaftPersistentState.newBuilder()
+    // Construct using raft.server.proto.PBRaftPersistentMeta.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -363,23 +342,23 @@ private static final long serialVersionUID = 0L;
 
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentState_descriptor;
+      return raft.server.proto.Commands.internal_static_raft_server_proto_PBRaftPersistentMeta_descriptor;
     }
 
-    public raft.server.proto.PBRaftPersistentState getDefaultInstanceForType() {
-      return raft.server.proto.PBRaftPersistentState.getDefaultInstance();
+    public raft.server.proto.PBRaftPersistentMeta getDefaultInstanceForType() {
+      return raft.server.proto.PBRaftPersistentMeta.getDefaultInstance();
     }
 
-    public raft.server.proto.PBRaftPersistentState build() {
-      raft.server.proto.PBRaftPersistentState result = buildPartial();
+    public raft.server.proto.PBRaftPersistentMeta build() {
+      raft.server.proto.PBRaftPersistentMeta result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
       return result;
     }
 
-    public raft.server.proto.PBRaftPersistentState buildPartial() {
-      raft.server.proto.PBRaftPersistentState result = new raft.server.proto.PBRaftPersistentState(this);
+    public raft.server.proto.PBRaftPersistentMeta buildPartial() {
+      raft.server.proto.PBRaftPersistentMeta result = new raft.server.proto.PBRaftPersistentMeta(this);
       result.term_ = term_;
       result.votedFor_ = votedFor_;
       result.commitIndex_ = commitIndex_;
@@ -392,7 +371,7 @@ private static final long serialVersionUID = 0L;
     }
     public Builder setField(
         com.google.protobuf.Descriptors.FieldDescriptor field,
-        java.lang.Object value) {
+        Object value) {
       return (Builder) super.setField(field, value);
     }
     public Builder clearField(
@@ -405,25 +384,25 @@ private static final long serialVersionUID = 0L;
     }
     public Builder setRepeatedField(
         com.google.protobuf.Descriptors.FieldDescriptor field,
-        int index, java.lang.Object value) {
+        int index, Object value) {
       return (Builder) super.setRepeatedField(field, index, value);
     }
     public Builder addRepeatedField(
         com.google.protobuf.Descriptors.FieldDescriptor field,
-        java.lang.Object value) {
+        Object value) {
       return (Builder) super.addRepeatedField(field, value);
     }
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof raft.server.proto.PBRaftPersistentState) {
-        return mergeFrom((raft.server.proto.PBRaftPersistentState)other);
+      if (other instanceof raft.server.proto.PBRaftPersistentMeta) {
+        return mergeFrom((raft.server.proto.PBRaftPersistentMeta)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(raft.server.proto.PBRaftPersistentState other) {
-      if (other == raft.server.proto.PBRaftPersistentState.getDefaultInstance()) return this;
+    public Builder mergeFrom(raft.server.proto.PBRaftPersistentMeta other) {
+      if (other == raft.server.proto.PBRaftPersistentMeta.getDefaultInstance()) return this;
       if (other.getTerm() != 0) {
         setTerm(other.getTerm());
       }
@@ -434,7 +413,6 @@ private static final long serialVersionUID = 0L;
       if (other.getCommitIndex() != 0) {
         setCommitIndex(other.getCommitIndex());
       }
-      this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
     }
@@ -447,11 +425,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      raft.server.proto.PBRaftPersistentState parsedMessage = null;
+      raft.server.proto.PBRaftPersistentMeta parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (raft.server.proto.PBRaftPersistentState) e.getUnfinishedMessage();
+        parsedMessage = (raft.server.proto.PBRaftPersistentMeta) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -463,13 +441,13 @@ private static final long serialVersionUID = 0L;
 
     private int term_ ;
     /**
-     * <code>int32 term = 1;</code>
+     * <code>optional int32 term = 1;</code>
      */
     public int getTerm() {
       return term_;
     }
     /**
-     * <code>int32 term = 1;</code>
+     * <code>optional int32 term = 1;</code>
      */
     public Builder setTerm(int value) {
       
@@ -478,7 +456,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 term = 1;</code>
+     * <code>optional int32 term = 1;</code>
      */
     public Builder clearTerm() {
       
@@ -489,7 +467,7 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object votedFor_ = "";
     /**
-     * <code>string votedFor = 2;</code>
+     * <code>optional string votedFor = 2;</code>
      */
     public java.lang.String getVotedFor() {
       java.lang.Object ref = votedFor_;
@@ -504,7 +482,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string votedFor = 2;</code>
+     * <code>optional string votedFor = 2;</code>
      */
     public com.google.protobuf.ByteString
         getVotedForBytes() {
@@ -520,7 +498,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string votedFor = 2;</code>
+     * <code>optional string votedFor = 2;</code>
      */
     public Builder setVotedFor(
         java.lang.String value) {
@@ -533,7 +511,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string votedFor = 2;</code>
+     * <code>optional string votedFor = 2;</code>
      */
     public Builder clearVotedFor() {
       
@@ -542,7 +520,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string votedFor = 2;</code>
+     * <code>optional string votedFor = 2;</code>
      */
     public Builder setVotedForBytes(
         com.google.protobuf.ByteString value) {
@@ -558,13 +536,13 @@ private static final long serialVersionUID = 0L;
 
     private int commitIndex_ ;
     /**
-     * <code>int32 commitIndex = 3;</code>
+     * <code>optional int32 commitIndex = 3;</code>
      */
     public int getCommitIndex() {
       return commitIndex_;
     }
     /**
-     * <code>int32 commitIndex = 3;</code>
+     * <code>optional int32 commitIndex = 3;</code>
      */
     public Builder setCommitIndex(int value) {
       
@@ -573,7 +551,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 commitIndex = 3;</code>
+     * <code>optional int32 commitIndex = 3;</code>
      */
     public Builder clearCommitIndex() {
       
@@ -583,48 +561,48 @@ private static final long serialVersionUID = 0L;
     }
     public final Builder setUnknownFields(
         final com.google.protobuf.UnknownFieldSet unknownFields) {
-      return super.setUnknownFieldsProto3(unknownFields);
+      return this;
     }
 
     public final Builder mergeUnknownFields(
         final com.google.protobuf.UnknownFieldSet unknownFields) {
-      return super.mergeUnknownFields(unknownFields);
+      return this;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:raft.server.proto.PBRaftPersistentState)
+    // @@protoc_insertion_point(builder_scope:raft.server.proto.PBRaftPersistentMeta)
   }
 
-  // @@protoc_insertion_point(class_scope:raft.server.proto.PBRaftPersistentState)
-  private static final raft.server.proto.PBRaftPersistentState DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:raft.server.proto.PBRaftPersistentMeta)
+  private static final raft.server.proto.PBRaftPersistentMeta DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new raft.server.proto.PBRaftPersistentState();
+    DEFAULT_INSTANCE = new raft.server.proto.PBRaftPersistentMeta();
   }
 
-  public static raft.server.proto.PBRaftPersistentState getDefaultInstance() {
+  public static raft.server.proto.PBRaftPersistentMeta getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<PBRaftPersistentState>
-      PARSER = new com.google.protobuf.AbstractParser<PBRaftPersistentState>() {
-    public PBRaftPersistentState parsePartialFrom(
+  private static final com.google.protobuf.Parser<PBRaftPersistentMeta>
+      PARSER = new com.google.protobuf.AbstractParser<PBRaftPersistentMeta>() {
+    public PBRaftPersistentMeta parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new PBRaftPersistentState(input, extensionRegistry);
+        return new PBRaftPersistentMeta(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<PBRaftPersistentState> parser() {
+  public static com.google.protobuf.Parser<PBRaftPersistentMeta> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<PBRaftPersistentState> getParserForType() {
+  public com.google.protobuf.Parser<PBRaftPersistentMeta> getParserForType() {
     return PARSER;
   }
 
-  public raft.server.proto.PBRaftPersistentState getDefaultInstanceForType() {
+  public raft.server.proto.PBRaftPersistentMeta getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

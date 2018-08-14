@@ -10,7 +10,6 @@ public  final class RaftCommand extends
     com.google.protobuf.GeneratedMessageV3 implements
     // @@protoc_insertion_point(message_implements:raft.server.proto.RaftCommand)
     RaftCommandOrBuilder {
-private static final long serialVersionUID = 0L;
   // Use RaftCommand.newBuilder() to construct.
   private RaftCommand(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
@@ -37,19 +36,14 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public final com.google.protobuf.UnknownFieldSet
   getUnknownFields() {
-    return this.unknownFields;
+    return com.google.protobuf.UnknownFieldSet.getDefaultInstance();
   }
   private RaftCommand(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     this();
-    if (extensionRegistry == null) {
-      throw new java.lang.NullPointerException();
-    }
     int mutable_bitField0_ = 0;
-    com.google.protobuf.UnknownFieldSet.Builder unknownFields =
-        com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
       boolean done = false;
       while (!done) {
@@ -59,8 +53,7 @@ private static final long serialVersionUID = 0L;
             done = true;
             break;
           default: {
-            if (!parseUnknownFieldProto3(
-                input, unknownFields, extensionRegistry, tag)) {
+            if (!input.skipField(tag)) {
               done = true;
             }
             break;
@@ -178,7 +171,6 @@ private static final long serialVersionUID = 0L;
       if (((mutable_bitField0_ & 0x00000200) == 0x00000200)) {
         entries_ = java.util.Collections.unmodifiableList(entries_);
       }
-      this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
   }
@@ -404,13 +396,13 @@ private static final long serialVersionUID = 0L;
   public static final int TYPE_FIELD_NUMBER = 1;
   private int type_;
   /**
-   * <code>.raft.server.proto.RaftCommand.CmdType type = 1;</code>
+   * <code>optional .raft.server.proto.RaftCommand.CmdType type = 1;</code>
    */
   public int getTypeValue() {
     return type_;
   }
   /**
-   * <code>.raft.server.proto.RaftCommand.CmdType type = 1;</code>
+   * <code>optional .raft.server.proto.RaftCommand.CmdType type = 1;</code>
    */
   public raft.server.proto.RaftCommand.CmdType getType() {
     raft.server.proto.RaftCommand.CmdType result = raft.server.proto.RaftCommand.CmdType.valueOf(type_);
@@ -420,7 +412,7 @@ private static final long serialVersionUID = 0L;
   public static final int FROM_FIELD_NUMBER = 2;
   private volatile java.lang.Object from_;
   /**
-   * <code>string from = 2;</code>
+   * <code>optional string from = 2;</code>
    */
   public java.lang.String getFrom() {
     java.lang.Object ref = from_;
@@ -435,7 +427,7 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
-   * <code>string from = 2;</code>
+   * <code>optional string from = 2;</code>
    */
   public com.google.protobuf.ByteString
       getFromBytes() {
@@ -454,7 +446,7 @@ private static final long serialVersionUID = 0L;
   public static final int TO_FIELD_NUMBER = 3;
   private volatile java.lang.Object to_;
   /**
-   * <code>string to = 3;</code>
+   * <code>optional string to = 3;</code>
    */
   public java.lang.String getTo() {
     java.lang.Object ref = to_;
@@ -469,7 +461,7 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
-   * <code>string to = 3;</code>
+   * <code>optional string to = 3;</code>
    */
   public com.google.protobuf.ByteString
       getToBytes() {
@@ -488,7 +480,7 @@ private static final long serialVersionUID = 0L;
   public static final int TERM_FIELD_NUMBER = 4;
   private int term_;
   /**
-   * <code>int32 term = 4;</code>
+   * <code>optional int32 term = 4;</code>
    */
   public int getTerm() {
     return term_;
@@ -497,7 +489,7 @@ private static final long serialVersionUID = 0L;
   public static final int PREV_LOG_INDEX_FIELD_NUMBER = 5;
   private int prevLogIndex_;
   /**
-   * <code>int32 prev_log_index = 5;</code>
+   * <code>optional int32 prev_log_index = 5;</code>
    */
   public int getPrevLogIndex() {
     return prevLogIndex_;
@@ -506,7 +498,7 @@ private static final long serialVersionUID = 0L;
   public static final int PREV_LOG_TERM_FIELD_NUMBER = 6;
   private int prevLogTerm_;
   /**
-   * <code>int32 prev_log_term = 6;</code>
+   * <code>optional int32 prev_log_term = 6;</code>
    */
   public int getPrevLogTerm() {
     return prevLogTerm_;
@@ -515,7 +507,7 @@ private static final long serialVersionUID = 0L;
   public static final int MATCH_INDEX_FIELD_NUMBER = 7;
   private int matchIndex_;
   /**
-   * <code>int32 match_index = 7;</code>
+   * <code>optional int32 match_index = 7;</code>
    */
   public int getMatchIndex() {
     return matchIndex_;
@@ -524,7 +516,7 @@ private static final long serialVersionUID = 0L;
   public static final int LEADER_COMMIT_FIELD_NUMBER = 8;
   private int leaderCommit_;
   /**
-   * <code>int32 leader_commit = 8;</code>
+   * <code>optional int32 leader_commit = 8;</code>
    */
   public int getLeaderCommit() {
     return leaderCommit_;
@@ -533,7 +525,7 @@ private static final long serialVersionUID = 0L;
   public static final int SUCCESS_FIELD_NUMBER = 9;
   private boolean success_;
   /**
-   * <code>bool success = 9;</code>
+   * <code>optional bool success = 9;</code>
    */
   public boolean getSuccess() {
     return success_;
@@ -577,7 +569,7 @@ private static final long serialVersionUID = 0L;
   public static final int LEADER_ID_FIELD_NUMBER = 11;
   private volatile java.lang.Object leaderId_;
   /**
-   * <code>string leader_id = 11;</code>
+   * <code>optional string leader_id = 11;</code>
    */
   public java.lang.String getLeaderId() {
     java.lang.Object ref = leaderId_;
@@ -592,7 +584,7 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
-   * <code>string leader_id = 11;</code>
+   * <code>optional string leader_id = 11;</code>
    */
   public com.google.protobuf.ByteString
       getLeaderIdBytes() {
@@ -611,7 +603,7 @@ private static final long serialVersionUID = 0L;
   public static final int LAST_LOG_INDEX_FIELD_NUMBER = 12;
   private int lastLogIndex_;
   /**
-   * <code>int32 last_log_index = 12;</code>
+   * <code>optional int32 last_log_index = 12;</code>
    */
   public int getLastLogIndex() {
     return lastLogIndex_;
@@ -620,7 +612,7 @@ private static final long serialVersionUID = 0L;
   public static final int LAST_LOG_TERM_FIELD_NUMBER = 13;
   private int lastLogTerm_;
   /**
-   * <code>int32 last_log_term = 13;</code>
+   * <code>optional int32 last_log_term = 13;</code>
    */
   public int getLastLogTerm() {
     return lastLogTerm_;
@@ -629,7 +621,7 @@ private static final long serialVersionUID = 0L;
   public static final int VOTE_GRANTED_FIELD_NUMBER = 14;
   private boolean voteGranted_;
   /**
-   * <code>bool vote_granted = 14;</code>
+   * <code>optional bool vote_granted = 14;</code>
    */
   public boolean getVoteGranted() {
     return voteGranted_;
@@ -638,7 +630,7 @@ private static final long serialVersionUID = 0L;
   public static final int LEADER_HINT_FIELD_NUMBER = 15;
   private volatile java.lang.Object leaderHint_;
   /**
-   * <code>string leader_hint = 15;</code>
+   * <code>optional string leader_hint = 15;</code>
    */
   public java.lang.String getLeaderHint() {
     java.lang.Object ref = leaderHint_;
@@ -653,7 +645,7 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
-   * <code>string leader_hint = 15;</code>
+   * <code>optional string leader_hint = 15;</code>
    */
   public com.google.protobuf.ByteString
       getLeaderHintBytes() {
@@ -672,7 +664,7 @@ private static final long serialVersionUID = 0L;
   public static final int FORCE_ELECTION_FIELD_NUMBER = 16;
   private boolean forceElection_;
   /**
-   * <code>bool force_election = 16;</code>
+   * <code>optional bool force_election = 16;</code>
    */
   public boolean getForceElection() {
     return forceElection_;
@@ -681,19 +673,19 @@ private static final long serialVersionUID = 0L;
   public static final int SNAPSHOT_FIELD_NUMBER = 17;
   private raft.server.proto.Snapshot snapshot_;
   /**
-   * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
    */
   public boolean hasSnapshot() {
     return snapshot_ != null;
   }
   /**
-   * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
    */
   public raft.server.proto.Snapshot getSnapshot() {
     return snapshot_ == null ? raft.server.proto.Snapshot.getDefaultInstance() : snapshot_;
   }
   /**
-   * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
    */
   public raft.server.proto.SnapshotOrBuilder getSnapshotOrBuilder() {
     return getSnapshot();
@@ -762,7 +754,6 @@ private static final long serialVersionUID = 0L;
     if (snapshot_ != null) {
       output.writeMessage(17, getSnapshot());
     }
-    unknownFields.writeTo(output);
   }
 
   public int getSerializedSize() {
@@ -834,11 +825,11 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(17, getSnapshot());
     }
-    size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
   }
 
+  private static final long serialVersionUID = 0L;
   @java.lang.Override
   public boolean equals(final java.lang.Object obj) {
     if (obj == this) {
@@ -886,7 +877,6 @@ private static final long serialVersionUID = 0L;
       result = result && getSnapshot()
           .equals(other.getSnapshot());
     }
-    result = result && unknownFields.equals(other.unknownFields);
     return result;
   }
 
@@ -896,7 +886,7 @@ private static final long serialVersionUID = 0L;
       return memoizedHashCode;
     }
     int hash = 41;
-    hash = (19 * hash) + getDescriptor().hashCode();
+    hash = (19 * hash) + getDescriptorForType().hashCode();
     hash = (37 * hash) + TYPE_FIELD_NUMBER;
     hash = (53 * hash) + type_;
     hash = (37 * hash) + FROM_FIELD_NUMBER;
@@ -943,17 +933,6 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static raft.server.proto.RaftCommand parseFrom(
-      java.nio.ByteBuffer data)
-      throws com.google.protobuf.InvalidProtocolBufferException {
-    return PARSER.parseFrom(data);
-  }
-  public static raft.server.proto.RaftCommand parseFrom(
-      java.nio.ByteBuffer data,
-      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-      throws com.google.protobuf.InvalidProtocolBufferException {
-    return PARSER.parseFrom(data, extensionRegistry);
-  }
   public static raft.server.proto.RaftCommand parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -1173,7 +1152,7 @@ private static final long serialVersionUID = 0L;
     }
     public Builder setField(
         com.google.protobuf.Descriptors.FieldDescriptor field,
-        java.lang.Object value) {
+        Object value) {
       return (Builder) super.setField(field, value);
     }
     public Builder clearField(
@@ -1186,12 +1165,12 @@ private static final long serialVersionUID = 0L;
     }
     public Builder setRepeatedField(
         com.google.protobuf.Descriptors.FieldDescriptor field,
-        int index, java.lang.Object value) {
+        int index, Object value) {
       return (Builder) super.setRepeatedField(field, index, value);
     }
     public Builder addRepeatedField(
         com.google.protobuf.Descriptors.FieldDescriptor field,
-        java.lang.Object value) {
+        Object value) {
       return (Builder) super.addRepeatedField(field, value);
     }
     public Builder mergeFrom(com.google.protobuf.Message other) {
@@ -1283,7 +1262,6 @@ private static final long serialVersionUID = 0L;
       if (other.hasSnapshot()) {
         mergeSnapshot(other.getSnapshot());
       }
-      this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
     }
@@ -1313,13 +1291,13 @@ private static final long serialVersionUID = 0L;
 
     private int type_ = 0;
     /**
-     * <code>.raft.server.proto.RaftCommand.CmdType type = 1;</code>
+     * <code>optional .raft.server.proto.RaftCommand.CmdType type = 1;</code>
      */
     public int getTypeValue() {
       return type_;
     }
     /**
-     * <code>.raft.server.proto.RaftCommand.CmdType type = 1;</code>
+     * <code>optional .raft.server.proto.RaftCommand.CmdType type = 1;</code>
      */
     public Builder setTypeValue(int value) {
       type_ = value;
@@ -1327,14 +1305,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.raft.server.proto.RaftCommand.CmdType type = 1;</code>
+     * <code>optional .raft.server.proto.RaftCommand.CmdType type = 1;</code>
      */
     public raft.server.proto.RaftCommand.CmdType getType() {
       raft.server.proto.RaftCommand.CmdType result = raft.server.proto.RaftCommand.CmdType.valueOf(type_);
       return result == null ? raft.server.proto.RaftCommand.CmdType.UNRECOGNIZED : result;
     }
     /**
-     * <code>.raft.server.proto.RaftCommand.CmdType type = 1;</code>
+     * <code>optional .raft.server.proto.RaftCommand.CmdType type = 1;</code>
      */
     public Builder setType(raft.server.proto.RaftCommand.CmdType value) {
       if (value == null) {
@@ -1346,7 +1324,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.raft.server.proto.RaftCommand.CmdType type = 1;</code>
+     * <code>optional .raft.server.proto.RaftCommand.CmdType type = 1;</code>
      */
     public Builder clearType() {
       
@@ -1357,7 +1335,7 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object from_ = "";
     /**
-     * <code>string from = 2;</code>
+     * <code>optional string from = 2;</code>
      */
     public java.lang.String getFrom() {
       java.lang.Object ref = from_;
@@ -1372,7 +1350,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string from = 2;</code>
+     * <code>optional string from = 2;</code>
      */
     public com.google.protobuf.ByteString
         getFromBytes() {
@@ -1388,7 +1366,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string from = 2;</code>
+     * <code>optional string from = 2;</code>
      */
     public Builder setFrom(
         java.lang.String value) {
@@ -1401,7 +1379,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string from = 2;</code>
+     * <code>optional string from = 2;</code>
      */
     public Builder clearFrom() {
       
@@ -1410,7 +1388,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string from = 2;</code>
+     * <code>optional string from = 2;</code>
      */
     public Builder setFromBytes(
         com.google.protobuf.ByteString value) {
@@ -1426,7 +1404,7 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object to_ = "";
     /**
-     * <code>string to = 3;</code>
+     * <code>optional string to = 3;</code>
      */
     public java.lang.String getTo() {
       java.lang.Object ref = to_;
@@ -1441,7 +1419,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string to = 3;</code>
+     * <code>optional string to = 3;</code>
      */
     public com.google.protobuf.ByteString
         getToBytes() {
@@ -1457,7 +1435,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string to = 3;</code>
+     * <code>optional string to = 3;</code>
      */
     public Builder setTo(
         java.lang.String value) {
@@ -1470,7 +1448,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string to = 3;</code>
+     * <code>optional string to = 3;</code>
      */
     public Builder clearTo() {
       
@@ -1479,7 +1457,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string to = 3;</code>
+     * <code>optional string to = 3;</code>
      */
     public Builder setToBytes(
         com.google.protobuf.ByteString value) {
@@ -1495,13 +1473,13 @@ private static final long serialVersionUID = 0L;
 
     private int term_ ;
     /**
-     * <code>int32 term = 4;</code>
+     * <code>optional int32 term = 4;</code>
      */
     public int getTerm() {
       return term_;
     }
     /**
-     * <code>int32 term = 4;</code>
+     * <code>optional int32 term = 4;</code>
      */
     public Builder setTerm(int value) {
       
@@ -1510,7 +1488,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 term = 4;</code>
+     * <code>optional int32 term = 4;</code>
      */
     public Builder clearTerm() {
       
@@ -1521,13 +1499,13 @@ private static final long serialVersionUID = 0L;
 
     private int prevLogIndex_ ;
     /**
-     * <code>int32 prev_log_index = 5;</code>
+     * <code>optional int32 prev_log_index = 5;</code>
      */
     public int getPrevLogIndex() {
       return prevLogIndex_;
     }
     /**
-     * <code>int32 prev_log_index = 5;</code>
+     * <code>optional int32 prev_log_index = 5;</code>
      */
     public Builder setPrevLogIndex(int value) {
       
@@ -1536,7 +1514,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 prev_log_index = 5;</code>
+     * <code>optional int32 prev_log_index = 5;</code>
      */
     public Builder clearPrevLogIndex() {
       
@@ -1547,13 +1525,13 @@ private static final long serialVersionUID = 0L;
 
     private int prevLogTerm_ ;
     /**
-     * <code>int32 prev_log_term = 6;</code>
+     * <code>optional int32 prev_log_term = 6;</code>
      */
     public int getPrevLogTerm() {
       return prevLogTerm_;
     }
     /**
-     * <code>int32 prev_log_term = 6;</code>
+     * <code>optional int32 prev_log_term = 6;</code>
      */
     public Builder setPrevLogTerm(int value) {
       
@@ -1562,7 +1540,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 prev_log_term = 6;</code>
+     * <code>optional int32 prev_log_term = 6;</code>
      */
     public Builder clearPrevLogTerm() {
       
@@ -1573,13 +1551,13 @@ private static final long serialVersionUID = 0L;
 
     private int matchIndex_ ;
     /**
-     * <code>int32 match_index = 7;</code>
+     * <code>optional int32 match_index = 7;</code>
      */
     public int getMatchIndex() {
       return matchIndex_;
     }
     /**
-     * <code>int32 match_index = 7;</code>
+     * <code>optional int32 match_index = 7;</code>
      */
     public Builder setMatchIndex(int value) {
       
@@ -1588,7 +1566,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 match_index = 7;</code>
+     * <code>optional int32 match_index = 7;</code>
      */
     public Builder clearMatchIndex() {
       
@@ -1599,13 +1577,13 @@ private static final long serialVersionUID = 0L;
 
     private int leaderCommit_ ;
     /**
-     * <code>int32 leader_commit = 8;</code>
+     * <code>optional int32 leader_commit = 8;</code>
      */
     public int getLeaderCommit() {
       return leaderCommit_;
     }
     /**
-     * <code>int32 leader_commit = 8;</code>
+     * <code>optional int32 leader_commit = 8;</code>
      */
     public Builder setLeaderCommit(int value) {
       
@@ -1614,7 +1592,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 leader_commit = 8;</code>
+     * <code>optional int32 leader_commit = 8;</code>
      */
     public Builder clearLeaderCommit() {
       
@@ -1625,13 +1603,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean success_ ;
     /**
-     * <code>bool success = 9;</code>
+     * <code>optional bool success = 9;</code>
      */
     public boolean getSuccess() {
       return success_;
     }
     /**
-     * <code>bool success = 9;</code>
+     * <code>optional bool success = 9;</code>
      */
     public Builder setSuccess(boolean value) {
       
@@ -1640,7 +1618,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>bool success = 9;</code>
+     * <code>optional bool success = 9;</code>
      */
     public Builder clearSuccess() {
       
@@ -1891,7 +1869,7 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object leaderId_ = "";
     /**
-     * <code>string leader_id = 11;</code>
+     * <code>optional string leader_id = 11;</code>
      */
     public java.lang.String getLeaderId() {
       java.lang.Object ref = leaderId_;
@@ -1906,7 +1884,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string leader_id = 11;</code>
+     * <code>optional string leader_id = 11;</code>
      */
     public com.google.protobuf.ByteString
         getLeaderIdBytes() {
@@ -1922,7 +1900,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string leader_id = 11;</code>
+     * <code>optional string leader_id = 11;</code>
      */
     public Builder setLeaderId(
         java.lang.String value) {
@@ -1935,7 +1913,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string leader_id = 11;</code>
+     * <code>optional string leader_id = 11;</code>
      */
     public Builder clearLeaderId() {
       
@@ -1944,7 +1922,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string leader_id = 11;</code>
+     * <code>optional string leader_id = 11;</code>
      */
     public Builder setLeaderIdBytes(
         com.google.protobuf.ByteString value) {
@@ -1960,13 +1938,13 @@ private static final long serialVersionUID = 0L;
 
     private int lastLogIndex_ ;
     /**
-     * <code>int32 last_log_index = 12;</code>
+     * <code>optional int32 last_log_index = 12;</code>
      */
     public int getLastLogIndex() {
       return lastLogIndex_;
     }
     /**
-     * <code>int32 last_log_index = 12;</code>
+     * <code>optional int32 last_log_index = 12;</code>
      */
     public Builder setLastLogIndex(int value) {
       
@@ -1975,7 +1953,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 last_log_index = 12;</code>
+     * <code>optional int32 last_log_index = 12;</code>
      */
     public Builder clearLastLogIndex() {
       
@@ -1986,13 +1964,13 @@ private static final long serialVersionUID = 0L;
 
     private int lastLogTerm_ ;
     /**
-     * <code>int32 last_log_term = 13;</code>
+     * <code>optional int32 last_log_term = 13;</code>
      */
     public int getLastLogTerm() {
       return lastLogTerm_;
     }
     /**
-     * <code>int32 last_log_term = 13;</code>
+     * <code>optional int32 last_log_term = 13;</code>
      */
     public Builder setLastLogTerm(int value) {
       
@@ -2001,7 +1979,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 last_log_term = 13;</code>
+     * <code>optional int32 last_log_term = 13;</code>
      */
     public Builder clearLastLogTerm() {
       
@@ -2012,13 +1990,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean voteGranted_ ;
     /**
-     * <code>bool vote_granted = 14;</code>
+     * <code>optional bool vote_granted = 14;</code>
      */
     public boolean getVoteGranted() {
       return voteGranted_;
     }
     /**
-     * <code>bool vote_granted = 14;</code>
+     * <code>optional bool vote_granted = 14;</code>
      */
     public Builder setVoteGranted(boolean value) {
       
@@ -2027,7 +2005,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>bool vote_granted = 14;</code>
+     * <code>optional bool vote_granted = 14;</code>
      */
     public Builder clearVoteGranted() {
       
@@ -2038,7 +2016,7 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object leaderHint_ = "";
     /**
-     * <code>string leader_hint = 15;</code>
+     * <code>optional string leader_hint = 15;</code>
      */
     public java.lang.String getLeaderHint() {
       java.lang.Object ref = leaderHint_;
@@ -2053,7 +2031,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string leader_hint = 15;</code>
+     * <code>optional string leader_hint = 15;</code>
      */
     public com.google.protobuf.ByteString
         getLeaderHintBytes() {
@@ -2069,7 +2047,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>string leader_hint = 15;</code>
+     * <code>optional string leader_hint = 15;</code>
      */
     public Builder setLeaderHint(
         java.lang.String value) {
@@ -2082,7 +2060,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string leader_hint = 15;</code>
+     * <code>optional string leader_hint = 15;</code>
      */
     public Builder clearLeaderHint() {
       
@@ -2091,7 +2069,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>string leader_hint = 15;</code>
+     * <code>optional string leader_hint = 15;</code>
      */
     public Builder setLeaderHintBytes(
         com.google.protobuf.ByteString value) {
@@ -2107,13 +2085,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean forceElection_ ;
     /**
-     * <code>bool force_election = 16;</code>
+     * <code>optional bool force_election = 16;</code>
      */
     public boolean getForceElection() {
       return forceElection_;
     }
     /**
-     * <code>bool force_election = 16;</code>
+     * <code>optional bool force_election = 16;</code>
      */
     public Builder setForceElection(boolean value) {
       
@@ -2122,7 +2100,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>bool force_election = 16;</code>
+     * <code>optional bool force_election = 16;</code>
      */
     public Builder clearForceElection() {
       
@@ -2135,13 +2113,13 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         raft.server.proto.Snapshot, raft.server.proto.Snapshot.Builder, raft.server.proto.SnapshotOrBuilder> snapshotBuilder_;
     /**
-     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
      */
     public boolean hasSnapshot() {
       return snapshotBuilder_ != null || snapshot_ != null;
     }
     /**
-     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
      */
     public raft.server.proto.Snapshot getSnapshot() {
       if (snapshotBuilder_ == null) {
@@ -2151,7 +2129,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
      */
     public Builder setSnapshot(raft.server.proto.Snapshot value) {
       if (snapshotBuilder_ == null) {
@@ -2167,7 +2145,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
      */
     public Builder setSnapshot(
         raft.server.proto.Snapshot.Builder builderForValue) {
@@ -2181,7 +2159,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
      */
     public Builder mergeSnapshot(raft.server.proto.Snapshot value) {
       if (snapshotBuilder_ == null) {
@@ -2199,7 +2177,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
      */
     public Builder clearSnapshot() {
       if (snapshotBuilder_ == null) {
@@ -2213,7 +2191,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
      */
     public raft.server.proto.Snapshot.Builder getSnapshotBuilder() {
       
@@ -2221,7 +2199,7 @@ private static final long serialVersionUID = 0L;
       return getSnapshotFieldBuilder().getBuilder();
     }
     /**
-     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
      */
     public raft.server.proto.SnapshotOrBuilder getSnapshotOrBuilder() {
       if (snapshotBuilder_ != null) {
@@ -2232,7 +2210,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         raft.server.proto.Snapshot, raft.server.proto.Snapshot.Builder, raft.server.proto.SnapshotOrBuilder> 
@@ -2249,12 +2227,12 @@ private static final long serialVersionUID = 0L;
     }
     public final Builder setUnknownFields(
         final com.google.protobuf.UnknownFieldSet unknownFields) {
-      return super.setUnknownFieldsProto3(unknownFields);
+      return this;
     }
 
     public final Builder mergeUnknownFields(
         final com.google.protobuf.UnknownFieldSet unknownFields) {
-      return super.mergeUnknownFields(unknownFields);
+      return this;
     }
 
 
@@ -2277,7 +2255,7 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new RaftCommand(input, extensionRegistry);
+        return new RaftCommand(input, extensionRegistry);
     }
   };
 

@@ -1,7 +1,7 @@
 package raft.server;
 
 import com.google.common.base.Strings;
-import raft.server.proto.PBRaftPersistentState;
+import raft.server.proto.PBRaftPersistentMeta;
 
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
@@ -96,7 +96,7 @@ public class RaftPersistentMeta {
                         throw new IllegalStateException(msg);
                     }
 
-                    PBRaftPersistentState state = PBRaftPersistentState.parseFrom(meta);
+                    PBRaftPersistentMeta state = PBRaftPersistentMeta.parseFrom(meta);
                     term = state.getTerm();
                     votedFor = state.getVotedFor();
                     commitIndex = state.getCommitIndex();
@@ -171,14 +171,14 @@ public class RaftPersistentMeta {
     }
 
     private void persistent() {
-        PBRaftPersistentState.Builder builder = PBRaftPersistentState.newBuilder()
+        PBRaftPersistentMeta.Builder builder = PBRaftPersistentMeta.newBuilder()
                 .setTerm(term)
                 .setCommitIndex(commitIndex);
         if (votedFor != null) {
             builder.setVotedFor(votedFor);
         }
 
-        PBRaftPersistentState state = builder.build();
+        PBRaftPersistentMeta state = builder.build();
 
         byte[] meta = state.toByteArray();
 
