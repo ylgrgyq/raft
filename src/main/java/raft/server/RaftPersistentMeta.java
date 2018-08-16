@@ -170,6 +170,10 @@ public class RaftPersistentMeta {
         persistent();
     }
 
+    public Path getStateFilePath() {
+        return stateFilePath;
+    }
+
     private void persistent() {
         PBRaftPersistentMeta.Builder builder = PBRaftPersistentMeta.newBuilder()
                 .setTerm(term)

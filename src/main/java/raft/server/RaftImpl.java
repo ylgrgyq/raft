@@ -70,7 +70,7 @@ public class RaftImpl implements Runnable, Raft {
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
         this.selfId = c.selfId;
-        this.meta = new RaftPersistentMeta(c.persistentStateFileDirPath, c.selfId, c.syncWriteStateFile);
+        this.meta = new RaftPersistentMeta(c.persistentMetaFileDirPath, c.selfId, c.syncWriteStateFile);
         this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
         this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
 

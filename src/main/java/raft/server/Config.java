@@ -21,7 +21,7 @@ public class Config {
 
     final List<String> peers;
     final String selfId;
-    final String persistentStateFileDirPath;
+    final String persistentMetaFileDirPath;
     final StateMachine stateMachine;
     final RaftCommandBroker broker;
     final PersistentStorage storage;
@@ -33,7 +33,7 @@ public class Config {
         this.maxEntriesPerAppend = builder.maxEntriesPerAppend;
         this.peers = builder.peers;
         this.selfId = builder.selfId;
-        this.persistentStateFileDirPath = builder.persistentStateFileDirPath;
+        this.persistentMetaFileDirPath = builder.persistentMetaFileDirPath;
         this.stateMachine = builder.stateMachine;
         this.broker = builder.broker;
         this.storage = builder.storage;
@@ -56,7 +56,7 @@ public class Config {
 
         private StateMachine stateMachine;
         private RaftCommandBroker broker;
-        private String persistentStateFileDirPath;
+        private String persistentMetaFileDirPath;
         private String selfId;
         private PersistentStorage storage;
 
@@ -91,8 +91,8 @@ public class Config {
             return this;
         }
 
-        public ConfigBuilder withPersistentStateFileDirPath(String path) {
-            this.persistentStateFileDirPath = path;
+        public ConfigBuilder withPersistentMetaFileDirPath(String path) {
+            this.persistentMetaFileDirPath = path;
             return this;
         }
 
@@ -123,7 +123,7 @@ public class Config {
 
         public Config build() {
             Preconditions.checkArgument(! Strings.isNullOrEmpty(selfId), "Must provide non-empty self Id");
-            Preconditions.checkArgument(! Strings.isNullOrEmpty(persistentStateFileDirPath),
+            Preconditions.checkArgument(! Strings.isNullOrEmpty(persistentMetaFileDirPath),
                     "Must provide a non-empty directory path to save raft persistent state");
             Preconditions.checkNotNull(stateMachine, "Must provide a state machine implementation");
             Preconditions.checkNotNull(broker, "Must provide a broker to transfer raft command between raft nodes");
