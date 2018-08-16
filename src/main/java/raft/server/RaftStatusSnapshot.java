@@ -6,7 +6,7 @@ import java.util.List;
  * Author: ylgrgyq
  * Date: 18/4/1
  */
-public class RaftStatus {
+public class RaftStatusSnapshot {
     private String id;
     private int term;
     private String votedFor;

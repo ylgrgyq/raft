@@ -20,7 +20,7 @@ public interface Raft {
 
 	void receiveCommand(RaftCommand cmd);
 
-	RaftStatus getStatus();
+	RaftStatusSnapshot getStatus();
 
 	String getId();
 

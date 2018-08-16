@@ -3,8 +3,8 @@
 
 package raft.server.proto;
 
-public interface SnapshotOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:raft.server.proto.Snapshot)
+public interface LogSnapshotOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:raft.server.proto.LogSnapshot)
     com.google.protobuf.MessageOrBuilder {
 
   /**

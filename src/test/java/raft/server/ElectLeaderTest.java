@@ -37,7 +37,7 @@ public class ElectLeaderTest {
         cluster.startCluster(peers);
         Raft leader = cluster.waitGetLeader();
 
-        RaftStatus status = leader.getStatus();
+        RaftStatusSnapshot status = leader.getStatus();
         assertEquals(selfId, status.getId());
         assertEquals(State.LEADER, status.getState());
         assertEquals(0, status.getCommitIndex());
@@ -57,7 +57,7 @@ public class ElectLeaderTest {
 //        TestingRaftCluster.startCluster();
 //        Raft leader = TestingRaftCluster.waitGetLeader();
 //
-//        RaftStatus leaderStatus = leader.getStatus();
+//        RaftStatusSnapshot leaderStatus = leader.getStatus();
 //        assertEquals(State.LEADER, leaderStatus.getState());
 //
 //        // index of dummy log is 0, term is 0. but new leader can not commit logs from previous term by counting replicas
@@ -71,7 +71,7 @@ public class ElectLeaderTest {
 //        stateMachine.waitBecomeFollower().get();
 //
 //        Raft follower = TestingRaftCluster.getNodeById(followerId);
-//        RaftStatus status = follower.getStatus();
+//        RaftStatusSnapshot status = follower.getStatus();
 //        assertEquals(State.FOLLOWER, status.getState());
 //        assertEquals(-1, status.getCommitIndex());
 //        assertEquals(-1, status.getAppliedIndex());
@@ -97,7 +97,7 @@ public class ElectLeaderTest {
 //        HashSet<String> followerIds = new HashSet<>(peerIdSet);
 //        followerIds.remove(leaderId);
 //
-//        RaftStatus leaderStatus = leader.getStatus();
+//        RaftStatusSnapshot leaderStatus = leader.getStatus();
 //        assertEquals(leaderId, leaderStatus.getId());
 //        assertEquals(State.LEADER, leaderStatus.getState());
 //        // index of dummy log is 0, term is 0. but new leader can not commit logs from previous term by counting replicas
@@ -113,7 +113,7 @@ public class ElectLeaderTest {
 //            stateMachine.waitBecomeFollower().get();
 //
 //            Raft follower = TestingRaftCluster.getNodeById(id);
-//            RaftStatus status = follower.getStatus();
+//            RaftStatusSnapshot status = follower.getStatus();
 //            assertEquals(State.FOLLOWER, status.getState());
 //            assertEquals(-1, status.getCommitIndex());
 //            assertEquals(-1, status.getAppliedIndex());
@@ -147,7 +147,7 @@ public class ElectLeaderTest {
 //
 //        leader = TestingRaftCluster.waitGetLeader(5000);
 //        leaderId = leader.getId();
-//        RaftStatus leaderStatus = leader.getStatus();
+//        RaftStatusSnapshot leaderStatus = leader.getStatus();
 //        assertEquals(leaderId, leaderStatus.getId());
 //        assertEquals(State.LEADER, leaderStatus.getState());
 //        assertEquals(-1, leaderStatus.getCommitIndex());
@@ -163,7 +163,7 @@ public class ElectLeaderTest {
 //            stateMachine.waitBecomeFollower().get();
 //
 //            Raft follower = TestingRaftCluster.getNodeById(id);
-//            RaftStatus status = follower.getStatus();
+//            RaftStatusSnapshot status = follower.getStatus();
 //            assertEquals(State.FOLLOWER, status.getState());
 //            assertEquals(-1, status.getCommitIndex());
 //            assertEquals(-1, status.getAppliedIndex());

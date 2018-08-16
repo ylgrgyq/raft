@@ -2,7 +2,7 @@ package raft.server;
 
 import org.slf4j.Logger;
 import raft.server.proto.LogEntry;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -44,12 +44,12 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public void installSnapshot(Snapshot snap) {
+    public void installSnapshot(LogSnapshot snap) {
 
     }
 
     @Override
-    public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
+    public Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
         return null;
     }
 

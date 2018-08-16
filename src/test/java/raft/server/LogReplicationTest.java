@@ -43,7 +43,7 @@ public class LogReplicationTest {
 //        assertEquals(ErrorMsg.NONE, p.getError());
 //
 //        // check raft status after logs proposed
-//        RaftStatus status = leader.getStatus();
+//        RaftStatusSnapshot status = leader.getStatus();
 //        assertEquals(selfId, status.getId());
 //        assertEquals(State.LEADER, status.getState());
 //        assertEquals(logCount, status.getCommitIndex());
@@ -68,7 +68,7 @@ public class LogReplicationTest {
 //        List<LogEntry> applied = stateMachine.waitApplied(logCount);
 //
 //        // check node status after logs proposed
-//        RaftStatus status = node.getStatus();
+//        RaftStatusSnapshot status = node.getStatus();
 //        assertEquals(logCount, status.getCommitIndex());
 //
 //        for (LogEntry e : applied) {

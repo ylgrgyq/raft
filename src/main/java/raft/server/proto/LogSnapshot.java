@@ -4,17 +4,17 @@
 package raft.server.proto;
 
 /**
- * Protobuf type {@code raft.server.proto.Snapshot}
+ * Protobuf type {@code raft.server.proto.LogSnapshot}
  */
-public  final class Snapshot extends
+public  final class LogSnapshot extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:raft.server.proto.Snapshot)
-    SnapshotOrBuilder {
-  // Use Snapshot.newBuilder() to construct.
-  private Snapshot(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+    // @@protoc_insertion_point(message_implements:raft.server.proto.LogSnapshot)
+    LogSnapshotOrBuilder {
+  // Use LogSnapshot.newBuilder() to construct.
+  private LogSnapshot(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private Snapshot() {
+  private LogSnapshot() {
     data_ = com.google.protobuf.ByteString.EMPTY;
     index_ = 0;
     term_ = 0;
@@ -26,7 +26,7 @@ public  final class Snapshot extends
   getUnknownFields() {
     return com.google.protobuf.UnknownFieldSet.getDefaultInstance();
   }
-  private Snapshot(
+  private LogSnapshot(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -86,14 +86,14 @@ public  final class Snapshot extends
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return raft.server.proto.Commands.internal_static_raft_server_proto_Snapshot_descriptor;
+    return raft.server.proto.Commands.internal_static_raft_server_proto_LogSnapshot_descriptor;
   }
 
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return raft.server.proto.Commands.internal_static_raft_server_proto_Snapshot_fieldAccessorTable
+    return raft.server.proto.Commands.internal_static_raft_server_proto_LogSnapshot_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            raft.server.proto.Snapshot.class, raft.server.proto.Snapshot.Builder.class);
+            raft.server.proto.LogSnapshot.class, raft.server.proto.LogSnapshot.Builder.class);
   }
 
   private int bitField0_;
@@ -214,10 +214,10 @@ public  final class Snapshot extends
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof raft.server.proto.Snapshot)) {
+    if (!(obj instanceof raft.server.proto.LogSnapshot)) {
       return super.equals(obj);
     }
-    raft.server.proto.Snapshot other = (raft.server.proto.Snapshot) obj;
+    raft.server.proto.LogSnapshot other = (raft.server.proto.LogSnapshot) obj;
 
     boolean result = true;
     result = result && getData()
@@ -253,58 +253,58 @@ public  final class Snapshot extends
     return hash;
   }
 
-  public static raft.server.proto.Snapshot parseFrom(
+  public static raft.server.proto.LogSnapshot parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static raft.server.proto.Snapshot parseFrom(
+  public static raft.server.proto.LogSnapshot parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static raft.server.proto.Snapshot parseFrom(byte[] data)
+  public static raft.server.proto.LogSnapshot parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static raft.server.proto.Snapshot parseFrom(
+  public static raft.server.proto.LogSnapshot parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static raft.server.proto.Snapshot parseFrom(java.io.InputStream input)
+  public static raft.server.proto.LogSnapshot parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static raft.server.proto.Snapshot parseFrom(
+  public static raft.server.proto.LogSnapshot parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static raft.server.proto.Snapshot parseDelimitedFrom(java.io.InputStream input)
+  public static raft.server.proto.LogSnapshot parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static raft.server.proto.Snapshot parseDelimitedFrom(
+  public static raft.server.proto.LogSnapshot parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static raft.server.proto.Snapshot parseFrom(
+  public static raft.server.proto.LogSnapshot parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static raft.server.proto.Snapshot parseFrom(
+  public static raft.server.proto.LogSnapshot parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -316,7 +316,7 @@ public  final class Snapshot extends
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(raft.server.proto.Snapshot prototype) {
+  public static Builder newBuilder(raft.server.proto.LogSnapshot prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   public Builder toBuilder() {
@@ -331,25 +331,25 @@ public  final class Snapshot extends
     return builder;
   }
   /**
-   * Protobuf type {@code raft.server.proto.Snapshot}
+   * Protobuf type {@code raft.server.proto.LogSnapshot}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:raft.server.proto.Snapshot)
-      raft.server.proto.SnapshotOrBuilder {
+      // @@protoc_insertion_point(builder_implements:raft.server.proto.LogSnapshot)
+      raft.server.proto.LogSnapshotOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return raft.server.proto.Commands.internal_static_raft_server_proto_Snapshot_descriptor;
+      return raft.server.proto.Commands.internal_static_raft_server_proto_LogSnapshot_descriptor;
     }
 
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return raft.server.proto.Commands.internal_static_raft_server_proto_Snapshot_fieldAccessorTable
+      return raft.server.proto.Commands.internal_static_raft_server_proto_LogSnapshot_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              raft.server.proto.Snapshot.class, raft.server.proto.Snapshot.Builder.class);
+              raft.server.proto.LogSnapshot.class, raft.server.proto.LogSnapshot.Builder.class);
     }
 
-    // Construct using raft.server.proto.Snapshot.newBuilder()
+    // Construct using raft.server.proto.LogSnapshot.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -379,23 +379,23 @@ public  final class Snapshot extends
 
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return raft.server.proto.Commands.internal_static_raft_server_proto_Snapshot_descriptor;
+      return raft.server.proto.Commands.internal_static_raft_server_proto_LogSnapshot_descriptor;
     }
 
-    public raft.server.proto.Snapshot getDefaultInstanceForType() {
-      return raft.server.proto.Snapshot.getDefaultInstance();
+    public raft.server.proto.LogSnapshot getDefaultInstanceForType() {
+      return raft.server.proto.LogSnapshot.getDefaultInstance();
     }
 
-    public raft.server.proto.Snapshot build() {
-      raft.server.proto.Snapshot result = buildPartial();
+    public raft.server.proto.LogSnapshot build() {
+      raft.server.proto.LogSnapshot result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
       return result;
     }
 
-    public raft.server.proto.Snapshot buildPartial() {
-      raft.server.proto.Snapshot result = new raft.server.proto.Snapshot(this);
+    public raft.server.proto.LogSnapshot buildPartial() {
+      raft.server.proto.LogSnapshot result = new raft.server.proto.LogSnapshot(this);
       int from_bitField0_ = bitField0_;
       int to_bitField0_ = 0;
       result.data_ = data_;
@@ -438,16 +438,16 @@ public  final class Snapshot extends
       return (Builder) super.addRepeatedField(field, value);
     }
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof raft.server.proto.Snapshot) {
-        return mergeFrom((raft.server.proto.Snapshot)other);
+      if (other instanceof raft.server.proto.LogSnapshot) {
+        return mergeFrom((raft.server.proto.LogSnapshot)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(raft.server.proto.Snapshot other) {
-      if (other == raft.server.proto.Snapshot.getDefaultInstance()) return this;
+    public Builder mergeFrom(raft.server.proto.LogSnapshot other) {
+      if (other == raft.server.proto.LogSnapshot.getDefaultInstance()) return this;
       if (other.getData() != com.google.protobuf.ByteString.EMPTY) {
         setData(other.getData());
       }
@@ -479,11 +479,11 @@ public  final class Snapshot extends
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      raft.server.proto.Snapshot parsedMessage = null;
+      raft.server.proto.LogSnapshot parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (raft.server.proto.Snapshot) e.getUnfinishedMessage();
+        parsedMessage = (raft.server.proto.LogSnapshot) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -679,39 +679,39 @@ public  final class Snapshot extends
     }
 
 
-    // @@protoc_insertion_point(builder_scope:raft.server.proto.Snapshot)
+    // @@protoc_insertion_point(builder_scope:raft.server.proto.LogSnapshot)
   }
 
-  // @@protoc_insertion_point(class_scope:raft.server.proto.Snapshot)
-  private static final raft.server.proto.Snapshot DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:raft.server.proto.LogSnapshot)
+  private static final raft.server.proto.LogSnapshot DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new raft.server.proto.Snapshot();
+    DEFAULT_INSTANCE = new raft.server.proto.LogSnapshot();
   }
 
-  public static raft.server.proto.Snapshot getDefaultInstance() {
+  public static raft.server.proto.LogSnapshot getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<Snapshot>
-      PARSER = new com.google.protobuf.AbstractParser<Snapshot>() {
-    public Snapshot parsePartialFrom(
+  private static final com.google.protobuf.Parser<LogSnapshot>
+      PARSER = new com.google.protobuf.AbstractParser<LogSnapshot>() {
+    public LogSnapshot parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-        return new Snapshot(input, extensionRegistry);
+        return new LogSnapshot(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<Snapshot> parser() {
+  public static com.google.protobuf.Parser<LogSnapshot> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<Snapshot> getParserForType() {
+  public com.google.protobuf.Parser<LogSnapshot> getParserForType() {
     return PARSER;
   }
 
-  public raft.server.proto.Snapshot getDefaultInstanceForType() {
+  public raft.server.proto.LogSnapshot getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

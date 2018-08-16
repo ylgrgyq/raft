@@ -6,7 +6,7 @@ import raft.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
 import raft.server.log.RaftLogImpl;
 import raft.server.proto.LogEntry;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 
 import java.util.List;
 import java.util.Optional;
@@ -172,7 +172,7 @@ public class StateMachineProxyTest {
     @Test
     public void installSnapshot() throws Exception {
         CountDownLatch appliedCalled = new CountDownLatch(1);
-        Snapshot expectSnapshot = Snapshot.newBuilder()
+        LogSnapshot expectSnapshot = LogSnapshot.newBuilder()
                 .setTerm(2)
                 .setIndex(6)
                 .setData(ByteString.copyFrom(new byte[]{1, 2,3,4}))
@@ -180,7 +180,7 @@ public class StateMachineProxyTest {
 
         StateMachine mockStateMachine = mock(StateMachine.class);
         doAnswer(invocationOnMock -> {
-            Snapshot actualSnapshot = invocationOnMock.getArgument(0);
+            LogSnapshot actualSnapshot = invocationOnMock.getArgument(0);
             assertEquals(expectSnapshot, actualSnapshot);
             return null;
         }).when(mockStateMachine).installSnapshot(any());
@@ -201,7 +201,7 @@ public class StateMachineProxyTest {
     @Test
     public void getRecentSnapshot() throws Exception {
         int expectIndex = ThreadLocalRandom.current().nextInt();
-        Snapshot expectSnapshot = Snapshot.newBuilder()
+        LogSnapshot expectSnapshot = LogSnapshot.newBuilder()
                 .setTerm(2)
                 .setIndex(6)
                 .setData(ByteString.copyFrom(new byte[]{1, 2,3,4}))
@@ -217,7 +217,7 @@ public class StateMachineProxyTest {
         }).when(mockStateMachine).getRecentSnapshot(anyInt());
 
         StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, raftLog);
-        Optional<Snapshot> actualSnapshot = proxy.getRecentSnapshot(expectIndex);
+        Optional<LogSnapshot> actualSnapshot = proxy.getRecentSnapshot(expectIndex);
         assert(actualSnapshot.isPresent());
         assertEquals(expectSnapshot, actualSnapshot.get());
     }

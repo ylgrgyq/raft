@@ -45,7 +45,7 @@ public class ConfigChangeTest {
 //        assertEquals(ErrorMsg.NOT_LEADER, resp.getError());
 //
 //        peerIdSet.stream().map(TestingRaftCluster::getNodeById).forEach(node -> {
-//            RaftStatus status = node.getStatus();
+//            RaftStatusSnapshot status = node.getStatus();
 //            List<String> peerIds = status.getPeerNodeIds();
 //            assertEquals(peerIdSet.size(), peerIds.size());
 //            assertTrue(peerIdSet.containsAll(peerIds));
@@ -69,7 +69,7 @@ public class ConfigChangeTest {
 //
 //            assertTrue(stateMachine.waitNodeAdded(newNode));
 //
-//            RaftStatus status = node.getStatus();
+//            RaftStatusSnapshot status = node.getStatus();
 //            List<String> peerIds = status.getPeerNodeIds();
 //            assertEquals(newPeerIds.size(), peerIds.size());
 //            assertTrue(newPeerIds.containsAll(peerIds));
@@ -97,7 +97,7 @@ public class ConfigChangeTest {
 //            System.out.println(node.getId() + " start to wait node added");
 //            stateMachine.waitNodeAdded(successNewNode);
 //
-//            RaftStatus status = node.getStatus();
+//            RaftStatusSnapshot status = node.getStatus();
 //            List<String> peerIds = status.getPeerNodeIds();
 //            assertEquals(peerIdSet.size(), peerIds.size());
 //            assertTrue(peerIdSet.containsAll(peerIds));
@@ -118,7 +118,7 @@ public class ConfigChangeTest {
 //            TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(node.getId());
 //            stateMachine.waitNodeRemoved(removePeerId);
 //
-//            RaftStatus status = node.getStatus();
+//            RaftStatusSnapshot status = node.getStatus();
 //            List<String> peerIds = status.getPeerNodeIds();
 //            assertEquals(peerIdSet.size(), peerIds.size());
 //            assertTrue(peerIdSet.containsAll(peerIds));
@@ -140,7 +140,7 @@ public class ConfigChangeTest {
 //            TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(node.getId());
 //            stateMachine.waitNodeRemoved(removePeerId);
 //
-//            RaftStatus status = node.getStatus();
+//            RaftStatusSnapshot status = node.getStatus();
 //            List<String> peerIds = status.getPeerNodeIds();
 //            assertEquals(peerIdSet.size(), peerIds.size());
 //            assertTrue(peerIdSet.containsAll(peerIds));

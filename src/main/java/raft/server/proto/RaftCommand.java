@@ -148,11 +148,11 @@ public  final class RaftCommand extends
             break;
           }
           case 138: {
-            raft.server.proto.Snapshot.Builder subBuilder = null;
+            raft.server.proto.LogSnapshot.Builder subBuilder = null;
             if (snapshot_ != null) {
               subBuilder = snapshot_.toBuilder();
             }
-            snapshot_ = input.readMessage(raft.server.proto.Snapshot.parser(), extensionRegistry);
+            snapshot_ = input.readMessage(raft.server.proto.LogSnapshot.parser(), extensionRegistry);
             if (subBuilder != null) {
               subBuilder.mergeFrom(snapshot_);
               snapshot_ = subBuilder.buildPartial();
@@ -671,23 +671,23 @@ public  final class RaftCommand extends
   }
 
   public static final int SNAPSHOT_FIELD_NUMBER = 17;
-  private raft.server.proto.Snapshot snapshot_;
+  private raft.server.proto.LogSnapshot snapshot_;
   /**
-   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
    */
   public boolean hasSnapshot() {
     return snapshot_ != null;
   }
   /**
-   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
    */
-  public raft.server.proto.Snapshot getSnapshot() {
-    return snapshot_ == null ? raft.server.proto.Snapshot.getDefaultInstance() : snapshot_;
+  public raft.server.proto.LogSnapshot getSnapshot() {
+    return snapshot_ == null ? raft.server.proto.LogSnapshot.getDefaultInstance() : snapshot_;
   }
   /**
-   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
    */
-  public raft.server.proto.SnapshotOrBuilder getSnapshotOrBuilder() {
+  public raft.server.proto.LogSnapshotOrBuilder getSnapshotOrBuilder() {
     return getSnapshot();
   }
 
@@ -2109,29 +2109,29 @@ public  final class RaftCommand extends
       return this;
     }
 
-    private raft.server.proto.Snapshot snapshot_ = null;
+    private raft.server.proto.LogSnapshot snapshot_ = null;
     private com.google.protobuf.SingleFieldBuilderV3<
-        raft.server.proto.Snapshot, raft.server.proto.Snapshot.Builder, raft.server.proto.SnapshotOrBuilder> snapshotBuilder_;
+        raft.server.proto.LogSnapshot, raft.server.proto.LogSnapshot.Builder, raft.server.proto.LogSnapshotOrBuilder> snapshotBuilder_;
     /**
-     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
      */
     public boolean hasSnapshot() {
       return snapshotBuilder_ != null || snapshot_ != null;
     }
     /**
-     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
      */
-    public raft.server.proto.Snapshot getSnapshot() {
+    public raft.server.proto.LogSnapshot getSnapshot() {
       if (snapshotBuilder_ == null) {
-        return snapshot_ == null ? raft.server.proto.Snapshot.getDefaultInstance() : snapshot_;
+        return snapshot_ == null ? raft.server.proto.LogSnapshot.getDefaultInstance() : snapshot_;
       } else {
         return snapshotBuilder_.getMessage();
       }
     }
     /**
-     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
      */
-    public Builder setSnapshot(raft.server.proto.Snapshot value) {
+    public Builder setSnapshot(raft.server.proto.LogSnapshot value) {
       if (snapshotBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -2145,10 +2145,10 @@ public  final class RaftCommand extends
       return this;
     }
     /**
-     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
      */
     public Builder setSnapshot(
-        raft.server.proto.Snapshot.Builder builderForValue) {
+        raft.server.proto.LogSnapshot.Builder builderForValue) {
       if (snapshotBuilder_ == null) {
         snapshot_ = builderForValue.build();
         onChanged();
@@ -2159,13 +2159,13 @@ public  final class RaftCommand extends
       return this;
     }
     /**
-     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
      */
-    public Builder mergeSnapshot(raft.server.proto.Snapshot value) {
+    public Builder mergeSnapshot(raft.server.proto.LogSnapshot value) {
       if (snapshotBuilder_ == null) {
         if (snapshot_ != null) {
           snapshot_ =
-            raft.server.proto.Snapshot.newBuilder(snapshot_).mergeFrom(value).buildPartial();
+            raft.server.proto.LogSnapshot.newBuilder(snapshot_).mergeFrom(value).buildPartial();
         } else {
           snapshot_ = value;
         }
@@ -2177,7 +2177,7 @@ public  final class RaftCommand extends
       return this;
     }
     /**
-     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
      */
     public Builder clearSnapshot() {
       if (snapshotBuilder_ == null) {
@@ -2191,33 +2191,33 @@ public  final class RaftCommand extends
       return this;
     }
     /**
-     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
      */
-    public raft.server.proto.Snapshot.Builder getSnapshotBuilder() {
+    public raft.server.proto.LogSnapshot.Builder getSnapshotBuilder() {
       
       onChanged();
       return getSnapshotFieldBuilder().getBuilder();
     }
     /**
-     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
      */
-    public raft.server.proto.SnapshotOrBuilder getSnapshotOrBuilder() {
+    public raft.server.proto.LogSnapshotOrBuilder getSnapshotOrBuilder() {
       if (snapshotBuilder_ != null) {
         return snapshotBuilder_.getMessageOrBuilder();
       } else {
         return snapshot_ == null ?
-            raft.server.proto.Snapshot.getDefaultInstance() : snapshot_;
+            raft.server.proto.LogSnapshot.getDefaultInstance() : snapshot_;
       }
     }
     /**
-     * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+     * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        raft.server.proto.Snapshot, raft.server.proto.Snapshot.Builder, raft.server.proto.SnapshotOrBuilder> 
+        raft.server.proto.LogSnapshot, raft.server.proto.LogSnapshot.Builder, raft.server.proto.LogSnapshotOrBuilder> 
         getSnapshotFieldBuilder() {
       if (snapshotBuilder_ == null) {
         snapshotBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            raft.server.proto.Snapshot, raft.server.proto.Snapshot.Builder, raft.server.proto.SnapshotOrBuilder>(
+            raft.server.proto.LogSnapshot, raft.server.proto.LogSnapshot.Builder, raft.server.proto.LogSnapshotOrBuilder>(
                 getSnapshot(),
                 getParentForChildren(),
                 isClean());

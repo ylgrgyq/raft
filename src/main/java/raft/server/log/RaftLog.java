@@ -2,7 +2,7 @@ package raft.server.log;
 
 import raft.server.RaftPersistentMeta;
 import raft.server.proto.LogEntry;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
@@ -40,7 +40,7 @@ public interface RaftLog {
 
     void appliedTo(int appliedTo);
 
-    void installSnapshot(Snapshot snapshot);
+    void installSnapshot(LogSnapshot snapshot);
 
     void snapshotApplied(int snapshotIndex);
 

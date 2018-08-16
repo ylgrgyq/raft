@@ -2,7 +2,7 @@ package raft.server;
 
 import raft.server.log.RaftLog;
 import raft.server.proto.LogEntry;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 
 import java.util.List;
 import java.util.Objects;
@@ -73,7 +73,7 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
-    public void installSnapshot(Snapshot snap) {
+    public void installSnapshot(LogSnapshot snap) {
         notify(() -> {
             stateMachine.installSnapshot(snap);
             raftLog.snapshotApplied(snap.getIndex());
@@ -81,7 +81,7 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
-    public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
+    public Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
         return stateMachine.getRecentSnapshot(expectIndex);
     }
 

@@ -21,7 +21,7 @@ message LogEntry {
     EntryType type = 4;
 }
 
-message Snapshot {
+message LogSnapshot {
 	bytes data = 1;
 	int32 index = 2;
     int32 term = 3;
@@ -72,5 +72,5 @@ message RaftCommand {
     bool vote_granted = 14;
     string leader_hint = 15;
     bool force_election = 16;
-    Snapshot snapshot = 17;
+    LogSnapshot snapshot = 17;
 }

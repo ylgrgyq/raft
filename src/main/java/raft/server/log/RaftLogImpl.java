@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 import raft.server.RaftPersistentMeta;
 import raft.server.proto.LogEntry;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -261,7 +261,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public synchronized void installSnapshot(Snapshot snapshot) {
+    public synchronized void installSnapshot(LogSnapshot snapshot) {
         commitIndex = snapshot.getIndex();
 
         recentSnapshotIndex = snapshot.getIndex();

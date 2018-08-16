@@ -131,15 +131,15 @@ public interface RaftCommandOrBuilder extends
   boolean getForceElection();
 
   /**
-   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
    */
   boolean hasSnapshot();
   /**
-   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
    */
-  raft.server.proto.Snapshot getSnapshot();
+  raft.server.proto.LogSnapshot getSnapshot();
   /**
-   * <code>optional .raft.server.proto.Snapshot snapshot = 17;</code>
+   * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
    */
-  raft.server.proto.SnapshotOrBuilder getSnapshotOrBuilder();
+  raft.server.proto.LogSnapshotOrBuilder getSnapshotOrBuilder();
 }

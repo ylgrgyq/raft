@@ -11,7 +11,7 @@ import raft.server.log.RaftLogImpl;
 import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -146,8 +146,8 @@ public class RaftImpl implements Raft {
 
     // FIXME state may change during getting status
     @Override
-    public RaftStatus getStatus() {
-        RaftStatus status = new RaftStatus();
+    public RaftStatusSnapshot getStatus() {
+        RaftStatusSnapshot status = new RaftStatusSnapshot();
         status.setTerm(meta.getTerm());
         status.setCommitIndex(raftLog.getCommitIndex());
         status.setAppliedIndex(raftLog.getAppliedIndex());
@@ -172,7 +172,7 @@ public class RaftImpl implements Raft {
         return leaderId;
     }
 
-    Optional<Snapshot> getRecentSnapshot(int expectIndex) {
+    Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
         return stateMachine.getRecentSnapshot(expectIndex);
     }
 
@@ -802,7 +802,7 @@ public class RaftImpl implements Raft {
         writeOutCommand(resp);
     }
 
-    private boolean tryApplySnapshot(Snapshot snapshot) {
+    private boolean tryApplySnapshot(LogSnapshot snapshot) {
         if (snapshot.getIndex() <= raftLog.getCommitIndex()) {
             return false;
         }
