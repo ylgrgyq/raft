@@ -1,0 +1,170 @@
+package raft.server;
+
+import org.slf4j.Logger;
+import raft.server.proto.LogEntry;
+import raft.server.proto.Snapshot;
+
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+class TestingRaftStateMachine implements StateMachine {
+    private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
+    private final Logger logger;
+    private final Set<String> knownPeerIds;
+    private final AtomicBoolean isLeader = new AtomicBoolean(false);
+    private final AtomicBoolean isFollower = new AtomicBoolean(false);
+    private final BlockingQueue<String> nodeAdded = new LinkedBlockingQueue<>();
+    private final BlockingQueue<String> nodeRemoved = new LinkedBlockingQueue<>();
+    private volatile CompletableFuture<Void> waitLeaderFuture;
+    private volatile CompletableFuture<Void> waitFollowerFuture;
+
+    public TestingRaftStateMachine(Logger logger, Collection<String> knownPeerIds) {
+        this.logger = logger;
+        this.knownPeerIds = new HashSet<>(knownPeerIds);
+    }
+
+    @Override
+    public void onNodeAdded(String peerId) {
+        logger.info("on node added called " + peerId);
+        knownPeerIds.add(peerId);
+        nodeAdded.add(peerId);
+    }
+
+    @Override
+    public void onNodeRemoved(String peerId) {
+        knownPeerIds.remove(peerId);
+        nodeRemoved.add(peerId);
+    }
+
+    @Override
+    public void onProposalCommitted(List<LogEntry> msgs) {
+        assert msgs != null && !msgs.isEmpty() : "msgs is null:" + (msgs == null);
+        applied.addAll(msgs);
+    }
+
+    @Override
+    public void installSnapshot(Snapshot snap) {
+
+    }
+
+    @Override
+    public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
+        return null;
+    }
+
+    @Override
+    public void onLeaderStart(int term) {
+        isLeader.set(true);
+        if (waitLeaderFuture != null) {
+            waitLeaderFuture.complete(null);
+        }
+    }
+
+    @Override
+    public void onLeaderFinish() {
+        isLeader.set(false);
+    }
+
+    CompletableFuture<Void> waitBecomeLeader() {
+        if (isLeader.get()) {
+            return CompletableFuture.completedFuture(null);
+        } else {
+            waitLeaderFuture = new CompletableFuture<>();
+            if (isLeader.get()) {
+                waitFollowerFuture = CompletableFuture.completedFuture(null);
+            }
+            return waitLeaderFuture;
+        }
+    }
+
+    @Override
+    public void onFollowerStart(int term, String leaderId) {
+        isFollower.set(true);
+        if (waitFollowerFuture != null) {
+            waitFollowerFuture.complete(null);
+        }
+    }
+
+    @Override
+    public void onFollowerFinish() {
+        isFollower.set(false);
+    }
+
+    CompletableFuture<Void> waitBecomeFollower() {
+        if (isFollower.get()) {
+            return CompletableFuture.completedFuture(null);
+        } else {
+            waitFollowerFuture = new CompletableFuture<>();
+            return waitFollowerFuture;
+        }
+    }
+
+    @Override
+    public void onShutdown() {
+        logger.info("state machine shutdown");
+    }
+
+    boolean waitNodeAdded(String expectPeerId) {
+        return doWaitNodeChanged(expectPeerId, nodeAdded);
+    }
+
+    boolean waitNodeRemoved(String expectPeerId) {
+        return doWaitNodeChanged(expectPeerId, nodeRemoved);
+    }
+
+    private boolean doWaitNodeChanged(String expectPeerId, BlockingQueue<String> queue) {
+        assert expectPeerId != null && !expectPeerId.isEmpty();
+
+        try {
+            String id = queue.poll(TestingConfigs.defaultTimeoutMs, TimeUnit.MILLISECONDS);
+            return expectPeerId.equals(id);
+        } catch (InterruptedException ex) {
+            // ignore
+        }
+
+        return false;
+    }
+
+    List<LogEntry> waitApplied(int atLeastExpect) {
+        return waitApplied(atLeastExpect, TestingConfigs.defaultTimeoutMs);
+    }
+
+    List<LogEntry> waitApplied(int atLeastExpect, long timeoutMs) {
+        assert atLeastExpect >= 0 : "actual " + atLeastExpect;
+
+        List<LogEntry> ret = new ArrayList<>(drainAvailableApplied());
+
+        long start = System.nanoTime();
+        long deadline = start + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while (atLeastExpect != 0 && ret.size() < atLeastExpect && System.nanoTime() < deadline) {
+            try {
+                LogEntry e;
+                if ((e = applied.poll(timeoutMs, TimeUnit.MILLISECONDS)) != null) {
+                    ret.add(e);
+                    applied.drainTo(ret);
+                }
+            } catch (InterruptedException ex) {
+                // ignore
+            }
+        }
+
+        return Collections.unmodifiableList(ret);
+    }
+
+    List<LogEntry> drainAvailableApplied() {
+        List<LogEntry> ret = new ArrayList<>();
+
+        applied.drainTo(ret);
+
+        return Collections.unmodifiableList(ret);
+    }
+
+    BlockingQueue<LogEntry> getApplied() {
+        return applied;
+    }
+
+    public Set<String> getKnownPeerIds() {
+        return Collections.unmodifiableSet(knownPeerIds);
+    }
+}

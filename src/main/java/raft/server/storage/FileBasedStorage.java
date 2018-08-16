@@ -55,7 +55,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         checkArgument(Files.notExists(baseDirPath) || Files.isDirectory(baseDirPath),
                 "\"%s\" must be a directory to hold raft persistent logs", storageBaseDir);
-        checkArgument(storageName.matches("[A-Za-z0-9]+"),
+        checkArgument(storageName.matches("[A-Za-z0-9_-]+"),
                 "storage name must not empty and can only contains english letters and numbers, actual:\"%s\"",
                 storageName);
 

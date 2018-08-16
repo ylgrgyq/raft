@@ -2,15 +2,12 @@ package raft.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.proto.LogEntry;
-import raft.server.proto.RaftCommand;
-import raft.server.proto.Snapshot;
 import raft.server.storage.FileBasedStorage;
 
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Author: ylgrgyq
@@ -18,59 +15,63 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 class TestingRaftCluster {
     private static final Logger logger = LoggerFactory.getLogger("TestingRaftCluster");
-    private static final long defaultTimeoutMs = 5000;
-    private static final String persistentStateDir = "./target/deep/deep/deep/persistent";
-    private static final Config.ConfigBuilder configBuilder = Config.newBuilder()
-            .withPersistentStateFileDirPath(persistentStateDir);
-    private static final String testingStorageDirectory = "./target/storage";
-    private static final String storageName = "TestingStorage";
-    private static final Map<String, Raft> nodes = new ConcurrentHashMap<>();
-    private static final Map<String, TestingRaftStateMachine> stateMachines = new ConcurrentHashMap<>();
-    private static final TestingBroker broker = new TestingBroker();
 
-    static void init(List<String> peers) {
-        for (String peerId : peers) {
-            addTestingNode(peerId, peers);
-        }
+    private final Config.ConfigBuilder configBuilder;
+    private final Map<String, Raft> nodes;
+    private final Map<String, TestingRaftStateMachine> stateMachines;
+    private final TestingBroker broker;
+    private final String storageName;
+    private final String persistentStateDir;
+    private final String storageDir;
+
+    public TestingRaftCluster(String testingName) {
+        this.nodes = new ConcurrentHashMap<>();
+        this.stateMachines = new ConcurrentHashMap<>();
+        this.broker = new TestingBroker(nodes, logger);
+        this.persistentStateDir = Paths.get(TestingConfigs.persistentStateDir, testingName).toString();
+        this.storageDir = Paths.get(TestingConfigs.testingStorageDirectory, testingName).toString();
+        this.storageName = testingName + "_" + "LogStorage";
+        this.configBuilder = Config.newBuilder()
+                .withPersistentMetaFileDirPath(this.persistentStateDir);
     }
 
-    static Raft addTestingNode(String peerId, Collection<String> peers) {
+    Raft addTestingNode(String peerId, Collection<String> peers) {
         return nodes.computeIfAbsent(peerId, k -> createTestingNode(peerId, peers));
     }
 
-    private static Raft createTestingNode(String selfId, Collection<String> peers) {
-        TestingRaftStateMachine stateMachine = new TestingRaftStateMachine();
-        stateMachines.put(selfId, stateMachine);
+    private Raft createTestingNode(String peerId, Collection<String> peers) {
+        TestingRaftStateMachine stateMachine = new TestingRaftStateMachine(logger, peers);
+        stateMachines.put(peerId, stateMachine);
 
         Config c = configBuilder
                 .withPeers(peers)
-                .withSelfID(selfId)
+                .withSelfID(peerId)
                 .withRaftCommandBroker(broker)
                 .withStateMachine(stateMachine)
-                .withPersistentStorage(new FileBasedStorage(testingStorageDirectory,
-                        storageName + selfId.replace(" ", "")))
+                .withPersistentMetaFileDirPath(persistentStateDir + peerId.replace(" ", ""))
+                .withPersistentStorage(new FileBasedStorage(storageDir,
+                        getStorageName(peerId)))
                 .build();
         return new RaftImpl(c);
     }
 
-    static void startCluster() {
-        nodes.values().forEach(Raft::start);
+    private String getStorageName(String peerId) {
+        return storageName + "_" + peerId.replace(" ", "");
     }
 
-    static void clearClusterPreviousPersistentState() {
-        TestUtil.cleanDirectory(Paths.get(persistentStateDir));
+    void startCluster(Collection<String> peers) {
+        for (String peerId : peers) {
+            Raft node = createTestingNode(peerId, peers);
+            this.nodes.put(peerId, node);
+            node.start();
+        }
     }
 
-    static void clearPreviousPersistentStateFor(String peerId) {
-        RaftPersistentMeta state = new RaftPersistentMeta(persistentStateDir, peerId, false);
-        state.setTermAndVotedFor(0, null);
+    Raft waitGetLeader() throws TimeoutException, InterruptedException {
+        return waitGetLeader(TestingConfigs.defaultTimeoutMs);
     }
 
-    static Raft waitGetLeader() throws TimeoutException, InterruptedException {
-        return waitGetLeader(defaultTimeoutMs);
-    }
-
-    static Raft waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException {
+    Raft waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException {
         long start = System.currentTimeMillis();
         while (true) {
             ArrayList<Raft> possibleLeaderNodes = new ArrayList<>(nodes.size());
@@ -101,7 +102,7 @@ class TestingRaftCluster {
         }
     }
 
-    static List<Raft> getFollowers() throws TimeoutException, InterruptedException {
+    List<Raft> getFollowers() throws TimeoutException, InterruptedException {
         waitGetLeader();
         ArrayList<Raft> followers = new ArrayList<>();
         for (Map.Entry<String, Raft> e : nodes.entrySet()) {
@@ -113,11 +114,11 @@ class TestingRaftCluster {
         return followers;
     }
 
-    static Raft getNodeById(String peerId) {
+    Raft getNodeById(String peerId) {
         return nodes.get(peerId);
     }
 
-    static TestingRaftStateMachine getStateMachineById(String peerId) {
+    TestingRaftStateMachine getStateMachineById(String peerId) {
         TestingRaftStateMachine stateMachine = stateMachines.get(peerId);
         if (stateMachine != null) {
             return stateMachine;
@@ -125,181 +126,34 @@ class TestingRaftCluster {
         throw new RuntimeException("no state machine for " + peerId);
     }
 
-    static void shutdownCluster() {
+    void shutdownCluster() {
         for (Raft n : nodes.values()) {
             n.shutdown();
         }
         nodes.clear();
     }
 
-    static void shutdownPeer(String peerId) {
+    void shutdownPeer(String peerId) {
         nodes.computeIfPresent(peerId, (k, n) -> {
             n.shutdown();
             return null;
         });
     }
 
-    static void cleanStorage() {
-        TestUtil.cleanDirectory(Paths.get(testingStorageDirectory));
+    void clearPersistentState() {
+        TestUtil.cleanDirectory(Paths.get(this.persistentStateDir));
     }
 
-    static class TestingRaftStateMachine implements StateMachine {
-        private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
-        private AtomicBoolean isLeader = new AtomicBoolean(false);
-        private AtomicBoolean isFollower = new AtomicBoolean(false);
-        private CompletableFuture<Void> waitLeaderFuture;
-        private CompletableFuture<Void> waitFollowerFuture;
-        private BlockingQueue<String> nodeAdded = new LinkedBlockingQueue<>();
-        private BlockingQueue<String> nodeRemoved = new LinkedBlockingQueue<>();
-
-        @Override
-        public void onNodeAdded(String peerId) {
-            logger.info("on node added called " + peerId);
-            nodeAdded.add(peerId);
-            addTestingNode(peerId, nodes.keySet()).start();
-        }
-
-        @Override
-        public void onNodeRemoved(String peerId) {
-            nodeRemoved.add(peerId);
-            shutdownPeer(peerId);
-        }
-
-        @Override
-        public void onProposalCommitted(List<LogEntry> msgs) {
-            assert msgs != null && !msgs.isEmpty() : "msgs is null:" + (msgs == null);
-            applied.addAll(msgs);
-        }
-
-        @Override
-        public void installSnapshot(Snapshot snap) {
-
-        }
-
-        @Override
-        public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
-            return null;
-        }
-
-        @Override
-        public void onLeaderStart(int term) {
-            isLeader.set(true);
-            if (waitLeaderFuture != null) {
-                waitLeaderFuture.complete(null);
-            }
-        }
-
-        @Override
-        public void onLeaderFinish() {
-            isLeader.set(false);
-        }
-
-        CompletableFuture<Void> waitBecomeLeader() {
-            if (isLeader.get()) {
-                return CompletableFuture.completedFuture(null);
-            } else {
-                waitLeaderFuture = new CompletableFuture<>();
-                return waitLeaderFuture;
-            }
-        }
-
-        @Override
-        public void onFollowerStart(int term, String leaderId) {
-            isFollower.set(true);
-            if (waitFollowerFuture != null) {
-                waitFollowerFuture.complete(null);
-            }
-        }
-
-        @Override
-        public void onFollowerFinish() {
-            isFollower.set(false);
-        }
-
-        CompletableFuture<Void> waitBecomeFollower() {
-            if (isFollower.get()) {
-                return CompletableFuture.completedFuture(null);
-            } else {
-                waitFollowerFuture = new CompletableFuture<>();
-                return waitFollowerFuture;
-            }
-        }
-
-        @Override
-        public void onShutdown() {
-            logger.info("state machine shutdown");
-        }
-
-        BlockingQueue<LogEntry> getApplied() {
-            return applied;
-        }
-
-        private boolean doWaitNodeChanged(String expectPeerId, BlockingQueue<String> queue) {
-            assert expectPeerId != null && !expectPeerId.isEmpty();
-
-            try {
-                String id = queue.poll(defaultTimeoutMs, TimeUnit.MILLISECONDS);
-                return expectPeerId.equals(id);
-            } catch (InterruptedException ex) {
-                // ignore
-            }
-
-            return false;
-        }
-
-        boolean waitNodeAdded(String expectPeerId) {
-            return doWaitNodeChanged(expectPeerId, nodeAdded);
-        }
-
-        boolean waitNodeRemoved(String expectPeerId) {
-            return doWaitNodeChanged(expectPeerId, nodeRemoved);
-        }
-
-        List<LogEntry> waitApplied(int atLeastExpect) {
-            return waitApplied(atLeastExpect, defaultTimeoutMs);
-        }
-
-        List<LogEntry> waitApplied(int atLeastExpect, long timeoutMs) {
-            assert atLeastExpect >= 0 : "actual " + atLeastExpect;
-
-            List<LogEntry> ret = new ArrayList<>(atLeastExpect);
-            getApplied().drainTo(ret);
-
-            long start = System.nanoTime();
-            long deadline = start + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
-            while (atLeastExpect != 0 && ret.size() < atLeastExpect && System.nanoTime() < deadline) {
-                try {
-                    LogEntry e;
-                    if ((e = getApplied().poll(timeoutMs, TimeUnit.MILLISECONDS)) != null) {
-                        ret.add(e);
-                        getApplied().drainTo(ret);
-                    }
-                } catch (InterruptedException ex) {
-                    // ignore
-                }
-            }
-
-            return Collections.unmodifiableList(ret);
-        }
-
-        List<LogEntry> drainAvailableApplied() {
-            List<LogEntry> ret = new ArrayList<>();
-
-            getApplied().drainTo(ret);
-
-            return Collections.unmodifiableList(ret);
-        }
+    void clearPersistentStateFor(String peerId) {
+        RaftPersistentMeta state = new RaftPersistentMeta(persistentStateDir, peerId, false);
+        state.setTermAndVotedFor(0, null);
     }
 
-    static class TestingBroker implements RaftCommandBroker {
-        @Override
-        public void onWriteCommand(RaftCommand cmd) {
-            logger.debug("node {} write command {}", cmd.getFrom(), cmd.toString());
-            String to = cmd.getTo();
-            Raft toNode = nodes.get(to);
-            if (toNode != null) {
-                toNode.receiveCommand(cmd);
-            }
-        }
+    void clearLogStorage() {
+        TestUtil.cleanDirectory(Paths.get(storageDir));
+    }
+
+    void clearLogStorageFor(String peerId) {
+        TestUtil.cleanDirectory(Paths.get(storageDir, getStorageName(peerId)));
     }
 }
