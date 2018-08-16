@@ -34,8 +34,6 @@ public class ElectLeaderTest {
         List<String> peers = new ArrayList<>();
         peers.add(selfId);
 
-        System.out.println("asdfasdf-_".matches("[A-Za-z0-9_-]+"));
-
         cluster.startCluster(peers);
         Raft leader = cluster.waitGetLeader();
 

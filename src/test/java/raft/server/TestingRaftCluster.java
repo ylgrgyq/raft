@@ -48,9 +48,8 @@ class TestingRaftCluster {
                 .withSelfID(peerId)
                 .withRaftCommandBroker(broker)
                 .withStateMachine(stateMachine)
-                .withPersistentMetaFileDirPath(persistentStateDir + peerId.replace(" ", ""))
-                .withPersistentStorage(new FileBasedStorage(storageDir,
-                        getStorageName(peerId)))
+                .withPersistentMetaFileDirPath(persistentStateDir)
+                .withPersistentStorage(new FileBasedStorage(storageDir, getStorageName(peerId)))
                 .build();
         return new RaftImpl(c);
     }

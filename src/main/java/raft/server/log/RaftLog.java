@@ -1,7 +1,6 @@
 package raft.server.log;
 
 import raft.server.RaftPersistentMeta;
-import raft.server.RaftPersistentMeta;
 import raft.server.proto.LogEntry;
 import raft.server.proto.Snapshot;
 import java.util.List;

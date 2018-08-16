@@ -28,7 +28,7 @@ import static com.google.common.base.Preconditions.checkState;
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-public class RaftImpl implements Runnable, Raft {
+public class RaftImpl implements Raft {
     private static final Logger logger = LoggerFactory.getLogger(RaftImpl.class.getName());
 
     private final RaftState leader = new Leader();
@@ -53,7 +53,7 @@ public class RaftImpl implements Runnable, Raft {
     private final AsyncRaftCommandBrokerProxy broker;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    private String leaderId;
+    private volatile String leaderId;
     private RaftState state;
     private long electionTimeoutTicks;
     private Thread workerThread;
@@ -65,7 +65,7 @@ public class RaftImpl implements Runnable, Raft {
         Preconditions.checkNotNull(c);
 
         this.c = c;
-        this.workerThread = new Thread(this);
+        this.workerThread = new Thread(new Job());
         this.raftLog = new RaftLogImpl(c.storage);
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
@@ -277,39 +277,41 @@ public class RaftImpl implements Runnable, Raft {
         receivedCmdQueue.add(cmd);
     }
 
-    @Override
-    public void run() {
-        // init state
-        RaftImpl.this.state.start(new Context());
+    private class Job implements Runnable {
+        @Override
+        public void run() {
+            // init state
+            state.start(new Context());
 
-        while (workerRun) {
-            try {
-                processTickTimeout();
+            while (workerRun) {
+                try {
+                    processTickTimeout();
 
-                List<RaftCommand> cmds = pollReceivedCmd();
-                long start = System.nanoTime();
-                processCommands(cmds);
+                    List<RaftCommand> cmds = pollReceivedCmd();
+                    long start = System.nanoTime();
+                    processCommands(cmds);
 
-                long now = System.nanoTime();
-                long processCmdTime = now - start;
+                    long now = System.nanoTime();
+                    long processCmdTime = now - start;
 
-                long deadline = now + processCmdTime;
-                long processedProposals = 0;
-                Proposal p;
-                while ((p = RaftImpl.this.proposalQueue.poll()) != null) {
-                    processProposal(p);
-                    processedProposals++;
-                    // check weather we have passed the deadline every 64 proposals
-                    // so we can reduce the calling times of System.nanoTime and
-                    // avoid the impact of narrow deadline
-                    if ((processedProposals & 0x3F) == 0) {
-                        if (System.nanoTime() >= deadline) {
-                            break;
+                    long deadline = now + processCmdTime;
+                    long processedProposals = 0;
+                    Proposal p;
+                    while ((p = RaftImpl.this.proposalQueue.poll()) != null) {
+                        processProposal(p);
+                        processedProposals++;
+                        // check weather we have passed the deadline every 64 proposals
+                        // so we can reduce the calling times of System.nanoTime and
+                        // avoid the impact of narrow deadline
+                        if ((processedProposals & 0x3F) == 0) {
+                            if (System.nanoTime() >= deadline) {
+                                break;
+                            }
                         }
                     }
+                } catch (Throwable t) {
+                    panic("unexpected exception", t);
                 }
-            } catch (Throwable t) {
-                panic("unexpected exception", t);
             }
         }
     }
