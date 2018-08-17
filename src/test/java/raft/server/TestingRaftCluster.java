@@ -40,7 +40,7 @@ class TestingRaftCluster {
     }
 
     private Raft createTestingNode(String peerId, Collection<String> peers) {
-        TestingRaftStateMachine stateMachine = new TestingRaftStateMachine(logger, peers);
+        TestingRaftStateMachine stateMachine = new TestingRaftStateMachine(logger, peerId, peers);
         stateMachines.put(peerId, stateMachine);
 
         Config c = configBuilder
@@ -66,23 +66,23 @@ class TestingRaftCluster {
         }
     }
 
-    Raft waitGetLeader() throws TimeoutException, InterruptedException {
+    TestingRaftStateMachine waitGetLeader() throws TimeoutException, InterruptedException {
         return waitGetLeader(TestingConfigs.defaultTimeoutMs);
     }
 
-    Raft waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException {
+    TestingRaftStateMachine waitGetLeader(long timeoutMs) throws TimeoutException, InterruptedException {
         long start = System.currentTimeMillis();
         while (true) {
-            ArrayList<Raft> possibleLeaderNodes = new ArrayList<>(nodes.size());
-            for (Raft n : nodes.values()) {
-                if (n.isLeader()) {
-                    possibleLeaderNodes.add(n);
+            ArrayList<TestingRaftStateMachine> candidates = new ArrayList<>(stateMachines.size());
+            for (TestingRaftStateMachine n : stateMachines.values()) {
+                if (n.getLastStatus().isLeader()) {
+                    candidates.add(n);
                 }
             }
 
-            if (possibleLeaderNodes.size() != 0) {
-                if (possibleLeaderNodes.size() == 1) {
-                    return possibleLeaderNodes.get(0);
+            if (candidates.size() != 0) {
+                if (candidates.size() == 1) {
+                    return candidates.get(0);
                 }
 
                 // we could have more than one leader but they must have different term.
@@ -90,7 +90,7 @@ class TestingRaftCluster {
                 // Before B had a chance to notify A it is the new leader, A continue to consider itself as leader. At
                 // this moment we have two leader A and B but they don't share the same term. B's term must
                 // be greater than A's.
-                logger.warn("we have more than one leader: {}", possibleLeaderNodes);
+                logger.warn("we have more than one leader: {}", candidates);
             }
 
             if (timeoutMs != 0 && (System.currentTimeMillis() - start > timeoutMs)) {
@@ -101,12 +101,12 @@ class TestingRaftCluster {
         }
     }
 
-    List<Raft> getFollowers() throws TimeoutException, InterruptedException {
+    List<TestingRaftStateMachine> getFollowers() throws TimeoutException, InterruptedException {
         waitGetLeader();
-        ArrayList<Raft> followers = new ArrayList<>();
-        for (Map.Entry<String, Raft> e : nodes.entrySet()) {
-            Raft n = e.getValue();
-            if (!n.isLeader()) {
+        ArrayList<TestingRaftStateMachine> followers = new ArrayList<>();
+        for (Map.Entry<String, TestingRaftStateMachine> e : stateMachines.entrySet()) {
+            TestingRaftStateMachine n = e.getValue();
+            if (!n.getLastStatus().isLeader()) {
                 followers.add(e.getValue());
             }
         }

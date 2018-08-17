@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 class TestingRaftStateMachine implements StateMachine {
     private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
     private final Logger logger;
+    private final String selfId;
     private final Set<String> knownPeerIds;
     private final AtomicBoolean isLeader = new AtomicBoolean(false);
     private final AtomicBoolean isFollower = new AtomicBoolean(false);
@@ -18,34 +19,48 @@ class TestingRaftStateMachine implements StateMachine {
     private final BlockingQueue<String> nodeRemoved = new LinkedBlockingQueue<>();
     private volatile CompletableFuture<Void> waitLeaderFuture;
     private volatile CompletableFuture<Void> waitFollowerFuture;
+    private volatile RaftStatusSnapshot lastStatus;
 
-    public TestingRaftStateMachine(Logger logger, Collection<String> knownPeerIds) {
+    public TestingRaftStateMachine(Logger logger, String selfId, Collection<String> knownPeerIds) {
         this.logger = logger;
         this.knownPeerIds = new HashSet<>(knownPeerIds);
+        this.lastStatus = RaftStatusSnapshot.emptyStatus;
+        this.selfId = selfId;
+    }
+
+    public String getId() {
+        return selfId;
+    }
+
+    public RaftStatusSnapshot getLastStatus() {
+        return lastStatus;
     }
 
     @Override
-    public void onNodeAdded(String peerId) {
+    public void onNodeAdded(RaftStatusSnapshot status, String peerId) {
         logger.info("on node added called " + peerId);
         knownPeerIds.add(peerId);
         nodeAdded.add(peerId);
+        lastStatus = status;
     }
 
     @Override
-    public void onNodeRemoved(String peerId) {
+    public void onNodeRemoved(RaftStatusSnapshot status, String peerId) {
         knownPeerIds.remove(peerId);
         nodeRemoved.add(peerId);
+        lastStatus = status;
     }
 
     @Override
-    public void onProposalCommitted(List<LogEntry> msgs) {
+    public void onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs) {
         assert msgs != null && !msgs.isEmpty() : "msgs is null:" + (msgs == null);
         applied.addAll(msgs);
+        lastStatus = status;
     }
 
     @Override
-    public void installSnapshot(LogSnapshot snap) {
-
+    public void installSnapshot(RaftStatusSnapshot status, LogSnapshot snap) {
+        lastStatus = status;
     }
 
     @Override
@@ -54,7 +69,8 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public void onLeaderStart(int term) {
+    public void onLeaderStart(RaftStatusSnapshot status, int term) {
+        lastStatus = status;
         isLeader.set(true);
         if (waitLeaderFuture != null) {
             waitLeaderFuture.complete(null);
@@ -62,7 +78,8 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public void onLeaderFinish() {
+    public void onLeaderFinish(RaftStatusSnapshot status) {
+        lastStatus = status;
         isLeader.set(false);
     }
 
@@ -79,7 +96,8 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public void onFollowerStart(int term, String leaderId) {
+    public void onFollowerStart(RaftStatusSnapshot status, int term, String leaderId) {
+        lastStatus = status;
         isFollower.set(true);
         if (waitFollowerFuture != null) {
             waitFollowerFuture.complete(null);
@@ -87,7 +105,8 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public void onFollowerFinish() {
+    public void onFollowerFinish(RaftStatusSnapshot status) {
+        lastStatus = status;
         isFollower.set(false);
     }
 

@@ -35,10 +35,10 @@ public class ElectLeaderTest {
         peers.add(selfId);
 
         cluster.startCluster(peers);
-        Raft leader = cluster.waitGetLeader();
+        TestingRaftStateMachine leader = cluster.waitGetLeader();
 
-        RaftStatusSnapshot status = leader.getStatus();
-        assertEquals(selfId, status.getId());
+        assertEquals(selfId, leader.getId());
+        RaftStatusSnapshot status =  leader.getLastStatus();
         assertEquals(State.LEADER, status.getState());
         assertEquals(0, status.getCommitIndex());
         assertEquals(1, status.getTerm());

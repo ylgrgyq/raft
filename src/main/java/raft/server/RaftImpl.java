@@ -130,28 +130,21 @@ public class RaftImpl implements Raft {
     }
 
     @Override
-    public boolean isLeader() {
-        return getState() == State.LEADER;
-    }
-
-    @Override
     public String getId() {
         return selfId;
     }
 
-    @Override
-    public State getState() {
+    private State getState() {
         return state.getState();
     }
 
-    // FIXME state may change during getting status
-    @Override
-    public RaftStatusSnapshot getStatus() {
+    private RaftStatusSnapshot getStatus() {
+        assert Thread.currentThread() == workerThread;
+
         RaftStatusSnapshot status = new RaftStatusSnapshot();
         status.setTerm(meta.getTerm());
         status.setCommitIndex(raftLog.getCommitIndex());
         status.setAppliedIndex(raftLog.getAppliedIndex());
-        status.setId(selfId);
         status.setLeaderId(leaderId);
         status.setVotedFor(meta.getVotedFor());
         status.setState(getState());
@@ -558,7 +551,7 @@ public class RaftImpl implements Raft {
         }
 
         LogEntry lastLog = commitedLogs.get(commitedLogs.size() - 1);
-        stateMachine.onProposalCommitted(withoutConfigLogs, lastLog.getIndex());
+        stateMachine.onProposalCommitted(getStatus(), withoutConfigLogs, lastLog.getIndex());
     }
 
     private void addNode0(final String peerId) {
@@ -570,7 +563,7 @@ public class RaftImpl implements Raft {
                         c.maxEntriesPerAppend));
 
         logger.info("node {} addFuture peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
-        stateMachine.onNodeAdded(peerId);
+        stateMachine.onNodeAdded(getStatus(), peerId);
 
         existsPendingConfigChange = false;
     }
@@ -579,7 +572,7 @@ public class RaftImpl implements Raft {
         peerNodes.remove(peerId);
 
         logger.info("node {} remove peerId \"{}\" from cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
-        stateMachine.onNodeRemoved(peerId);
+        stateMachine.onNodeRemoved(getStatus(), peerId);
 
         if (getState() == State.LEADER) {
             // abort transfer leadership when transferee was removed from cluster
@@ -817,7 +810,7 @@ public class RaftImpl implements Raft {
                 this, snapshot.getIndex(), snapshot.getTerm(), snapshot.getPeerIdsList());
 
         raftLog.installSnapshot(snapshot);
-        stateMachine.installSnapshot(snapshot);
+        stateMachine.installSnapshot(getStatus(), snapshot);
 
         int lastIndex = raftLog.getLastIndex();
         Set<String> remainPeerIds = new HashSet<>(peerNodes.keySet());
@@ -893,12 +886,12 @@ public class RaftImpl implements Raft {
             this.cxt = cxt;
             RaftImpl.this.broadcastPing();
             final int selfTerm = RaftImpl.this.meta.getTerm();
-            stateMachine.onLeaderStart(selfTerm);
+            stateMachine.onLeaderStart(getStatus(), selfTerm);
         }
 
         public Context finish() {
             logger.debug("node {} finish leader", RaftImpl.this);
-            stateMachine.onLeaderFinish();
+            stateMachine.onLeaderFinish(getStatus());
             pendingProposal.failedAllFutures();
             if (transferLeaderFuture != null) {
                 transferLeaderFuture.getResponseFuture().complete(ProposalResponse.success());
@@ -978,12 +971,12 @@ public class RaftImpl implements Raft {
             logger.debug("node {} start follower", RaftImpl.this);
             this.cxt = cxt;
             final int selfTerm = RaftImpl.this.meta.getTerm();
-            stateMachine.onFollowerStart(selfTerm, RaftImpl.this.getLeaderId());
+            stateMachine.onFollowerStart(getStatus(), selfTerm, RaftImpl.this.getLeaderId());
         }
 
         public Context finish() {
             logger.debug("node {} finish follower", RaftImpl.this);
-            stateMachine.onFollowerFinish();
+            stateMachine.onFollowerFinish(getStatus());
             return cxt;
         }
 

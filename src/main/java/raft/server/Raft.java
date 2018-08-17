@@ -18,15 +18,9 @@ public interface Raft {
 
 	CompletableFuture<ProposalResponse> removeNode(String newNode);
 
-	void receiveCommand(RaftCommand cmd);
-
-	RaftStatusSnapshot getStatus();
-
 	String getId();
 
-	boolean isLeader();
-
-	State getState();
+	void receiveCommand(RaftCommand cmd);
 
 	void start();
 

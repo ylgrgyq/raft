@@ -1,5 +1,6 @@
 package raft.server;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -7,7 +8,8 @@ import java.util.List;
  * Date: 18/4/1
  */
 public class RaftStatusSnapshot {
-    private String id;
+    public static final RaftStatusSnapshot emptyStatus = new RaftStatusSnapshot();
+
     private int term;
     private String votedFor;
     private int commitIndex;
@@ -16,8 +18,14 @@ public class RaftStatusSnapshot {
     private State state;
     private List<String> peerNodeIds;
 
-    public void setId(String id) {
-        this.id = id;
+    public RaftStatusSnapshot() {
+        this.term = 0;
+        this.votedFor = null;
+        this.commitIndex = -1;
+        this.appliedIndex = -1;
+        this.leaderId = null;
+        this.state = State.FOLLOWER;
+        this.peerNodeIds = Collections.emptyList();
     }
 
     public void setTerm(int term) {
@@ -42,10 +50,6 @@ public class RaftStatusSnapshot {
 
     public void setPeerNodeIds(List<String> peerNodeIds) {
         this.peerNodeIds = peerNodeIds;
-    }
-
-    public String getId() {
-        return id;
     }
 
     public int getTerm() {
@@ -80,10 +84,21 @@ public class RaftStatusSnapshot {
         return peerNodeIds;
     }
 
+    public boolean isLeader() {
+        return getState() == State.LEADER;
+    }
+
+    public boolean isFollower() {
+        return getState() == State.FOLLOWER;
+    }
+
+    public boolean isCandidate() {
+        return getState() == State.CANDIDATE;
+    }
+
     @Override
     public String toString() {
         return "{" +
-                "id='" + id + '\'' +
                 ", term=" + term +
                 ", votedFor='" + votedFor + '\'' +
                 ", commitIndex=" + commitIndex +

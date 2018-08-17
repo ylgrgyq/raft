@@ -11,14 +11,14 @@ import java.util.Optional;
  * Date: 18/4/1
  */
 public interface StateMachine {
-    void onProposalCommitted(List<LogEntry> msgs);
-    void onNodeAdded(String peerId);
-    void onNodeRemoved(String peerId);
-    void onLeaderStart(int term);
-    void onLeaderFinish();
-    void onFollowerStart(int term, String leaderId);
-    void onFollowerFinish();
-    void installSnapshot(LogSnapshot snap);
+    void onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs);
+    void onNodeAdded(RaftStatusSnapshot status, String peerId);
+    void onNodeRemoved(RaftStatusSnapshot status, String peerId);
+    void onLeaderStart(RaftStatusSnapshot status, int term);
+    void onLeaderFinish(RaftStatusSnapshot status);
+    void onFollowerStart(RaftStatusSnapshot status, int term, String leaderId);
+    void onFollowerFinish(RaftStatusSnapshot status);
+    void installSnapshot(RaftStatusSnapshot status, LogSnapshot snap);
 
     /**
      * Get recent LogSnapshot with expected index.
