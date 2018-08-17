@@ -53,8 +53,8 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
-    public void onLeaderStart(RaftStatusSnapshot status, int term) {
-        notify(() -> stateMachine.onLeaderStart(status, term));
+    public void onLeaderStart(RaftStatusSnapshot status) {
+        notify(() -> stateMachine.onLeaderStart(status));
     }
 
     @Override
@@ -63,13 +63,23 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
-    public void onFollowerStart(RaftStatusSnapshot status, int term, String leaderId) {
-        notify(() -> stateMachine.onFollowerStart(status, term, leaderId));
+    public void onFollowerStart(RaftStatusSnapshot status) {
+        notify(() -> stateMachine.onFollowerStart(status));
     }
 
     @Override
     public void onFollowerFinish(RaftStatusSnapshot status) {
         notify(()->stateMachine.onFollowerFinish(status));
+    }
+
+    @Override
+    public void onCandidateStart(RaftStatusSnapshot status) {
+        notify(() -> stateMachine.onCandidateStart(status));
+    }
+
+    @Override
+    public void onCandidateFinish(RaftStatusSnapshot status) {
+        notify(()->stateMachine.onCandidateFinish(status));
     }
 
     @Override

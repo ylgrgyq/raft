@@ -69,7 +69,7 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public void onLeaderStart(RaftStatusSnapshot status, int term) {
+    public void onLeaderStart(RaftStatusSnapshot status) {
         lastStatus = status;
         isLeader.set(true);
         if (waitLeaderFuture != null) {
@@ -96,7 +96,7 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public void onFollowerStart(RaftStatusSnapshot status, int term, String leaderId) {
+    public void onFollowerStart(RaftStatusSnapshot status) {
         lastStatus = status;
         isFollower.set(true);
         if (waitFollowerFuture != null) {
@@ -108,6 +108,16 @@ class TestingRaftStateMachine implements StateMachine {
     public void onFollowerFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isFollower.set(false);
+    }
+
+    @Override
+    public void onCandidateStart(RaftStatusSnapshot status) {
+        lastStatus = status;
+    }
+
+    @Override
+    public void onCandidateFinish(RaftStatusSnapshot status) {
+        lastStatus = status;
     }
 
     CompletableFuture<Void> waitBecomeFollower() {

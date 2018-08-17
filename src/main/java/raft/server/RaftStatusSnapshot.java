@@ -11,7 +11,6 @@ public class RaftStatusSnapshot {
     public static final RaftStatusSnapshot emptyStatus = new RaftStatusSnapshot();
 
     private int term;
-    private String votedFor;
     private int commitIndex;
     private int appliedIndex;
     private String leaderId;
@@ -20,7 +19,6 @@ public class RaftStatusSnapshot {
 
     public RaftStatusSnapshot() {
         this.term = 0;
-        this.votedFor = null;
         this.commitIndex = -1;
         this.appliedIndex = -1;
         this.leaderId = null;
@@ -30,10 +28,6 @@ public class RaftStatusSnapshot {
 
     public void setTerm(int term) {
         this.term = term;
-    }
-
-    public void setVotedFor(String votedFor) {
-        this.votedFor = votedFor;
     }
 
     public void setCommitIndex(int commitIndex) {
@@ -54,10 +48,6 @@ public class RaftStatusSnapshot {
 
     public int getTerm() {
         return term;
-    }
-
-    public String getVotedFor() {
-        return votedFor;
     }
 
     public int getCommitIndex() {
@@ -100,7 +90,6 @@ public class RaftStatusSnapshot {
     public String toString() {
         return "{" +
                 ", term=" + term +
-                ", votedFor='" + votedFor + '\'' +
                 ", commitIndex=" + commitIndex +
                 ", appliedIndex=" + appliedIndex +
                 ", leaderId='" + leaderId + '\'' +

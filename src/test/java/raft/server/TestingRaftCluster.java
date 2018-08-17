@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -102,13 +103,14 @@ class TestingRaftCluster {
     }
 
     List<TestingRaftStateMachine> getFollowers() throws TimeoutException, InterruptedException {
-        waitGetLeader();
-        ArrayList<TestingRaftStateMachine> followers = new ArrayList<>();
-        for (Map.Entry<String, TestingRaftStateMachine> e : stateMachines.entrySet()) {
-            TestingRaftStateMachine n = e.getValue();
-            if (!n.getLastStatus().isLeader()) {
-                followers.add(e.getValue());
-            }
+        TestingRaftStateMachine leader = waitGetLeader();
+        List<TestingRaftStateMachine> followers = stateMachines.values()
+                .stream()
+                .filter(n -> !n.getId().equals(leader.getId()))
+                .collect(Collectors.toList());
+
+        for (TestingRaftStateMachine follower : followers) {
+            follower.waitBecomeFollower();
         }
         return followers;
     }

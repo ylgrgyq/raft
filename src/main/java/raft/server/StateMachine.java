@@ -14,10 +14,12 @@ public interface StateMachine {
     void onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs);
     void onNodeAdded(RaftStatusSnapshot status, String peerId);
     void onNodeRemoved(RaftStatusSnapshot status, String peerId);
-    void onLeaderStart(RaftStatusSnapshot status, int term);
+    void onLeaderStart(RaftStatusSnapshot status);
     void onLeaderFinish(RaftStatusSnapshot status);
-    void onFollowerStart(RaftStatusSnapshot status, int term, String leaderId);
+    void onFollowerStart(RaftStatusSnapshot status);
     void onFollowerFinish(RaftStatusSnapshot status);
+    void onCandidateStart(RaftStatusSnapshot status);
+    void onCandidateFinish(RaftStatusSnapshot status);
     void installSnapshot(RaftStatusSnapshot status, LogSnapshot snap);
 
     /**

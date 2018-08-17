@@ -146,7 +146,6 @@ public class RaftImpl implements Raft {
         status.setCommitIndex(raftLog.getCommitIndex());
         status.setAppliedIndex(raftLog.getAppliedIndex());
         status.setLeaderId(leaderId);
-        status.setVotedFor(meta.getVotedFor());
         status.setState(getState());
         status.setPeerNodeIds(new ArrayList<>(peerNodes.keySet()));
 
@@ -392,6 +391,7 @@ public class RaftImpl implements Raft {
                     && raftLog.isUpToDate(cmd.getLastLogTerm(), cmd.getLastLogIndex())) {
                 isGranted = true;
                 tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
+                logger.debug("node {} set voted for {}", this, candidateId);
                 meta.setVotedFor(candidateId);
             }
 
@@ -867,6 +867,7 @@ public class RaftImpl implements Raft {
                 ", id='" + selfId + '\'' +
                 ", leaderId='" + leaderId + '\'' +
                 ", state=" + getState() +
+                ", votedFor='" + meta.getVotedFor() + '\'' +
                 '}';
     }
 
@@ -885,8 +886,7 @@ public class RaftImpl implements Raft {
             logger.debug("node {} start leader", RaftImpl.this);
             this.cxt = cxt;
             RaftImpl.this.broadcastPing();
-            final int selfTerm = RaftImpl.this.meta.getTerm();
-            stateMachine.onLeaderStart(getStatus(), selfTerm);
+            stateMachine.onLeaderStart(getStatus());
         }
 
         public Context finish() {
@@ -970,8 +970,7 @@ public class RaftImpl implements Raft {
         public void start(Context cxt) {
             logger.debug("node {} start follower", RaftImpl.this);
             this.cxt = cxt;
-            final int selfTerm = RaftImpl.this.meta.getTerm();
-            stateMachine.onFollowerStart(getStatus(), selfTerm, RaftImpl.this.getLeaderId());
+            stateMachine.onFollowerStart(getStatus());
         }
 
         public Context finish() {
@@ -1032,10 +1031,12 @@ public class RaftImpl implements Raft {
             logger.debug("node {} start candidate", RaftImpl.this);
             this.cxt = cxt;
             startElection();
+            stateMachine.onCandidateStart(getStatus());
         }
 
         public Context finish() {
             logger.debug("node {} finish candidate", RaftImpl.this);
+            stateMachine.onCandidateFinish(getStatus());
             return cxt;
         }
 
