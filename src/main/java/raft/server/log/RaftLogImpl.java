@@ -279,6 +279,7 @@ public class RaftLogImpl implements RaftLog {
     @Override
     public void shutdown() {
         pool.shutdown();
+        storage.shutdown();
     }
 
     @Override

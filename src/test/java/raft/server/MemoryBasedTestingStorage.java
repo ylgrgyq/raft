@@ -113,4 +113,9 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
         }
         return CompletableFuture.completedFuture(null);
     }
+
+    @Override
+    public void shutdown() {
+
+    }
 }

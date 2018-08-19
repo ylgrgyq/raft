@@ -81,9 +81,10 @@ class TestingRaftStateMachine implements StateMachine {
     public void onLeaderFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isLeader.set(false);
+        waitLeaderFuture = null;
     }
 
-    CompletableFuture<Void> waitBecomeLeader() {
+    CompletableFuture<Void> becomeLeaderFuture() {
         if (isLeader.get()) {
             return CompletableFuture.completedFuture(null);
         } else {
@@ -97,10 +98,13 @@ class TestingRaftStateMachine implements StateMachine {
 
     @Override
     public void onFollowerStart(RaftStatusSnapshot status) {
-        lastStatus = status;
-        isFollower.set(true);
-        if (waitFollowerFuture != null) {
-            waitFollowerFuture.complete(null);
+        // skip initial follower state
+        if (status.getLeaderId() != null) {
+            lastStatus = status;
+            isFollower.set(true);
+            if (waitFollowerFuture != null) {
+                waitFollowerFuture.complete(null);
+            }
         }
     }
 
@@ -108,6 +112,7 @@ class TestingRaftStateMachine implements StateMachine {
     public void onFollowerFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isFollower.set(false);
+        waitLeaderFuture = null;
     }
 
     @Override
@@ -120,11 +125,14 @@ class TestingRaftStateMachine implements StateMachine {
         lastStatus = status;
     }
 
-    CompletableFuture<Void> waitBecomeFollower() {
+    CompletableFuture<Void> becomeFollowerFuture() {
         if (isFollower.get()) {
             return CompletableFuture.completedFuture(null);
         } else {
             waitFollowerFuture = new CompletableFuture<>();
+            if (isFollower.get()) {
+                waitFollowerFuture = CompletableFuture.completedFuture(null);
+            }
             return waitFollowerFuture;
         }
     }

@@ -112,7 +112,7 @@ public class FileBasedStorageTest {
 
         expectEntries.addAll(newEntries);
         testingStorage.append(newEntries);
-        testingStorage.shutdownNow();
+        testingStorage.shutdown();
 
         reOpen();
 

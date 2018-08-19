@@ -7,6 +7,8 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
@@ -71,13 +73,15 @@ public class ElectLeaderTest {
         assertTrue(leaderStatus.getTerm() > 0);
         assertEquals(leaderId, leaderStatus.getLeaderId());
 
-        List<TestingRaftStateMachine> followers = cluster.getFollowers();
+        List<TestingRaftStateMachine> actualFollowers = cluster.getFollowers();
         assertEquals(expectFollowerIds,
-                followers.stream()
+                actualFollowers.stream()
                         .map(TestingRaftStateMachine::getId)
                         .collect(Collectors.toSet()));
 
-        for (TestingRaftStateMachine follower : followers) {
+        for (TestingRaftStateMachine follower : actualFollowers) {
+            Future f = follower.becomeFollowerFuture();
+            f.get();
             RaftStatusSnapshot status = follower.getLastStatus();
             assertEquals(State.FOLLOWER, status.getState());
             assertEquals(-1, status.getCommitIndex());
@@ -86,56 +90,96 @@ public class ElectLeaderTest {
             assertEquals(leaderId, status.getLeaderId());
         }
     }
-//
-//    @Test
-//    public void testLeaderLost() throws Exception {
-//        HashSet<String> peerIdSet = new HashSet<>();
-//        peerIdSet.add("triple node 001");
-//        peerIdSet.add("triple node 002");
-//        peerIdSet.add("triple node 003");
-//
-//        TestingRaftCluster.init(new ArrayList<>(peerIdSet));
-//        TestingRaftCluster.clearPersistentState();
-//        TestingRaftCluster.startCluster();
-//        Raft leader = TestingRaftCluster.waitGetLeader(5000);
-//
-//        String leaderId = leader.getId();
-//        TestingRaftCluster.shutdownPeer(leaderId);
-//        peerIdSet.remove(leaderId);
-//
-//        leader = TestingRaftCluster.waitGetLeader(5000);
-//        leaderId = leader.getId();
-//        RaftStatusSnapshot leaderStatus = leader.getStatus();
-//        assertEquals(leaderId, leaderStatus.getId());
-//        assertEquals(State.LEADER, leaderStatus.getState());
-//        assertEquals(-1, leaderStatus.getCommitIndex());
-//        assertEquals(-1, leaderStatus.getAppliedIndex());
-//        assertTrue(leaderStatus.getTerm() > 0);
-//        assertEquals(leaderId, leaderStatus.getLeaderId());
-//        assertEquals(leaderId, leaderStatus.getVotedFor());
-//
-//        peerIdSet.remove(leaderId);
-//
-//        for (String id : peerIdSet) {
-//            TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(id);
-//            stateMachine.waitBecomeFollower().get();
-//
-//            Raft follower = TestingRaftCluster.getNodeById(id);
-//            RaftStatusSnapshot status = follower.getStatus();
-//            assertEquals(State.FOLLOWER, status.getState());
-//            assertEquals(-1, status.getCommitIndex());
-//            assertEquals(-1, status.getAppliedIndex());
-//            assertEquals(leaderStatus.getTerm(), status.getTerm());
-//            assertEquals(leaderId, status.getLeaderId());
-//
-//            // if follower is convert from follower the votedFor is leaderId
-//            // if follower is convert from candidate by receiving ping from leader, the votedFort could be it self
-//            assertTrue((leaderId.equals(status.getVotedFor()))
-//                    || (status.getId().equals(status.getVotedFor())));
-//        }
-//
-//        TestingRaftCluster.shutdownCluster();
-//    }
 
-    // test leader lost then reelect a new leader then old leader comes back
+    @Test
+    public void testLeaderLost() throws Exception {
+        HashSet<String> peerIdSet = new HashSet<>();
+        peerIdSet.add("triple node 001");
+        peerIdSet.add("triple node 002");
+        peerIdSet.add("triple node 003");
+
+        cluster.startCluster(peerIdSet);
+        TestingRaftStateMachine leader = cluster.waitGetLeader();
+
+        String oldLeaderId = leader.getId();
+        cluster.shutdownPeer(oldLeaderId);
+
+        leader = cluster.waitGetLeader();
+        String newLeaderId = leader.getId();
+        RaftStatusSnapshot leaderStatus = leader.getLastStatus();
+        assertEquals(State.LEADER, leaderStatus.getState());
+        assertEquals(-1, leaderStatus.getCommitIndex());
+        assertEquals(-1, leaderStatus.getAppliedIndex());
+        assertTrue(leaderStatus.getTerm() > 0);
+        assertEquals(newLeaderId, leaderStatus.getLeaderId());
+
+        Set<String> expectFollowerIds = peerIdSet.stream()
+                .filter(id -> !id.equals(oldLeaderId) && !id.equals(newLeaderId))
+                .collect(Collectors.toSet());
+
+        List<TestingRaftStateMachine> actualFollowers = cluster.getFollowers();
+        assertEquals(expectFollowerIds,
+                actualFollowers.stream()
+                        .map(TestingRaftStateMachine::getId)
+                        .collect(Collectors.toSet()));
+
+        for (TestingRaftStateMachine follower : actualFollowers) {
+            Future f = follower.becomeFollowerFuture();
+            f.get();
+            RaftStatusSnapshot status = follower.getLastStatus();
+            assertEquals(State.FOLLOWER, status.getState());
+            assertEquals(-1, status.getCommitIndex());
+            assertEquals(-1, status.getAppliedIndex());
+            assertEquals(leaderStatus.getTerm(), status.getTerm());
+            assertEquals(newLeaderId, status.getLeaderId());
+        }
+    }
+
+    @Test
+    public void testLeaderReboot() throws Exception {
+        HashSet<String> peerIdSet = new HashSet<>();
+        peerIdSet.add("triple node 001");
+        peerIdSet.add("triple node 002");
+        peerIdSet.add("triple node 003");
+
+        cluster.startCluster(peerIdSet);
+        TestingRaftStateMachine leader = cluster.waitGetLeader();
+
+        String oldLeaderId = leader.getId();
+        cluster.shutdownPeer(oldLeaderId);
+
+        leader = cluster.waitGetLeader();
+        String newLeaderId = leader.getId();
+        RaftStatusSnapshot leaderStatus = leader.getLastStatus();
+        assertEquals(State.LEADER, leaderStatus.getState());
+        assertEquals(-1, leaderStatus.getCommitIndex());
+        assertEquals(-1, leaderStatus.getAppliedIndex());
+        assertTrue(leaderStatus.getTerm() > 0);
+        assertEquals(newLeaderId, leaderStatus.getLeaderId());
+
+        Raft oldLeader = cluster.addTestingNode(oldLeaderId, peerIdSet);
+        oldLeader.start();
+
+
+        Set<String> expectFollowerIds = peerIdSet.stream()
+                .filter(id -> !id.equals(newLeaderId))
+                .collect(Collectors.toSet());
+
+        List<TestingRaftStateMachine> actualFollowers = cluster.getFollowers();
+        assertEquals(expectFollowerIds,
+                actualFollowers.stream()
+                        .map(TestingRaftStateMachine::getId)
+                        .collect(Collectors.toSet()));
+
+        for (TestingRaftStateMachine follower : actualFollowers) {
+            Future f = follower.becomeFollowerFuture();
+            f.get();
+            RaftStatusSnapshot status = follower.getLastStatus();
+            assertEquals(State.FOLLOWER, status.getState());
+            assertEquals(-1, status.getCommitIndex());
+            assertEquals(-1, status.getAppliedIndex());
+            assertEquals(leaderStatus.getTerm(), status.getTerm());
+            assertEquals(newLeaderId, status.getLeaderId());
+        }
+    }
 }

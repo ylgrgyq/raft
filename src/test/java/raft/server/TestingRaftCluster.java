@@ -110,7 +110,7 @@ class TestingRaftCluster {
                 .collect(Collectors.toList());
 
         for (TestingRaftStateMachine follower : followers) {
-            follower.waitBecomeFollower();
+            follower.becomeFollowerFuture();
         }
         return followers;
     }
@@ -132,9 +132,11 @@ class TestingRaftCluster {
             n.shutdown();
         }
         nodes.clear();
+        stateMachines.clear();
     }
 
     void shutdownPeer(String peerId) {
+        stateMachines.remove(peerId);
         nodes.computeIfPresent(peerId, (k, n) -> {
             n.shutdown();
             return null;

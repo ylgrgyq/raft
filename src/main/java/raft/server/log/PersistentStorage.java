@@ -44,4 +44,6 @@ public interface PersistentStorage {
 
 
     CompletableFuture<Void> compact(int toIndex);
+
+    void shutdown();
 }
