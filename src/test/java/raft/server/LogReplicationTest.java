@@ -39,7 +39,7 @@ public class LogReplicationTest {
 
         // check node status after logs proposed
         RaftStatusSnapshot status = stateMachine.getLastStatus();
-        assertEquals(logCount, status.getCommitIndex());
+        assertEquals(logCount - 1, status.getCommitIndex());
         assertTrue(applied.size() > 0);
 
         for (LogEntry e : applied) {
@@ -106,7 +106,7 @@ public class LogReplicationTest {
         }
 
         for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
+            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
         }
     }
 
@@ -137,7 +137,7 @@ public class LogReplicationTest {
         }
 
         for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
+            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
         }
 
         // reboot old leader
@@ -148,6 +148,6 @@ public class LogReplicationTest {
         TestingRaftStateMachine follower = cluster.getStateMachineById(oldLeaderId);
         Future f = follower.becomeFollowerFuture();
         f.get();
-        checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
+        checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
     }
 }
