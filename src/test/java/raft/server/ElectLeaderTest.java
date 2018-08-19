@@ -160,7 +160,6 @@ public class ElectLeaderTest {
         Raft oldLeader = cluster.addTestingNode(oldLeaderId, peerIdSet);
         oldLeader.start();
 
-
         Set<String> expectFollowerIds = peerIdSet.stream()
                 .filter(id -> !id.equals(newLeaderId))
                 .collect(Collectors.toSet());

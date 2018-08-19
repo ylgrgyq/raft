@@ -115,6 +115,10 @@ class TestingRaftCluster {
         return followers;
     }
 
+    public List<TestingRaftStateMachine> getAllStateMachines() {
+        return new ArrayList<>(stateMachines.values());
+    }
+
     Raft getNodeById(String peerId) {
         return nodes.get(peerId);
     }

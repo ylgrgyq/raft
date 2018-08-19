@@ -39,23 +39,23 @@ class TestingRaftStateMachine implements StateMachine {
     @Override
     public void onNodeAdded(RaftStatusSnapshot status, String peerId) {
         logger.info("on node added called " + peerId);
+        lastStatus = status;
         knownPeerIds.add(peerId);
         nodeAdded.add(peerId);
-        lastStatus = status;
     }
 
     @Override
     public void onNodeRemoved(RaftStatusSnapshot status, String peerId) {
+        lastStatus = status;
         knownPeerIds.remove(peerId);
         nodeRemoved.add(peerId);
-        lastStatus = status;
     }
 
     @Override
     public void onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs) {
         assert msgs != null && !msgs.isEmpty() : "msgs is null:" + (msgs == null);
-        applied.addAll(msgs);
         lastStatus = status;
+        applied.addAll(msgs);
     }
 
     @Override
