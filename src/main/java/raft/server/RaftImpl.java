@@ -563,7 +563,7 @@ public class RaftImpl implements Raft {
                         raftLog.getLastIndex() + 1,
                         c.maxEntriesPerAppend));
 
-        logger.info("node {} addFuture peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
+        logger.info("node {} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
         stateMachine.onNodeAdded(getStatus(), peerId);
 
         existsPendingConfigChange = false;

@@ -123,6 +123,10 @@ class TestingRaftCluster {
         return nodes.get(peerId);
     }
 
+    public Collection<String> getAllPeerIds() {
+        return nodes.keySet();
+    }
+
     TestingRaftStateMachine getStateMachineById(String peerId) {
         TestingRaftStateMachine stateMachine = stateMachines.get(peerId);
         if (stateMachine != null) {

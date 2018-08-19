@@ -4,11 +4,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.junit.Assert.*;
 
@@ -69,82 +67,82 @@ public class LeaderTransferTest {
         assertEquals(ErrorMsg.UNKNOWN_TRANSFEREEID, resp.getError());
     }
 
-//    @Test
-//    public void testImmediateTransfer() throws Exception {
-//        TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
-//        Raft oldLeader = cluster.getNodeById(leaderStateMachine.getId());
-//
-//        TestingRaftStateMachine newLeaderStateMachine = cluster.getFollowers().get(0);
-//        Raft newLeader = cluster.getNodeById(newLeaderStateMachine.getId());
-//        String newLeaderId = newLeader.getId();
-//        CompletableFuture<ProposalResponse> future = oldLeader.transferLeader(newLeaderId);
-//        ProposalResponse resp = future.get();
-//        assertTrue(resp.isSuccess());
-//
-//        newLeaderStateMachine.becomeFollowerFuture().get();
-//        newLeaderStateMachine = cluster.waitGetLeader();
-//        assertEquals(newLeaderId, newLeaderStateMachine.getId());
-//        assertEquals(State.LEADER, newLeaderStateMachine.getLastStatus().getState());
-//    }
-//
-//    @Test
-//    public void testTransferLeaderSuccessively() throws Exception {
-//        Raft oldLeader = TestingRaftCluster.waitGetLeader();
-//        Raft newLeader = TestingRaftCluster.getFollowers().get(0);
-//        String newLeaderId = newLeader.getId();
-//        CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
-//        CompletableFuture<ProposalResponse> failedFuture = oldLeader.transferLeader(newLeaderId);
-//        assertTrue(successFuture.get().isSuccess());
-//        assertFalse(failedFuture.get().isSuccess());
-//        assertEquals(ErrorMsg.LEADER_TRANSFERRING, failedFuture.get().getError());
-//
-//        TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(newLeaderId);
-//        stateMachine.waitBecomeLeader().get();
-//        newLeader = TestingRaftCluster.waitGetLeader();
-//        assertEquals(newLeaderId, newLeader.getId());
-//        assertEquals(State.LEADER, newLeader.getState());
-//    }
-//
-//    @Test
-//    public void testTransferAfterCatchUp() throws Exception {
-//        Raft oldLeader = TestingRaftCluster.waitGetLeader();
-//
-//        // propose some logs
-//        int proposeCount = 10  ;
-//        for (int i = 0; i < proposeCount; i++) {
-//            int logCount = ThreadLocalRandom.current().nextInt(10, 100);
-//            List<byte[]> dataList = TestUtil.newDataList(logCount);
-//            CompletableFuture<ProposalResponse> resp = oldLeader.propose(dataList);
-//            ProposalResponse p = resp.get();
-//            assertTrue(p.isSuccess());
-//        }
-//
-//        // addFuture a new node
-//        String newLeaderId = "new node 004";
-//        CompletableFuture<ProposalResponse> f = oldLeader.addNode(newLeaderId);
-//        ProposalResponse resp = f.get();
-//        assertTrue(resp.isSuccess());
-//        TestingRaftCluster.TestingRaftStateMachine oldLeaderStateMachine =
-//                TestingRaftCluster.getStateMachineById(oldLeader.getId());
-//        oldLeaderStateMachine.waitNodeAdded(newLeaderId);
-//
-//        // transfer leader to new node
-//        CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
-//
-//        // propose will failed
-//        int logCount = ThreadLocalRandom.current().nextInt(10, 100);
-//        List<byte[]> dataList = TestUtil.newDataList(logCount);
-//        f = oldLeader.propose(dataList);
-//        ProposalResponse p = f.get();
-//        assertFalse(p.isSuccess());
-//        assertEquals(ErrorMsg.LEADER_TRANSFERRING, p.getError());
-//
-//        // check leadership on new leader
-//        assertTrue(successFuture.get().isSuccess());
-//        TestingRaftCluster.TestingRaftStateMachine stateMachine = TestingRaftCluster.getStateMachineById(newLeaderId);
-//        stateMachine.waitBecomeLeader().get();
-//        Raft newLeader = TestingRaftCluster.waitGetLeader();
-//        assertEquals(newLeaderId, newLeader.getId());
-//        assertEquals(State.LEADER, newLeader.getState());
-//    }
+    @Test
+    public void testImmediateTransfer() throws Exception {
+        TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
+        Raft oldLeader = cluster.getNodeById(leaderStateMachine.getId());
+
+        TestingRaftStateMachine newLeaderStateMachine = cluster.getFollowers().get(0);
+        Raft newLeader = cluster.getNodeById(newLeaderStateMachine.getId());
+        String newLeaderId = newLeader.getId();
+        CompletableFuture<ProposalResponse> future = oldLeader.transferLeader(newLeaderId);
+        ProposalResponse resp = future.get();
+        assertTrue(resp.isSuccess());
+
+        newLeaderStateMachine.becomeLeaderFuture().get();
+        newLeaderStateMachine = cluster.waitGetLeader();
+        assertEquals(newLeaderId, newLeaderStateMachine.getId());
+        assertEquals(State.LEADER, newLeaderStateMachine.getLastStatus().getState());
+    }
+
+    @Test
+    public void testTransferLeaderSuccessively() throws Exception {
+        TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
+        Raft oldLeader = cluster.getNodeById(leaderStateMachine.getId());
+
+        TestingRaftStateMachine newLeaderStateMachine = cluster.getFollowers().get(0);
+        String newLeaderId = newLeaderStateMachine.getId();
+        CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
+        CompletableFuture<ProposalResponse> failedFuture = oldLeader.transferLeader(newLeaderId);
+        assertTrue(successFuture.get().isSuccess());
+        assertFalse(failedFuture.get().isSuccess());
+        assertEquals(ErrorMsg.LEADER_TRANSFERRING, failedFuture.get().getError());
+
+        TestingRaftStateMachine stateMachine = cluster.getStateMachineById(newLeaderId);
+        stateMachine.becomeLeaderFuture().get();
+        newLeaderStateMachine = cluster.waitGetLeader();
+        assertEquals(newLeaderId, newLeaderStateMachine.getId());
+        assertEquals(State.LEADER, newLeaderStateMachine.getLastStatus().getState());
+    }
+
+    @Test
+    public void testTransferAfterCatchUp() throws Exception {
+        TestingRaftStateMachine oldLeaderStateMachine = cluster.waitGetLeader();
+        Raft oldLeader = cluster.getNodeById(oldLeaderStateMachine.getId());
+
+        // propose some logs
+        List<byte[]> dataList = TestUtil.newDataList(1, 100);
+        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
+            CompletableFuture<ProposalResponse> resp = oldLeader.propose(batch);
+            ProposalResponse p = resp.get();
+            assertTrue(p.isSuccess());
+            assertEquals(ErrorMsg.NONE, p.getError());
+        }
+
+        // add a new node
+        String newLeaderId = "new node 004";
+        Raft newNode = cluster.addTestingNode(newLeaderId, cluster.getAllPeerIds());
+        newNode.start();
+
+        CompletableFuture<ProposalResponse> f = oldLeader.addNode(newLeaderId);
+        ProposalResponse resp = f.get();
+        assertTrue(resp.isSuccess());
+        oldLeaderStateMachine.waitNodeAdded(newLeaderId);
+
+        // transfer leader to new node
+        CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
+
+        // propose will failed
+        List<byte[]> failedData = TestUtil.newDataList(100);
+        f = oldLeader.propose(failedData);
+        ProposalResponse p = f.get();
+        assertFalse(p.isSuccess());
+        assertEquals(ErrorMsg.LEADER_TRANSFERRING, p.getError());
+
+        // check leadership on new leader
+        assertTrue(successFuture.get().isSuccess());
+        TestingRaftStateMachine stateMachine = cluster.getStateMachineById(newLeaderId);
+        stateMachine.becomeLeaderFuture().get();
+        assertEquals(State.LEADER, stateMachine.getLastStatus().getState());
+    }
 }
