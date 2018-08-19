@@ -6,7 +6,7 @@ import raft.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
 import raft.server.log.RaftLogImpl;
 import raft.server.proto.LogEntry;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,16 +35,18 @@ public class StateMachineProxyTest {
         CountDownLatch listenerCalled = new CountDownLatch(1);
 
         StateMachine mockStateMachine = mock(StateMachine.class);
+        RaftStatusSnapshot status = RaftStatusSnapshot.emptyStatus;
         doAnswer(invocationOnMock -> {
-            String peerId = invocationOnMock.getArgument(0);
-            assertTrue(expectPeerId.equals(peerId));
+            assertEquals(status, invocationOnMock.getArgument(0));
+            String peerId = invocationOnMock.getArgument(1);
+            assertEquals(expectPeerId, peerId);
             assertTrue(stateMachineCalledOnce.compareAndSet(false, true));
             listenerCalled.countDown();
             return null;
-        }).when(mockStateMachine).onNodeAdded(anyString());
+        }).when(mockStateMachine).onNodeAdded(any(), anyString());
 
         StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, raftLog);
-        proxy.onNodeAdded(expectPeerId);
+        proxy.onNodeAdded(status, expectPeerId);
         listenerCalled.await();
         assertTrue(stateMachineCalledOnce.get());
     }
@@ -61,16 +63,17 @@ public class StateMachineProxyTest {
                 // ignore
             }
             return null;
-        }).when(mockedStateMachine).onNodeAdded(anyString());
+        }).when(mockedStateMachine).onNodeAdded(any(), anyString());
 
+        RaftStatusSnapshot status = RaftStatusSnapshot.emptyStatus;
         ExecutorService pool = new ThreadPoolExecutor(
                 1, 1, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(1), new ThreadFactoryImpl("StateMachineProxy-"));
         StateMachineProxy proxy = new StateMachineProxy(mockedStateMachine, raftLog, pool);
-        proxy.onNodeAdded("peerId1");
+        proxy.onNodeAdded(status, "peerId1");
         listenerCalled.await();
-        proxy.onNodeAdded("peerId2");
-        proxy.onNodeAdded("peerId2");
+        proxy.onNodeAdded(status,"peerId2");
+        proxy.onNodeAdded(status,"peerId2");
     }
 
     @Test(expected = IllegalStateException.class)
@@ -79,11 +82,11 @@ public class StateMachineProxyTest {
         doAnswer(invocationOnMock -> {
             throw new RuntimeException("some expected exception");
         }).when(mockStateMachine)
-                .onNodeAdded(anyString());
+                .onNodeAdded(any(), anyString());
 
         StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, raftLog);
         for (int i = 0; i < 10; i++) {
-            proxy.onNodeAdded("peerId1");
+            proxy.onNodeAdded(RaftStatusSnapshot.emptyStatus, "peerId1");
             Thread.sleep(200);
         }
     }
@@ -143,14 +146,15 @@ public class StateMachineProxyTest {
 
         StateMachine mockStateMachine = mock(StateMachine.class);
         doAnswer(invocationOnMock -> {
-            List<LogEntry> msgs = invocationOnMock.getArgument(0);
+            assertEquals(RaftStatusSnapshot.emptyStatus, invocationOnMock.getArgument(0));
+            List<LogEntry> msgs = invocationOnMock.getArgument(1);
             assertTrue(stateMachineCalledOnce.compareAndSet(false, true));
             assertEquals(originMsgs
                     .stream()
                     .filter(e -> (e.getType() != LogEntry.EntryType.CONFIG))
                     .collect(Collectors.toList()), msgs);
             return null;
-        }).when(mockStateMachine).onProposalCommitted(anyList());
+        }).when(mockStateMachine).onProposalCommitted(any(), anyList());
 
         RaftLog mockRaftLog = mock(RaftLog.class);
         doAnswer(invocationOnMock -> {
@@ -161,7 +165,7 @@ public class StateMachineProxyTest {
         }).when(mockRaftLog).appliedTo(anyInt());
 
         StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, mockRaftLog);
-        proxy.onProposalCommitted(originMsgs
+        proxy.onProposalCommitted(RaftStatusSnapshot.emptyStatus, originMsgs
                 .stream()
                 .filter(e -> (e.getType() != LogEntry.EntryType.CONFIG))
                 .collect(Collectors.toList()), originMsgs.get(originMsgs.size() - 1).getIndex());
@@ -172,7 +176,7 @@ public class StateMachineProxyTest {
     @Test
     public void installSnapshot() throws Exception {
         CountDownLatch appliedCalled = new CountDownLatch(1);
-        Snapshot expectSnapshot = Snapshot.newBuilder()
+        LogSnapshot expectSnapshot = LogSnapshot.newBuilder()
                 .setTerm(2)
                 .setIndex(6)
                 .setData(ByteString.copyFrom(new byte[]{1, 2,3,4}))
@@ -180,10 +184,11 @@ public class StateMachineProxyTest {
 
         StateMachine mockStateMachine = mock(StateMachine.class);
         doAnswer(invocationOnMock -> {
-            Snapshot actualSnapshot = invocationOnMock.getArgument(0);
+            assertEquals(RaftStatusSnapshot.emptyStatus, invocationOnMock.getArgument(0));
+            LogSnapshot actualSnapshot = invocationOnMock.getArgument(1);
             assertEquals(expectSnapshot, actualSnapshot);
             return null;
-        }).when(mockStateMachine).installSnapshot(any());
+        }).when(mockStateMachine).installSnapshot(any(), any());
 
         RaftLog mockRaftLog = mock(RaftLog.class);
         doAnswer(invocationOnMock -> {
@@ -194,14 +199,14 @@ public class StateMachineProxyTest {
         }).when(mockRaftLog).snapshotApplied(anyInt());
 
         StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, mockRaftLog);
-        proxy.installSnapshot(expectSnapshot);
+        proxy.installSnapshot(RaftStatusSnapshot.emptyStatus, expectSnapshot);
         appliedCalled.await();
     }
 
     @Test
     public void getRecentSnapshot() throws Exception {
         int expectIndex = ThreadLocalRandom.current().nextInt();
-        Snapshot expectSnapshot = Snapshot.newBuilder()
+        LogSnapshot expectSnapshot = LogSnapshot.newBuilder()
                 .setTerm(2)
                 .setIndex(6)
                 .setData(ByteString.copyFrom(new byte[]{1, 2,3,4}))
@@ -217,7 +222,7 @@ public class StateMachineProxyTest {
         }).when(mockStateMachine).getRecentSnapshot(anyInt());
 
         StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, raftLog);
-        Optional<Snapshot> actualSnapshot = proxy.getRecentSnapshot(expectIndex);
+        Optional<LogSnapshot> actualSnapshot = proxy.getRecentSnapshot(expectIndex);
         assert(actualSnapshot.isPresent());
         assertEquals(expectSnapshot, actualSnapshot.get());
     }

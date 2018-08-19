@@ -6,7 +6,7 @@ import raft.server.log.LogsCompactedException;
 import raft.server.log.RaftLog;
 import raft.server.proto.LogEntry;
 import raft.server.proto.RaftCommand;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 
 import java.util.List;
 import java.util.Optional;
@@ -57,13 +57,13 @@ class RaftPeerNode {
         }
 
         if (compacted) {
-            Optional<Snapshot> snapshot = raft.getRecentSnapshot(startIndex - 1);
+            Optional<LogSnapshot> snapshot = raft.getRecentSnapshot(startIndex - 1);
             if (snapshot.isPresent()) {
-                Snapshot s = snapshot.get();
+                LogSnapshot s = snapshot.get();
                 logger.info("prepare to send snapshot with index: {} term: {} to {}", s.getIndex(), s.getTerm(), this);
                 msgBuilder.setType(RaftCommand.CmdType.SNAPSHOT).setSnapshot(snapshot.get());
             } else {
-                logger.warn("snapshot on {} is not ready, skip append to {}", raft.getSelfId(), this);
+                logger.warn("snapshot on {} is not ready, skip append to {}", raft.getId(), this);
                 return;
             }
         } else {

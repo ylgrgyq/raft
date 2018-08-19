@@ -8,26 +8,26 @@ public interface LogEntryOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>int32 index = 1;</code>
+   * <code>optional int32 index = 1;</code>
    */
   int getIndex();
 
   /**
-   * <code>int32 term = 2;</code>
+   * <code>optional int32 term = 2;</code>
    */
   int getTerm();
 
   /**
-   * <code>bytes data = 3;</code>
+   * <code>optional bytes data = 3;</code>
    */
   com.google.protobuf.ByteString getData();
 
   /**
-   * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+   * <code>optional .raft.server.proto.LogEntry.EntryType type = 4;</code>
    */
   int getTypeValue();
   /**
-   * <code>.raft.server.proto.LogEntry.EntryType type = 4;</code>
+   * <code>optional .raft.server.proto.LogEntry.EntryType type = 4;</code>
    */
   raft.server.proto.LogEntry.EntryType getType();
 }

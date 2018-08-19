@@ -55,7 +55,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         checkArgument(Files.notExists(baseDirPath) || Files.isDirectory(baseDirPath),
                 "\"%s\" must be a directory to hold raft persistent logs", storageBaseDir);
-        checkArgument(storageName.matches("[A-Za-z0-9]+"),
+        checkArgument(storageName.matches("[A-Za-z0-9_-]+"),
                 "storage name must not empty and can only contains english letters and numbers, actual:\"%s\"",
                 storageName);
 
@@ -475,28 +475,33 @@ public class FileBasedStorage implements PersistentStorage {
         }
     }
 
-    synchronized void shutdownNow() throws IOException {
+    @Override
+    public void shutdown() throws StorageInternalError {
         if (status == StorageStatus.SHUTTING_DOWN) {
             return;
         }
 
-        status = StorageStatus.SHUTTING_DOWN;
-        sstableWriterPool.shutdownNow();
+        try {
+            status = StorageStatus.SHUTTING_DOWN;
+            sstableWriterPool.shutdownNow();
 
-        if (logWriter != null) {
-            logWriter.close();
-        }
+            if (logWriter != null) {
+                logWriter.close();
+            }
 
-        manifest.close();
+            manifest.close();
 
-        tableCache.evictAll();
+            tableCache.evictAll();
 
-        if (storageLock != null && storageLock.isValid()) {
-            storageLock.release();
-        }
+            if (storageLock != null && storageLock.isValid()) {
+                storageLock.release();
+            }
 
-        if (storageLockChannel != null && storageLockChannel.isOpen()) {
-            storageLockChannel.close();
+            if (storageLockChannel != null && storageLockChannel.isOpen()) {
+                storageLockChannel.close();
+            }
+        } catch (IOException ex) {
+            throw new StorageInternalError(ex);
         }
     }
 

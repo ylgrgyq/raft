@@ -3,22 +3,22 @@
 
 package raft.server.proto;
 
-public interface SnapshotOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:raft.server.proto.Snapshot)
+public interface LogSnapshotOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:raft.server.proto.LogSnapshot)
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>bytes data = 1;</code>
+   * <code>optional bytes data = 1;</code>
    */
   com.google.protobuf.ByteString getData();
 
   /**
-   * <code>int32 index = 2;</code>
+   * <code>optional int32 index = 2;</code>
    */
   int getIndex();
 
   /**
-   * <code>int32 term = 3;</code>
+   * <code>optional int32 term = 3;</code>
    */
   int getTerm();
 

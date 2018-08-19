@@ -3,9 +3,9 @@ package raft.server.log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
-import raft.server.RaftPersistentState;
+import raft.server.RaftPersistentMeta;
 import raft.server.proto.LogEntry;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,7 +44,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public void init(RaftPersistentState meta) {
+    public void init(RaftPersistentMeta meta) {
         storage.init();
 
         int lastIndex = storage.getLastIndex();
@@ -261,7 +261,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public synchronized void installSnapshot(Snapshot snapshot) {
+    public synchronized void installSnapshot(LogSnapshot snapshot) {
         commitIndex = snapshot.getIndex();
 
         recentSnapshotIndex = snapshot.getIndex();
@@ -279,6 +279,7 @@ public class RaftLogImpl implements RaftLog {
     @Override
     public void shutdown() {
         pool.shutdown();
+        storage.shutdown();
     }
 
     @Override

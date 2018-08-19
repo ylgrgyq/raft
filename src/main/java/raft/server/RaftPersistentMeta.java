@@ -1,7 +1,7 @@
 package raft.server;
 
 import com.google.common.base.Strings;
-import raft.server.proto.PBRaftPersistentState;
+import raft.server.proto.PBRaftPersistentMeta;
 
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
@@ -16,7 +16,7 @@ import static com.google.common.base.Preconditions.checkState;
  * Author: ylgrgyq
  * Date: 18/4/23
  */
-public class RaftPersistentState {
+public class RaftPersistentMeta {
     private static final short magic = 8102;
     private static final short version = 0x01;
     private static final String fileNamePrefix = "raft_persistent_state";
@@ -32,7 +32,7 @@ public class RaftPersistentState {
     private Path stateFilePath;
     private volatile boolean initialized;
 
-    public RaftPersistentState(String stateFileDir, String raftId, boolean syncWriteFile) {
+    public RaftPersistentMeta(String stateFileDir, String raftId, boolean syncWriteFile) {
         checkArgument(!Strings.isNullOrEmpty(stateFileDir));
         checkArgument(!Strings.isNullOrEmpty(raftId));
 
@@ -96,7 +96,7 @@ public class RaftPersistentState {
                         throw new IllegalStateException(msg);
                     }
 
-                    PBRaftPersistentState state = PBRaftPersistentState.parseFrom(meta);
+                    PBRaftPersistentMeta state = PBRaftPersistentMeta.parseFrom(meta);
                     term = state.getTerm();
                     votedFor = state.getVotedFor();
                     commitIndex = state.getCommitIndex();
@@ -123,13 +123,13 @@ public class RaftPersistentState {
     }
 
     public String getVotedFor() {
-        checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         return votedFor;
     }
 
     public void setVotedFor(String votedFor) {
-        checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentMeta before using it");
         checkArgument(votedFor == null || !votedFor.isEmpty(), "votedFor should not be empty string");
 
         this.votedFor = votedFor;
@@ -137,20 +137,20 @@ public class RaftPersistentState {
     }
 
     public int getTerm() {
-        checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         return term;
     }
 
     public void setTerm(int term) {
-        checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         this.term = term;
         this.persistent();
     }
 
     public void setTermAndVotedFor(int term, String votedFor) {
-        checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         this.term = term;
         this.votedFor = votedFor;
@@ -158,27 +158,31 @@ public class RaftPersistentState {
     }
 
     public int getCommitIndex() {
-        checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         return commitIndex;
     }
 
     public void setCommitIndex(int commitIndex) {
-        checkState(initialized, "should initialize RaftPersistentState before using it");
+        checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         this.commitIndex = commitIndex;
         persistent();
     }
 
+    public Path getStateFilePath() {
+        return stateFilePath;
+    }
+
     private void persistent() {
-        PBRaftPersistentState.Builder builder = PBRaftPersistentState.newBuilder()
+        PBRaftPersistentMeta.Builder builder = PBRaftPersistentMeta.newBuilder()
                 .setTerm(term)
                 .setCommitIndex(commitIndex);
         if (votedFor != null) {
             builder.setVotedFor(votedFor);
         }
 
-        PBRaftPersistentState state = builder.build();
+        PBRaftPersistentMeta state = builder.build();
 
         byte[] meta = state.toByteArray();
 

@@ -60,30 +60,30 @@ class FileName {
     }
 
     static FileNameMeta parseFileName(String fileName) {
+        assert fileName != null;
         if (fileName.startsWith("/") || fileName.startsWith("./")) {
             String[] strs = fileName.split("/");
             assert strs.length > 0;
             fileName = strs[strs.length - 1];
         }
 
+        FileType type = FileType.Unknown;
+        int fileNumber = 0;
+        String storageName = "";
         if (fileName.endsWith("_CURRENT")) {
-            String[] strs = fileName.split("_");
-            assert strs.length == 2 : fileName;
-            return new FileNameMeta(fileName, strs[0], 0, FileType.Current);
+            storageName = fileName.substring(0, fileName.length() - "_CURRENT".length());
+            type = FileType.Current;
         } else if (fileName.endsWith(".lock")) {
-            String[] strs = fileName.split("\\.");
-            assert strs.length == 2 : fileName;
-            return new FileNameMeta(fileName, strs[0], 0, FileType.Lock);
+            storageName = fileName.substring(0, fileName.length() - ".lock".length());
+            type = FileType.Lock;
         } else if (fileName.endsWith(".tmp_mf")) {
-            String[] strs = fileName.split("_");
-            assert strs.length > 1 : fileName;
-            return new FileNameMeta(fileName, strs[0], 0, FileType.TempManifest);
+            storageName = fileName.substring(0, fileName.length() - ".tmp_mf".length());
+            type = FileType.TempManifest;
         } else {
-            FileType type = FileType.Unknown;
             String[] strs = fileName.split("[\\-.]", 3);
             if (strs.length == 3) {
-                String storageName = strs[0];
-                int fileNumber = Integer.parseInt(strs[1]);
+                storageName = strs[0];
+                fileNumber = Integer.parseInt(strs[1]);
                 switch (strs[2]) {
                     case "sst":
                         type = FileType.SSTable;
@@ -97,11 +97,9 @@ class FileName {
                     default:
                         break;
                 }
-                return new FileNameMeta(fileName, storageName, fileNumber, type);
-            } else {
-                return new FileNameMeta(fileName, "", 0, FileType.Unknown);
             }
         }
+        return new FileNameMeta(fileName, storageName, fileNumber, type);
     }
 
     private static List<Path> getOutdatedFiles(String baseDir, int logFileNumber, int lowestUsedSSTableFileNumber) {

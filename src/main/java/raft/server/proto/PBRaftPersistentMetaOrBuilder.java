@@ -3,27 +3,27 @@
 
 package raft.server.proto;
 
-public interface PBRaftPersistentStateOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:raft.server.proto.PBRaftPersistentState)
+public interface PBRaftPersistentMetaOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:raft.server.proto.PBRaftPersistentMeta)
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>int32 term = 1;</code>
+   * <code>optional int32 term = 1;</code>
    */
   int getTerm();
 
   /**
-   * <code>string votedFor = 2;</code>
+   * <code>optional string votedFor = 2;</code>
    */
   java.lang.String getVotedFor();
   /**
-   * <code>string votedFor = 2;</code>
+   * <code>optional string votedFor = 2;</code>
    */
   com.google.protobuf.ByteString
       getVotedForBytes();
 
   /**
-   * <code>int32 commitIndex = 3;</code>
+   * <code>optional int32 commitIndex = 3;</code>
    */
   int getCommitIndex();
 }

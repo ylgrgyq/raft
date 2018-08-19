@@ -2,11 +2,12 @@ package raft.server;
 
 import raft.server.log.RaftLog;
 import raft.server.proto.LogEntry;
-import raft.server.proto.Snapshot;
+import raft.server.proto.LogSnapshot;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -28,60 +29,70 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
         this.raftLog = Objects.requireNonNull(raftLog);
     }
 
-    void onProposalCommitted(List<LogEntry> msgs, int lastIndex) {
-        notify(() -> {
+    CompletableFuture<Void> onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs, int lastIndex) {
+        return notify(() -> {
             if (! msgs.isEmpty()) {
-                stateMachine.onProposalCommitted(msgs);
+                stateMachine.onProposalCommitted(status, msgs);
             }
             raftLog.appliedTo(lastIndex);
         });
     }
 
     @Override
-    public void onProposalCommitted(List<LogEntry> msgs) {
-        stateMachine.onProposalCommitted(msgs);
+    public void onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs) {
+        stateMachine.onProposalCommitted(status, msgs);
     }
 
     @Override
-    public void onNodeAdded(final String peerId) {
-        notify(() -> stateMachine.onNodeAdded(peerId));
+    public void onNodeAdded(RaftStatusSnapshot status, final String peerId) {
+        notify(() -> stateMachine.onNodeAdded(status, peerId));
     }
 
     @Override
-    public void onNodeRemoved(final String peerId) {
-        notify(() -> stateMachine.onNodeRemoved(peerId));
+    public void onNodeRemoved(RaftStatusSnapshot status, final String peerId) {
+        notify(() -> stateMachine.onNodeRemoved(status, peerId));
     }
 
     @Override
-    public void onLeaderStart(int term) {
-        notify(() -> stateMachine.onLeaderStart(term));
+    public void onLeaderStart(RaftStatusSnapshot status) {
+        notify(() -> stateMachine.onLeaderStart(status));
     }
 
     @Override
-    public void onLeaderFinish() {
-        notify(stateMachine::onLeaderFinish);
+    public void onLeaderFinish(RaftStatusSnapshot status) {
+        notify(()->stateMachine.onLeaderFinish(status));
     }
 
     @Override
-    public void onFollowerStart(int term, String leaderId) {
-        notify(() -> stateMachine.onFollowerStart(term, leaderId));
+    public void onFollowerStart(RaftStatusSnapshot status) {
+        notify(() -> stateMachine.onFollowerStart(status));
     }
 
     @Override
-    public void onFollowerFinish() {
-        notify(stateMachine::onFollowerFinish);
+    public void onFollowerFinish(RaftStatusSnapshot status) {
+        notify(()->stateMachine.onFollowerFinish(status));
     }
 
     @Override
-    public void installSnapshot(Snapshot snap) {
+    public void onCandidateStart(RaftStatusSnapshot status) {
+        notify(() -> stateMachine.onCandidateStart(status));
+    }
+
+    @Override
+    public void onCandidateFinish(RaftStatusSnapshot status) {
+        notify(()->stateMachine.onCandidateFinish(status));
+    }
+
+    @Override
+    public void installSnapshot(RaftStatusSnapshot status, LogSnapshot snap) {
         notify(() -> {
-            stateMachine.installSnapshot(snap);
+            stateMachine.installSnapshot(status, snap);
             raftLog.snapshotApplied(snap.getIndex());
         });
     }
 
     @Override
-    public Optional<Snapshot> getRecentSnapshot(int expectIndex) {
+    public Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
         return stateMachine.getRecentSnapshot(expectIndex);
     }
 

@@ -20,7 +20,7 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class TestUtil {
     public static List<byte[]> newDataList(int count) {
-        return newDataList(count, 5);
+        return newDataList(count, 100);
     }
 
     public static List<byte[]> newDataList(int count, int dataSize) {
@@ -72,13 +72,13 @@ public class TestUtil {
         return ret;
     }
 
-    public static List<List<LogEntry>> randomPartitionLogEntryList(final List<LogEntry> list) {
-        List<List<LogEntry>> ret = new ArrayList<>();
+    public static <T> List<List<T>> randomPartitionList(final List<T> list) {
+        List<List<T>> ret = new ArrayList<>();
 
         int start = 0;
         int end = ThreadLocalRandom.current().nextInt(1, 50);
         while (start < list.size()) {
-            List<LogEntry> batch = list.subList(start, Math.min(end, list.size()));
+            List<T> batch = list.subList(start, Math.min(end, list.size()));
             if (!batch.isEmpty()) {
                 ret.add(batch);
             }
