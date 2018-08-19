@@ -20,7 +20,7 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class TestUtil {
     public static List<byte[]> newDataList(int count) {
-        return newDataList(count, 5);
+        return newDataList(count, 100);
     }
 
     public static List<byte[]> newDataList(int count, int dataSize) {
