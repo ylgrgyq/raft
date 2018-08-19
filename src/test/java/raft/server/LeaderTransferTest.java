@@ -105,44 +105,44 @@ public class LeaderTransferTest {
         assertEquals(State.LEADER, newLeaderStateMachine.getLastStatus().getState());
     }
 
-//    @Test
-//    public void testTransferAfterCatchUp() throws Exception {
-//        TestingRaftStateMachine oldLeaderStateMachine = cluster.waitGetLeader();
-//        Raft oldLeader = cluster.getNodeById(oldLeaderStateMachine.getId());
-//
-//        // propose some logs
-//        List<byte[]> dataList = TestUtil.newDataList(1, 100);
-//        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
-//            CompletableFuture<ProposalResponse> resp = oldLeader.propose(batch);
-//            ProposalResponse p = resp.get();
-//            assertTrue(p.isSuccess());
-//            assertEquals(ErrorMsg.NONE, p.getError());
-//        }
-//
-//        // add a new node
-//        String newLeaderId = "new node 004";
-//        Raft newNode = cluster.addTestingNode(newLeaderId, cluster.getAllPeerIds());
-//        newNode.start();
-//
-//        CompletableFuture<ProposalResponse> f = oldLeader.addNode(newLeaderId);
-//        ProposalResponse resp = f.get();
-//        assertTrue(resp.isSuccess());
-//        oldLeaderStateMachine.waitNodeAdded(newLeaderId);
-//
-//        // transfer leader to new node
-//        CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
-//
-//        // propose will failed
-//        List<byte[]> failedData = TestUtil.newDataList(100);
-//        f = oldLeader.propose(failedData);
-//        ProposalResponse p = f.get();
-//        assertFalse(p.isSuccess());
-//        assertEquals(ErrorMsg.LEADER_TRANSFERRING, p.getError());
-//
-//        // check leadership on new leader
-//        assertTrue(successFuture.get().isSuccess());
-//        TestingRaftStateMachine stateMachine = cluster.getStateMachineById(newLeaderId);
-//        stateMachine.becomeLeaderFuture().get();
-//        assertEquals(State.LEADER, stateMachine.getLastStatus().getState());
-//    }
+    @Test
+    public void testTransferAfterCatchUp() throws Exception {
+        TestingRaftStateMachine oldLeaderStateMachine = cluster.waitGetLeader();
+        Raft oldLeader = cluster.getNodeById(oldLeaderStateMachine.getId());
+
+        // propose some logs
+        List<byte[]> dataList = TestUtil.newDataList(1, 100);
+        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
+            CompletableFuture<ProposalResponse> resp = oldLeader.propose(batch);
+            ProposalResponse p = resp.get();
+            assertTrue(p.isSuccess());
+            assertEquals(ErrorMsg.NONE, p.getError());
+        }
+
+        // add a new node
+        String newLeaderId = "new node 004";
+        Raft newNode = cluster.addTestingNode(newLeaderId, cluster.getAllPeerIds());
+        newNode.start();
+
+        CompletableFuture<ProposalResponse> f = oldLeader.addNode(newLeaderId);
+        ProposalResponse resp = f.get();
+        assertTrue(resp.isSuccess());
+        oldLeaderStateMachine.waitNodeAdded(newLeaderId);
+
+        // transfer leader to new node
+        CompletableFuture<ProposalResponse> successFuture = oldLeader.transferLeader(newLeaderId);
+
+        // propose will failed
+        List<byte[]> failedData = TestUtil.newDataList(100);
+        f = oldLeader.propose(failedData);
+        ProposalResponse p = f.get();
+        assertFalse(p.isSuccess());
+        assertEquals(ErrorMsg.LEADER_TRANSFERRING, p.getError());
+
+        // check leadership on new leader
+        assertTrue(successFuture.get().isSuccess());
+        TestingRaftStateMachine stateMachine = cluster.getStateMachineById(newLeaderId);
+        stateMachine.becomeLeaderFuture().get();
+        assertEquals(State.LEADER, stateMachine.getLastStatus().getState());
+    }
 }
