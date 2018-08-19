@@ -10,20 +10,17 @@ import raft.server.log.RaftLog;
 import raft.server.log.RaftLogImpl;
 import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
-import raft.server.proto.RaftCommand;
 import raft.server.proto.LogSnapshot;
+import raft.server.proto.RaftCommand;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Preconditions.*;
 
 /**
  * Author: ylgrgyq
@@ -38,6 +35,7 @@ public class RaftImpl implements Raft {
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
     private final AtomicLong electionTickCounter = new AtomicLong();
     private final AtomicBoolean electionTickerTimeout = new AtomicBoolean();
+    private final AtomicBoolean pendingUpdateCommit = new AtomicBoolean();
     private final AtomicLong pingTickCounter = new AtomicLong();
     private final AtomicBoolean pingTickerTimeout = new AtomicBoolean();
     private final AtomicBoolean wakenUp = new AtomicBoolean();
@@ -280,6 +278,8 @@ public class RaftImpl implements Raft {
                 try {
                     processTickTimeout();
 
+                    processPendingUpdateCommit();
+
                     List<RaftCommand> cmds = pollReceivedCmd();
                     long start = System.nanoTime();
                     processCommands(cmds);
@@ -316,6 +316,12 @@ public class RaftImpl implements Raft {
 
         if (pingTickerTimeout.compareAndSet(true, false)) {
             state.onPingTimeout();
+        }
+    }
+
+    private void processPendingUpdateCommit() {
+        if (pendingUpdateCommit.compareAndSet(true, false)) {
+            updateCommit();
         }
     }
 
@@ -435,6 +441,7 @@ public class RaftImpl implements Raft {
     }
 
     private void processProposal(Proposal proposal) {
+        logger.debug("node {} start process [{}]", this, proposal);
         ErrorMsg error = null;
         try {
             if (getState() == State.LEADER) {
@@ -456,10 +463,18 @@ public class RaftImpl implements Raft {
                                 if (err != null) {
                                     panic("async append logs failed", err);
                                 } else {
+                                    logger.debug("node {} try update index to {}", this, lastIndex);
                                     // it's OK if this node has stepped-down and surrendered leadership before we
                                     // updated index because we don't use RaftPeerNode on follower or candidate
                                     RaftPeerNode leaderNode = peerNodes.get(selfId);
-                                    leaderNode.updateIndexes(lastIndex);
+                                    if (leaderNode != null) {
+                                        if (leaderNode.updateIndexes(lastIndex)) {
+                                            pendingUpdateCommit.compareAndSet(false, true);
+                                        }
+                                    } else {
+                                        logger.error("node {} was removed from remote peer set {}",
+                                                this, peerNodes.keySet());
+                                    }
                                 }
                             });
 
@@ -570,6 +585,7 @@ public class RaftImpl implements Raft {
     }
 
     private void removeNode0(final String peerId) {
+        // TODO if selfId was removed from peerNodes
         peerNodes.remove(peerId);
 
         logger.info("node {} remove peerId \"{}\" from cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
@@ -599,6 +615,7 @@ public class RaftImpl implements Raft {
         int k = getQuorum() - 1;
         List<Integer> matchedIndexes = peerNodes.values().stream()
                 .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
+        logger.info("node {} update commit with peerNodes {}", this, peerNodes);
         int kthMatchedIndexes = matchedIndexes.get(k);
         if (kthMatchedIndexes >= raftLog.getFirstIndex()) {
             Optional<LogEntry> kthLog = raftLog.getEntry(kthMatchedIndexes);

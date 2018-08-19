@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.*;
 
@@ -121,6 +122,7 @@ public class LogReplicationTest {
 
         String oldLeaderId = leaderStateMachine.getId();
         cluster.shutdownPeer(oldLeaderId);
+        assertEquals(2, cluster.getAllStateMachines().size());
 
         leaderStateMachine = cluster.waitGetLeader();
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
@@ -129,7 +131,7 @@ public class LogReplicationTest {
         List<byte[]> dataList = TestUtil.newDataList(100, 100);
         for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
             CompletableFuture<ProposalResponse> resp = leader.propose(batch);
-            ProposalResponse p = resp.get();
+            ProposalResponse p = resp.get(5000, TimeUnit.SECONDS);
             assertTrue(p.isSuccess());
             assertEquals(ErrorMsg.NONE, p.getError());
         }

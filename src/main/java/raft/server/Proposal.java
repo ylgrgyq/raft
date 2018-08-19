@@ -31,4 +31,9 @@ class Proposal {
     CompletableFuture<ProposalResponse> getFuture() {
         return future;
     }
+
+    @Override
+    public String toString() {
+        return type + " Proposal with " + entries.size() + " entries";
+    }
 }
