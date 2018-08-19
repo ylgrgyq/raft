@@ -65,7 +65,7 @@ public class RaftImpl implements Raft {
         Preconditions.checkNotNull(c);
 
         this.c = c;
-        this.workerThread = new Thread(new Job());
+        this.workerThread = new Thread(new Worker());
         this.raftLog = new RaftLogImpl(c.storage);
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
@@ -83,7 +83,7 @@ public class RaftImpl implements Raft {
 
     @Override
     public void start() {
-        if (! started.compareAndSet(false, true)) {
+        if (!started.compareAndSet(false, true)) {
             return;
         }
 
@@ -171,7 +171,7 @@ public class RaftImpl implements Raft {
     @Override
     public CompletableFuture<ProposalResponse> addNode(String newNode) {
         checkNotNull(newNode);
-        checkArgument(! newNode.isEmpty());
+        checkArgument(!newNode.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
 
         return proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.ADD_NODE);
@@ -180,7 +180,7 @@ public class RaftImpl implements Raft {
     @Override
     public CompletableFuture<ProposalResponse> removeNode(String newNode) {
         checkNotNull(newNode);
-        checkArgument(! newNode.isEmpty());
+        checkArgument(!newNode.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
 
         if (newNode.equals(getLeaderId())) {
@@ -206,7 +206,7 @@ public class RaftImpl implements Raft {
     @Override
     public CompletableFuture<ProposalResponse> transferLeader(String transfereeId) {
         checkNotNull(transfereeId);
-        checkArgument(! transfereeId.isEmpty());
+        checkArgument(!transfereeId.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
 
         ArrayList<byte[]> data = new ArrayList<>();
@@ -218,7 +218,7 @@ public class RaftImpl implements Raft {
     @Override
     public CompletableFuture<ProposalResponse> propose(List<byte[]> data) {
         checkNotNull(data);
-        checkArgument(! data.isEmpty());
+        checkArgument(!data.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
 
         logger.debug("node {} receives proposal with {} entries", this, data.size());
@@ -227,12 +227,12 @@ public class RaftImpl implements Raft {
     }
 
     private CompletableFuture<ProposalResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
-        List<LogEntry> logEntries =
-                datas.stream().map(d ->
-                        LogEntry.newBuilder()
-                                .setData(ByteString.copyFrom(d))
-                                .setType(type)
-                                .build()).collect(Collectors.toList());
+        List<LogEntry> logEntries = datas
+                .stream()
+                .map(d -> LogEntry.newBuilder()
+                        .setData(ByteString.copyFrom(d))
+                        .setType(type)
+                        .build()).collect(Collectors.toList());
 
         Proposal proposal = new Proposal(logEntries, type);
         CompletableFuture<ProposalResponse> future;
@@ -269,7 +269,7 @@ public class RaftImpl implements Raft {
         receivedCmdQueue.add(cmd);
     }
 
-    private class Job implements Runnable {
+    private class Worker implements Runnable {
         @Override
         public void run() {
             // init state
@@ -456,7 +456,7 @@ public class RaftImpl implements Raft {
                                     panic("async append logs failed", err);
                                 } else {
                                     // it's OK if this node has stepped-down and surrendered leadership before we
-                                    // update index because we don't use RaftPeerNode on follower or candidate
+                                    // updated index because we don't use RaftPeerNode on follower or candidate
                                     RaftPeerNode leaderNode = peerNodes.get(selfId);
                                     leaderNode.updateIndexes(lastIndex);
                                 }
@@ -770,9 +770,11 @@ public class RaftImpl implements Raft {
 
         List<LogEntry> newCommitedLogs = raftLog.tryCommitTo(commitTo);
         if (!newCommitedLogs.isEmpty()) {
-            meta.setCommitIndex(commitTo);
+            LogEntry last = newCommitedLogs.get(newCommitedLogs.size() - 1);
+            assert last.getIndex() <= commitTo;
+            meta.setCommitIndex(last.getIndex());
             processNewCommitedLogs(newCommitedLogs);
-            pendingProposal.completeFutures(commitTo);
+            pendingProposal.completeFutures(last.getIndex());
         }
     }
 
@@ -838,7 +840,7 @@ public class RaftImpl implements Raft {
     }
 
     public void shutdown() {
-        if (! started.compareAndSet(true, false)) {
+        if (!started.compareAndSet(true, false)) {
             return;
         }
 
@@ -902,12 +904,12 @@ public class RaftImpl implements Raft {
 
         @Override
         public void onElectionTimeout() {
-            if (transferLeaderFuture  != null) {
+            if (transferLeaderFuture != null) {
                 logger.info("node {} abort transfer leadership to {} due to timeout", RaftImpl.this,
                         transferLeaderFuture.getTransfereeId());
                 transferLeaderFuture.getResponseFuture()
                         .complete(ProposalResponse.error(ErrorMsg.TIMEOUT));
-                transferLeaderFuture  = null;
+                transferLeaderFuture = null;
             }
         }
 

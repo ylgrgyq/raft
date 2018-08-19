@@ -47,7 +47,7 @@ public class FileBasedStorageTest {
     public void recover() throws Exception {
         int dataLowSize = 1024;
         List<LogEntry> expectEntries = TestUtil.newLogEntryList(10, dataLowSize, dataLowSize + 1);
-        for (List<LogEntry> batch : TestUtil.randomPartitionLogEntryList(expectEntries)) {
+        for (List<LogEntry> batch : TestUtil.randomPartitionList(expectEntries)) {
             testingStorage.append(batch);
         }
 
@@ -59,7 +59,7 @@ public class FileBasedStorageTest {
         LogEntry lastE = expectEntries.get(expectEntries.size() - 1);
         List<LogEntry> newEntries = TestUtil.newLogEntryList(10, dataLowSize,
                 dataLowSize + 1, lastE.getTerm(), lastE.getIndex());
-        for (List<LogEntry> batch : TestUtil.randomPartitionLogEntryList(newEntries)) {
+        for (List<LogEntry> batch : TestUtil.randomPartitionList(newEntries)) {
             testingStorage.append(batch);
         }
         expectEntries.addAll(newEntries);
@@ -145,7 +145,7 @@ public class FileBasedStorageTest {
         int firstIndex = expectEntries.get(0).getIndex();
         int lastIndex = expectEntries.get(expectEntries.size() - 1).getIndex();
 
-        List<List<LogEntry>> batches = TestUtil.randomPartitionLogEntryList(expectEntries);
+        List<List<LogEntry>> batches = TestUtil.randomPartitionList(expectEntries);
         for (List<LogEntry> batch : batches) {
             testingStorage.append(batch);
             assertEquals(firstIndex, testingStorage.getFirstIndex());
@@ -208,7 +208,7 @@ public class FileBasedStorageTest {
         int firstIndex = expectEntries.get(0).getIndex();
         int lastIndex = expectEntries.get(expectEntries.size() - 1).getIndex();
 
-        List<List<LogEntry>> batches = TestUtil.randomPartitionLogEntryList(expectEntries);
+        List<List<LogEntry>> batches = TestUtil.randomPartitionList(expectEntries);
         for (List<LogEntry> batch : batches) {
             testingStorage.append(batch);
             assertEquals(firstIndex, testingStorage.getFirstIndex());

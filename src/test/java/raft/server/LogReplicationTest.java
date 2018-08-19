@@ -44,17 +44,18 @@ public class LogReplicationTest {
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
         // propose some logs
-        int logCount = ThreadLocalRandom.current().nextInt(10, 100);
-        List<byte[]> dataList = TestUtil.newDataList(logCount);
-        CompletableFuture<ProposalResponse> resp = leader.propose(dataList);
-        ProposalResponse p = resp.get();
-        assertTrue(p.isSuccess());
-        assertEquals(ErrorMsg.NONE, p.getError());
+        List<byte[]> dataList = TestUtil.newDataList(1000, 100);
+        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
+            CompletableFuture<ProposalResponse> resp = leader.propose(batch);
+            ProposalResponse p = resp.get();
+            assertTrue(p.isSuccess());
+            assertEquals(ErrorMsg.NONE, p.getError());
+        }
 
-        // check raft status after logs proposed
+        // check raft status after logs have been processed
         RaftStatusSnapshot status = leaderStateMachine.getLastStatus();
         assertEquals(State.LEADER, status.getState());
-        assertEquals(logCount, status.getCommitIndex());
+        assertEquals(dataList.size(), status.getCommitIndex());
         assertEquals(1, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
 
@@ -98,17 +99,18 @@ public class LogReplicationTest {
         followerIds.remove(leaderId);
 
         // propose some logs
-        int logCount = ThreadLocalRandom.current().nextInt(1, 10);
-        List<byte[]> dataList = TestUtil.newDataList(logCount);
-        assert logCount == dataList.size();
-        CompletableFuture<ProposalResponse> resp = leader.propose(dataList);
-        ProposalResponse p = resp.get();
-        assertTrue(p.isSuccess());
+        List<byte[]> dataList = TestUtil.newDataList(1000, 100);
+        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
+            CompletableFuture<ProposalResponse> resp = leader.propose(batch);
+            ProposalResponse p = resp.get();
+            assertTrue(p.isSuccess());
+            assertEquals(ErrorMsg.NONE, p.getError());
+        }
 
-        checkAppliedLogs(leaderStateMachine, logCount, dataList);
+        checkAppliedLogs(leaderStateMachine, 1000, dataList);
         for (String id : followerIds) {
             TestingRaftStateMachine node = cluster.getStateMachineById(id);
-            checkAppliedLogs(node, logCount, dataList);
+            checkAppliedLogs(node, 1000, dataList);
         }
     }
 
