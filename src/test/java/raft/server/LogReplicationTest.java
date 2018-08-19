@@ -23,7 +23,7 @@ public class LogReplicationTest {
 
     @Before
     public void before() {
-        cluster = new TestingRaftCluster(ElectLeaderTest.class.getSimpleName());
+        cluster = new TestingRaftCluster(LogReplicationTest.class.getSimpleName());
         cluster.clearLogStorage();
         cluster.clearPersistentState();
     }
@@ -31,8 +31,22 @@ public class LogReplicationTest {
     @After
     public void tearDown() {
         cluster.shutdownCluster();
-        cluster.clearLogStorage();
-        cluster.clearPersistentState();
+    }
+
+    private static void checkAppliedLogs(TestingRaftStateMachine stateMachine, int expectTerm, int logCount, List<byte[]> sourceDataList) {
+        List<LogEntry> applied = stateMachine.waitApplied(logCount);
+
+        // check node status after logs proposed
+        RaftStatusSnapshot status = stateMachine.getLastStatus();
+        assertEquals(logCount, status.getCommitIndex());
+        assertTrue(applied.size() > 0);
+
+        for (LogEntry e : applied) {
+            if (!e.equals(PersistentStorage.sentinel)) {
+                assertEquals(expectTerm, e.getTerm());
+                assertArrayEquals(sourceDataList.get(e.getIndex() - 1), e.getData().toByteArray());
+            }
+        }
     }
 
     @Test
@@ -46,7 +60,7 @@ public class LogReplicationTest {
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
         // propose some logs
-        List<byte[]> dataList = TestUtil.newDataList(1000, 100);
+        List<byte[]> dataList = TestUtil.newDataList(100, 100);
         for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
             CompletableFuture<ProposalResponse> resp = leader.propose(batch);
             ProposalResponse p = resp.get();
@@ -70,21 +84,6 @@ public class LogReplicationTest {
         }
     }
 
-    private static void checkAppliedLogs(TestingRaftStateMachine stateMachine, int expectTerm, int logCount, List<byte[]> sourceDataList) {
-        List<LogEntry> applied = stateMachine.waitApplied(logCount);
-
-        // check node status after logs proposed
-        RaftStatusSnapshot status = stateMachine.getLastStatus();
-        assertEquals(logCount, status.getCommitIndex());
-
-        for (LogEntry e : applied) {
-            if (!e.equals(PersistentStorage.sentinel)) {
-                assertEquals(expectTerm, e.getTerm());
-                assertArrayEquals(sourceDataList.get(e.getIndex() - 1), e.getData().toByteArray());
-            }
-        }
-    }
-
     @Test
     public void testProposeOnTripleNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
@@ -97,7 +96,7 @@ public class LogReplicationTest {
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
         // propose some logs
-        List<byte[]> dataList = TestUtil.newDataList(1000, 100);
+        List<byte[]> dataList = TestUtil.newDataList(100, 100);
         for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
             CompletableFuture<ProposalResponse> resp = leader.propose(batch);
             ProposalResponse p = resp.get();
@@ -106,12 +105,12 @@ public class LogReplicationTest {
         }
 
         for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 1000, dataList);
+            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
         }
     }
 
     @Test
-    public void testSyncLogOnNewNode() throws Exception {
+    public void testSyncLogOnRebootNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
         peerIdSet.add("triple node 001");
         peerIdSet.add("triple node 002");
@@ -127,7 +126,7 @@ public class LogReplicationTest {
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
         // propose some logs
-        List<byte[]> dataList = TestUtil.newDataList(1000, 100);
+        List<byte[]> dataList = TestUtil.newDataList(100, 100);
         for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
             CompletableFuture<ProposalResponse> resp = leader.propose(batch);
             ProposalResponse p = resp.get();
@@ -136,7 +135,7 @@ public class LogReplicationTest {
         }
 
         for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 1000, dataList);
+            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
         }
 
         // reboot old leader
@@ -144,10 +143,9 @@ public class LogReplicationTest {
         oldLeader.start();
 
         // logs should sync to old leader
-        for (TestingRaftStateMachine follower : cluster.getFollowers()) {
-            Future f = follower.becomeFollowerFuture();
-            f.get();
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 1000, dataList);
-        }
+        TestingRaftStateMachine follower = cluster.getStateMachineById(oldLeaderId);
+        Future f = follower.becomeFollowerFuture();
+        f.get();
+        checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
     }
 }

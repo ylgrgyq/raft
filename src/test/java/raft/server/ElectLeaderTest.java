@@ -23,13 +23,13 @@ public class ElectLeaderTest {
     @Before
     public void before() {
         cluster = new TestingRaftCluster(ElectLeaderTest.class.getSimpleName());
+        cluster.clearLogStorage();
+        cluster.clearPersistentState();
     }
 
     @After
     public void tearDown() {
         cluster.shutdownCluster();
-        cluster.clearLogStorage();
-        cluster.clearPersistentState();
     }
 
     @Test

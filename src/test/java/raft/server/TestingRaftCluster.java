@@ -141,10 +141,8 @@ class TestingRaftCluster {
 
     void shutdownPeer(String peerId) {
         stateMachines.remove(peerId);
-        nodes.computeIfPresent(peerId, (k, n) -> {
-            n.shutdown();
-            return null;
-        });
+        Raft n = nodes.remove(peerId);
+        n.shutdown();
     }
 
     void clearPersistentState() {
