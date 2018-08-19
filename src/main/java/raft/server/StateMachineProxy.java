@@ -7,6 +7,7 @@ import raft.server.proto.LogSnapshot;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -28,8 +29,8 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
         this.raftLog = Objects.requireNonNull(raftLog);
     }
 
-    void onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs, int lastIndex) {
-        notify(() -> {
+    CompletableFuture<Void> onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs, int lastIndex) {
+        return notify(() -> {
             if (! msgs.isEmpty()) {
                 stateMachine.onProposalCommitted(status, msgs);
             }

@@ -18,6 +18,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -518,7 +519,7 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private void processNewCommitedLogs(List<LogEntry> commitedLogs) {
+    private CompletableFuture<Void> processNewCommitedLogs(List<LogEntry> commitedLogs) {
         assert commitedLogs != null;
         assert !commitedLogs.isEmpty();
 
@@ -551,7 +552,7 @@ public class RaftImpl implements Raft {
         }
 
         LogEntry lastLog = commitedLogs.get(commitedLogs.size() - 1);
-        stateMachine.onProposalCommitted(getStatus(), withoutConfigLogs, lastLog.getIndex());
+        return stateMachine.onProposalCommitted(getStatus(), withoutConfigLogs, lastLog.getIndex());
     }
 
     private void addNode0(final String peerId) {
@@ -773,8 +774,10 @@ public class RaftImpl implements Raft {
             LogEntry last = newCommitedLogs.get(newCommitedLogs.size() - 1);
             assert last.getIndex() <= commitTo;
             meta.setCommitIndex(last.getIndex());
-            processNewCommitedLogs(newCommitedLogs);
-            pendingProposal.completeFutures(last.getIndex());
+            processNewCommitedLogs(newCommitedLogs)
+                    .whenComplete((ret, t) ->
+                            pendingProposal.completeFutures(last.getIndex())
+                    );
         }
     }
 
