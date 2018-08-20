@@ -22,7 +22,7 @@ public interface Raft {
 
 	void receiveCommand(RaftCommand cmd);
 
-	void start();
+	Raft start();
 
 	void shutdown();
 }

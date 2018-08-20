@@ -136,16 +136,68 @@ public class LogReplicationTest {
             assertEquals(ErrorMsg.NONE, p.getError());
         }
 
+        int expectTerm = leaderStateMachine.getLastStatus().getTerm();
         for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
             checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
         }
 
-        // reboot old leader
-        Raft oldLeader = cluster.addTestingNode(oldLeaderId, peerIdSet);
-        oldLeader.start();
+        // reboot cluster including the old leader
+        cluster.shutdownCluster();
+        cluster.startCluster(peerIdSet);
+        leaderStateMachine = cluster.waitGetLeader();
+        // old leader do not have the latest logs so it can not be elected as leader
+        assertNotEquals(oldLeaderId, leaderStateMachine.getId());
 
         // logs should sync to old leader
         TestingRaftStateMachine follower = cluster.getStateMachineById(oldLeaderId);
+        Future f = follower.becomeFollowerFuture();
+        f.get();
+        checkAppliedLogs(follower, expectTerm, 101, dataList);
+    }
+
+    @Test
+    public void testOverwriteConflictLogs() throws Exception {
+        HashSet<String> peerIdSet = new HashSet<>();
+        peerIdSet.add("overwrite conflict 001");
+        peerIdSet.add("overwrite conflict 002");
+        peerIdSet.add("overwrite conflict 003");
+
+        cluster.startCluster(peerIdSet);
+        TestingRaftStateMachine oldLeaderStateMachine = cluster.waitGetLeader();
+        Raft oldLeader = cluster.getNodeById(oldLeaderStateMachine.getId());
+
+        List<TestingRaftStateMachine> followerStateMachines = cluster.getFollowers();
+        followerStateMachines.forEach(s -> cluster.shutdownPeer(s.getId()));
+
+        // all followers in cluster is removed. proposals on leader will write to it's local storage
+        // but can never be committed
+        List<byte[]> neverCommitDatas = TestUtil.newDataList(100, 100);
+        TestUtil.randomPartitionList(neverCommitDatas).forEach(oldLeader::propose);
+
+        // TODO how to know when logs have already been written to storage
+        Thread.sleep(2000);
+        cluster.shutdownPeer(oldLeader.getId());
+
+        // add followers back. they will elect a new leader among themselves
+        // proposals on the new leader will be committed
+        followerStateMachines.forEach(s -> cluster.addTestingNode(s.getId(), peerIdSet).start());
+        TestingRaftStateMachine newLeaderStateMachine = cluster.waitGetLeader();
+        Raft newLeader = cluster.getNodeById(newLeaderStateMachine.getId());
+        List<byte[]> dataList = TestUtil.newDataList(100, 100);
+        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
+            CompletableFuture<ProposalResponse> resp = newLeader.propose(batch);
+            ProposalResponse p = resp.get(5000, TimeUnit.SECONDS);
+            assertTrue(p.isSuccess());
+            assertEquals(ErrorMsg.NONE, p.getError());
+        }
+
+        for (TestingRaftStateMachine stateMachine : cluster.getAllStateMachines()) {
+            checkAppliedLogs(stateMachine, stateMachine.getLastStatus().getTerm(), 101, dataList);
+        }
+
+        // add old leader back. logs on it's local storage will be overwritten by those logs synced from new leader
+        cluster.addTestingNode(oldLeader.getId(), peerIdSet).start();
+        TestingRaftStateMachine follower = cluster.getStateMachineById(oldLeader.getId());
         Future f = follower.becomeFollowerFuture();
         f.get();
         checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
