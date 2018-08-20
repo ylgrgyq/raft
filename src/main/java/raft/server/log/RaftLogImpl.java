@@ -202,7 +202,7 @@ public class RaftLogImpl implements RaftLog {
             if (!match(entry.getTerm(), entry.getIndex())) {
                 if (entry.getIndex() <= getLastIndex()) {
                     logger.warn("found conflict entry at index {}, existing term: {}, conflicting term: {}",
-                            entry.getIndex(), getTerm(entry.getIndex()), entry.getTerm());
+                            entry.getIndex(), getTerm(entry.getIndex()).orElse(0), entry.getTerm());
                 }
                 return entry.getIndex();
             }

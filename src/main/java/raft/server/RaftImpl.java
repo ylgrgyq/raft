@@ -81,9 +81,9 @@ public class RaftImpl implements Raft {
     }
 
     @Override
-    public void start() {
+    public Raft start() {
         if (!started.compareAndSet(false, true)) {
-            return;
+            return this;
         }
 
         meta.init();
@@ -126,6 +126,7 @@ public class RaftImpl implements Raft {
                         "raftLog={}\n",
                 this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, c.tickIntervalMs, c.pingIntervalTicks,
                 c.suggestElectionTimeoutTicks, raftLog);
+        return this;
     }
 
     @Override
