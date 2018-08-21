@@ -277,6 +277,10 @@ public class FileBasedStorage implements PersistentStorage {
                 "FileBasedStorage's status is not normal, currently: %s", status);
         checkArgument(start < end, "end:%s should greater than start:%s", end, start);
 
+        if (start < getFirstIndex()) {
+            throw new LogsCompactedException(start);
+        }
+
         List<LogEntry> ret = new ArrayList<>();
         Itr itr = internalIterator(start, end);
         while (itr.hasNext()) {

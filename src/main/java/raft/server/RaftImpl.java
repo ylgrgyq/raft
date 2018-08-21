@@ -836,7 +836,7 @@ public class RaftImpl implements Raft {
         stateMachine.installSnapshot(getStatus(), snapshot);
 
         int lastIndex = raftLog.getLastIndex();
-        Set<String> remainPeerIds = new HashSet<>(peerNodes.keySet());
+        Set<String> removedPeerIds = new HashSet<>(peerNodes.keySet());
 
         for (String peerId : snapshot.getPeerIdsList()) {
             RaftPeerNode node = new RaftPeerNode(peerId, this, raftLog, lastIndex + 1,
@@ -845,10 +845,10 @@ public class RaftImpl implements Raft {
                 node.updateIndexes(lastIndex - 1);
             }
             peerNodes.put(peerId, node);
-            remainPeerIds.remove(peerId);
+            removedPeerIds.remove(peerId);
         }
 
-        for (String id : remainPeerIds) {
+        for (String id : removedPeerIds) {
             peerNodes.remove(id);
         }
 

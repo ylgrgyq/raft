@@ -2,6 +2,7 @@ package raft.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.server.log.PersistentStorage;
 import raft.server.storage.FileBasedStorage;
 
 import java.nio.file.Paths;
@@ -41,7 +42,8 @@ class TestingRaftCluster {
     }
 
     private Raft createTestingNode(String peerId, Collection<String> peers) {
-        TestingRaftStateMachine stateMachine = new TestingRaftStateMachine(logger, peerId, peers);
+        PersistentStorage storage = new FileBasedStorage(storageDir, getStorageName(peerId));
+        TestingRaftStateMachine stateMachine = new TestingRaftStateMachine(logger, peerId, peers, storage);
         stateMachines.put(peerId, stateMachine);
 
         Config c = configBuilder
@@ -50,7 +52,7 @@ class TestingRaftCluster {
                 .withRaftCommandBroker(broker)
                 .withStateMachine(stateMachine)
                 .withPersistentMetaFileDirPath(persistentStateDir)
-                .withPersistentStorage(new FileBasedStorage(storageDir, getStorageName(peerId)))
+                .withPersistentStorage(storage)
                 .build();
         return new RaftImpl(c);
     }
@@ -115,7 +117,7 @@ class TestingRaftCluster {
         return followers;
     }
 
-    public List<TestingRaftStateMachine> getAllStateMachines() {
+    List<TestingRaftStateMachine> getAllStateMachines() {
         return new ArrayList<>(stateMachines.values());
     }
 
@@ -123,7 +125,7 @@ class TestingRaftCluster {
         return nodes.get(peerId);
     }
 
-    public Collection<String> getAllPeerIds() {
+    Collection<String> getAllPeerIds() {
         return nodes.keySet();
     }
 

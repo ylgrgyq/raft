@@ -1,17 +1,22 @@
 package raft.server;
 
 import org.slf4j.Logger;
+import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 class TestingRaftStateMachine implements StateMachine {
     private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
     private final Logger logger;
     private final String selfId;
+    private final PersistentStorage storage;
     private final Set<String> knownPeerIds;
     private final AtomicBoolean isLeader = new AtomicBoolean(false);
     private final AtomicBoolean isFollower = new AtomicBoolean(false);
@@ -20,19 +25,21 @@ class TestingRaftStateMachine implements StateMachine {
     private volatile CompletableFuture<Void> waitLeaderFuture;
     private volatile CompletableFuture<Void> waitFollowerFuture;
     private volatile RaftStatusSnapshot lastStatus;
+    private LogSnapshot recentSnapshot;
 
-    public TestingRaftStateMachine(Logger logger, String selfId, Collection<String> knownPeerIds) {
+    TestingRaftStateMachine(Logger logger, String selfId, Collection<String> knownPeerIds, PersistentStorage storage) {
         this.logger = logger;
         this.knownPeerIds = new HashSet<>(knownPeerIds);
         this.lastStatus = RaftStatusSnapshot.emptyStatus;
         this.selfId = selfId;
+        this.storage = storage;
     }
 
-    public String getId() {
+    String getId() {
         return selfId;
     }
 
-    public RaftStatusSnapshot getLastStatus() {
+    RaftStatusSnapshot getLastStatus() {
         return lastStatus;
     }
 
@@ -61,11 +68,17 @@ class TestingRaftStateMachine implements StateMachine {
     @Override
     public void installSnapshot(RaftStatusSnapshot status, LogSnapshot snap) {
         lastStatus = status;
+        recentSnapshot = snap;
+        storage.compact(snap.getIndex());
     }
 
     @Override
     public Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
-        return null;
+        if (recentSnapshot != null) {
+            return Optional.of(recentSnapshot);
+        } else {
+            return Optional.empty();
+        }
     }
 
     @Override
@@ -195,6 +208,18 @@ class TestingRaftStateMachine implements StateMachine {
         applied.drainTo(ret);
 
         return Collections.unmodifiableList(ret);
+    }
+
+    CompletableFuture<Void> compact(int toIndex) {
+        int term = storage.getTerm(toIndex);
+        assert term != -1;
+        recentSnapshot = LogSnapshot.newBuilder()
+                .setIndex(toIndex)
+                .setTerm(term)
+                .addAllPeerIds(knownPeerIds)
+                .build();
+
+        return storage.compact(toIndex);
     }
 
     BlockingQueue<LogEntry> getApplied() {
