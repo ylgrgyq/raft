@@ -42,7 +42,7 @@ class TestingRaftCluster {
     }
 
     private Raft createTestingNode(String peerId, Collection<String> peers) {
-        PersistentStorage storage = new FileBasedStorage(storageDir, getStorageName(peerId));
+        FileBasedStorage storage = new FileBasedStorage(storageDir, getStorageName(peerId));
         TestingRaftStateMachine stateMachine = new TestingRaftStateMachine(logger, peerId, peers, storage);
         stateMachines.put(peerId, stateMachine);
 

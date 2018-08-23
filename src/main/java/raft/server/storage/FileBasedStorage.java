@@ -313,7 +313,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         try {
             for (LogEntry e : entries) {
-                if (makeRoomForEntry()) {
+                if (makeRoomForEntry(false)) {
                     byte[] data = e.toByteArray();
                     logWriter.append(data);
                     mm.add(e.getIndex(), e);
@@ -327,31 +327,20 @@ public class FileBasedStorage implements PersistentStorage {
         }
     }
 
-    private boolean makeRoomForEntry() {
+    private boolean makeRoomForEntry(boolean force) {
         try {
+            boolean forceRun = force;
             while (true) {
                 if (status != StorageStatus.OK) {
                     return false;
-                } else if (mm.getMemoryUsedInBytes() > Constant.kMaxMemtableSize) {
+                } else if (forceRun || mm.getMemoryUsedInBytes() > Constant.kMaxMemtableSize) {
                     if (imm != null) {
                         this.wait();
                         continue;
                     }
 
-                    int nextLogFileNumber = manifest.getNextFileNumber();
-                    String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
-                    FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
-                            StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-                    if (logWriter != null) {
-                        logWriter.close();
-                    }
-                    logWriter = new LogWriter(logFile);
-                    logFileNumber = nextLogFileNumber;
-                    imm = mm;
-                    mm = new Memtable();
-                    backgroundWriteSstableRunning = true;
-                    logger.debug("trigger compaction, new log file number={}", logFileNumber);
-                    sstableWriterPool.submit(this::writeMemTable);
+                    forceRun = false;
+                    makeRoomForEntry0();
                 } else {
                     return true;
                 }
@@ -362,24 +351,39 @@ public class FileBasedStorage implements PersistentStorage {
         return false;
     }
 
-    synchronized void waitWriteSstableFinish() throws InterruptedException {
-        if (backgroundWriteSstableRunning) {
-            this.wait();
+    private void makeRoomForEntry0() throws IOException {
+        int nextLogFileNumber = manifest.getNextFileNumber();
+        String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
+        FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
+                StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        if (logWriter != null) {
+            logWriter.close();
         }
+        logWriter = new LogWriter(logFile);
+        logFileNumber = nextLogFileNumber;
+        imm = mm;
+        mm = new Memtable();
+        backgroundWriteSstableRunning = true;
+        logger.debug("trigger compaction, new log file number={}", logFileNumber);
+        sstableWriterPool.submit(this::writeMemTable);
     }
 
     private void writeMemTable() {
         logger.debug("start write mem table in background");
         StorageStatus status = StorageStatus.OK;
         try {
-            SSTableFileMetaInfo meta = writeMemTableToSSTable(imm);
+            ManifestRecord record = null;
+            if (! imm.isEmpty()) {
+                SSTableFileMetaInfo meta = writeMemTableToSSTable(imm);
 
-            ManifestRecord record = ManifestRecord.newPlainRecord();
-            record.addMeta(meta);
-            record.setLogNumber(logFileNumber);
-            manifest.logRecord(record);
+                record = ManifestRecord.newPlainRecord();
+                record.addMeta(meta);
+                record.setLogNumber(logFileNumber);
+                manifest.logRecord(record);
+            }
 
             manifest.processCompactTask();
+            firstIndexInStorage = manifest.getFirstIndex();
 
             int lowestUsedSSTableFileNumber = manifest.getLowestSSTableFileNumber();
             FileName.deleteOutdatedFiles(baseDir, logFileNumber, lowestUsedSSTableFileNumber);
@@ -438,10 +442,15 @@ public class FileBasedStorage implements PersistentStorage {
         return meta;
     }
 
+    // TODO return real compact toIndex by this CompletableFuture
     public CompletableFuture<Void> compact(int toIndex) {
         checkArgument(toIndex > 0);
 
         return manifest.compact(toIndex);
+    }
+
+    public synchronized void forceFlushMemtable() {
+        makeRoomForEntry(true);
     }
 
     public synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException {
@@ -476,6 +485,12 @@ public class FileBasedStorage implements PersistentStorage {
 
         if (storageLockChannel != null && storageLockChannel.isOpen()) {
             storageLockChannel.close();
+        }
+    }
+
+    synchronized void waitWriteSstableFinish() throws InterruptedException {
+        if (backgroundWriteSstableRunning) {
+            this.wait();
         }
     }
 

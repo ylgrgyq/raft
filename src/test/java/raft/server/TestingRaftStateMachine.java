@@ -1,9 +1,9 @@
 package raft.server;
 
 import org.slf4j.Logger;
-import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
+import raft.server.storage.FileBasedStorage;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
@@ -16,7 +16,7 @@ class TestingRaftStateMachine implements StateMachine {
     private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
     private final Logger logger;
     private final String selfId;
-    private final PersistentStorage storage;
+    private final FileBasedStorage storage;
     private final Set<String> knownPeerIds;
     private final AtomicBoolean isLeader = new AtomicBoolean(false);
     private final AtomicBoolean isFollower = new AtomicBoolean(false);
@@ -27,7 +27,7 @@ class TestingRaftStateMachine implements StateMachine {
     private volatile RaftStatusSnapshot lastStatus;
     private LogSnapshot recentSnapshot;
 
-    TestingRaftStateMachine(Logger logger, String selfId, Collection<String> knownPeerIds, PersistentStorage storage) {
+    TestingRaftStateMachine(Logger logger, String selfId, Collection<String> knownPeerIds, FileBasedStorage storage) {
         this.logger = logger;
         this.knownPeerIds = new HashSet<>(knownPeerIds);
         this.lastStatus = RaftStatusSnapshot.emptyStatus;
@@ -210,6 +210,21 @@ class TestingRaftStateMachine implements StateMachine {
         return Collections.unmodifiableList(ret);
     }
 
+    CompletableFuture<LogSnapshot> waitGetSnapshot() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                while (true) {
+                    if (recentSnapshot != null) {
+                        return recentSnapshot;
+                    }
+                    Thread.sleep(1000);
+                }
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+    }
+
     CompletableFuture<Void> compact(int toIndex) {
         int term = storage.getTerm(toIndex);
         assert term != -1;
@@ -220,6 +235,10 @@ class TestingRaftStateMachine implements StateMachine {
                 .build();
 
         return storage.compact(toIndex);
+    }
+
+    void flushMemtable() {
+        storage.forceFlushMemtable();
     }
 
     BlockingQueue<LogEntry> getApplied() {
