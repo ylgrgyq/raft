@@ -93,7 +93,12 @@ class Manifest {
 
         if (greatestToKey > 0) {
             List<SSTableFileMetaInfo> remainMetas = searchMetas(greatestToKey + 1, Integer.MAX_VALUE);
-            if (remainMetas.size() < metas.size()) {
+            if (remainMetas.size() == 0) {
+                // we don't have enough meta tables to fulfill this compact.
+                // so we add compact tasks back to queue and wait for next time
+                compactTaskQueue.addAll(tasks);
+                return;
+            } else if (remainMetas.size() < metas.size()) {
                 ManifestRecord record = ManifestRecord.newReplaceAllExistedMetasRecord();
                 record.addMetas(remainMetas);
                 logRecord(record);
