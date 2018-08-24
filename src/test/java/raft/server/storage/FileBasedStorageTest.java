@@ -15,12 +15,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Author: ylgrgyq
@@ -224,10 +225,12 @@ public class FileBasedStorageTest {
         assertEquals(expectSstableCount, sstableFileNumbers.size());
         int compactCursor = firstIndex + entryPerTable / 2;
         while (compactCursor < lastIndex + 1) {
-            CompletableFuture<Void> future = testingStorage.compact(compactCursor);
+            Future<Integer> future = testingStorage.compact(compactCursor);
             lastE = triggerCompaction(lastE);
             testingStorage.waitWriteSstableFinish();
-            future.get();
+            int actualToIndex = future.get();
+            assertEquals(actualToIndex, testingStorage.getFirstIndex());
+            assertTrue(actualToIndex <= compactCursor);
             sstableFileNumbers = getSstableFileNumbers();
             assertEquals(expectSstableCount + 1, sstableFileNumbers.size());
 

@@ -9,6 +9,7 @@ import raft.server.proto.LogEntry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -93,7 +94,7 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
         }
     }
 
-    public synchronized CompletableFuture<Void> compact(int toIndex) {
+    public synchronized Future<Integer> compact(int toIndex) {
         checkArgument(toIndex <= getLastIndex(),
                 "compactIndex: %s should lower than last index: %s",
                 toIndex, getLastIndex());
