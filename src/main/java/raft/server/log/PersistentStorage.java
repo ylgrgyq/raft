@@ -6,12 +6,14 @@ import raft.server.proto.LogEntry;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
 /**
  * Author: ylgrgyq
  * Date: 18/5/27
  */
 public interface PersistentStorage {
+    // TODO can we remove this sentinel?
     LogEntry sentinel = LogEntry.newBuilder().setTerm(0).setIndex(0).setData(ByteString.copyFrom(new byte[1])).build();
 
     void init();
@@ -42,8 +44,15 @@ public interface PersistentStorage {
 
     void append(List<LogEntry> entries);
 
-
-    CompletableFuture<Void> compact(int toIndex);
+    /**
+     * Try to discard logs in this storage with index from the lowest index to at most toIndex(exclusive).
+     * After this compaction the log with toIndex will remain in this storage.
+     * Please note that the storage may chose a index lower than toIndex to compact.
+     *
+     * @param toIndex the end index of the LogEntry in this storage this compaction try to discard to
+     * @return A future which contains the actual index of this compaction
+     */
+    Future<Integer> compact(int toIndex);
 
     void shutdown();
 }

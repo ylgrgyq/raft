@@ -16,10 +16,7 @@ import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
@@ -375,7 +372,9 @@ public class FileBasedStorage implements PersistentStorage {
             record.setLogNumber(logFileNumber);
             manifest.logRecord(record);
 
-            manifest.processCompactTask();
+            if (manifest.processCompactTask()) {
+                firstIndexInStorage = manifest.getFirstIndex();
+            }
 
             int lowestUsedSSTableFileNumber = manifest.getLowestSSTableFileNumber();
             FileName.deleteOutdatedFiles(baseDir, logFileNumber, lowestUsedSSTableFileNumber);
@@ -434,13 +433,13 @@ public class FileBasedStorage implements PersistentStorage {
         return meta;
     }
 
-    public CompletableFuture<Void> compact(int toIndex) {
+    public Future<Integer> compact(int toIndex) {
         checkArgument(toIndex > 0);
 
         return manifest.compact(toIndex);
     }
 
-    public synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException {
+    synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException {
         checkArgument(timeout >= 0);
         if (status == StorageStatus.SHUTTING_DOWN) {
             return;
