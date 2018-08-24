@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 class Manifest {
     private static final Logger logger = LoggerFactory.getLogger(Manifest.class.getName());
 
-    private final BlockingQueue<CompactTask<Void>> compactTaskQueue;
+    private final BlockingQueue<CompactTask<Integer>> compactTaskQueue;
     private final String baseDir;
     private final String storageName;
     private final List<SSTableFileMetaInfo> metas;
@@ -80,10 +80,10 @@ class Manifest {
         }
     }
 
-    void processCompactTask() throws IOException {
+    boolean processCompactTask() throws IOException {
         int greatestToKey = -1;
-        List<CompactTask<Void>> tasks = new ArrayList<>();
-        CompactTask<Void> task;
+        List<CompactTask<Integer>> tasks = new ArrayList<>();
+        CompactTask<Integer> task;
         while ((task = compactTaskQueue.poll()) != null) {
             tasks.add(task);
             if (task.getToKey() > greatestToKey) {
@@ -95,32 +95,37 @@ class Manifest {
             List<SSTableFileMetaInfo> remainMetas = searchMetas(greatestToKey + 1, Integer.MAX_VALUE);
             if (remainMetas.size() == 0) {
                 // we don't have enough meta tables to fulfill this compact.
-                // so we add compact tasks back to queue and wait for next time
+                // so we add compact tasks back to queue and wait for next flush SSTable time
                 compactTaskQueue.addAll(tasks);
-                return;
-            } else if (remainMetas.size() < metas.size()) {
-                ManifestRecord record = ManifestRecord.newReplaceAllExistedMetasRecord();
-                record.addMetas(remainMetas);
-                logRecord(record);
-
-                metasLock.lock();
-                try {
-                    metas.clear();
-                    metas.addAll(remainMetas);
-                } finally {
-                    metasLock.unlock();
-                }
             } else {
-                assert remainMetas.size() == metas.size();
+                if (remainMetas.size() < metas.size()) {
+                    ManifestRecord record = ManifestRecord.newReplaceAllExistedMetasRecord();
+                    record.addMetas(remainMetas);
+                    logRecord(record);
+
+                    metasLock.lock();
+                    try {
+                        metas.clear();
+                        metas.addAll(remainMetas);
+                    } finally {
+                        metasLock.unlock();
+                    }
+                } else {
+                    assert remainMetas.size() == metas.size();
+                }
+
+                final Integer firstIndex = getFirstIndex();
+                tasks.forEach(t -> t.getFuture().complete(firstIndex));
+                return true;
             }
         }
 
-        tasks.forEach(t -> t.getFuture().complete(null));
+        return false;
     }
 
-    CompletableFuture<Void> compact(int toKey) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-        CompactTask<Void> task = new CompactTask<>(future, toKey);
+    CompletableFuture<Integer> compact(int toKey) {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompactTask<Integer> task = new CompactTask<>(future, toKey);
         compactTaskQueue.add(task);
         return future;
     }
