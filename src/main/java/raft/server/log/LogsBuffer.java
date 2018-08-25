@@ -3,6 +3,7 @@ package raft.server.log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
+import raft.server.proto.LogSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,5 +78,9 @@ class LogsBuffer {
 
             offsetIndex = index;
         }
+    }
+
+    synchronized void installSnapshot(LogSnapshot snapshot) {
+
     }
 }

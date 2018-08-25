@@ -6,7 +6,6 @@ import org.junit.Test;
 import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
-import raft.server.storage.Constant;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -95,7 +94,7 @@ public class LogReplicationTest {
         List<byte[]> dataList = proposeSomeLogs(leader, 100);
 
         for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
+            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
         }
     }
 
@@ -118,7 +117,7 @@ public class LogReplicationTest {
 
         int expectTerm = leaderStateMachine.getLastStatus().getTerm();
         for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
+            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
         }
 
         // reboot cluster including the reboot node
@@ -167,7 +166,7 @@ public class LogReplicationTest {
         List<byte[]> dataList = proposeSomeLogs(newLeader, 100);
 
         for (TestingRaftStateMachine stateMachine : cluster.getAllStateMachines()) {
-            checkAppliedLogs(stateMachine, stateMachine.getLastStatus().getTerm(), 101, dataList);
+            checkAppliedLogs(stateMachine, stateMachine.getLastStatus().getTerm(), 100, dataList);
         }
 
         // add old leader back. logs on it's local storage will be overwritten by those logs synced from new leader
@@ -175,7 +174,7 @@ public class LogReplicationTest {
         TestingRaftStateMachine follower = cluster.getStateMachineById(oldLeader.getId());
         Future f = follower.becomeFollowerFuture();
         f.get();
-        checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
+        checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
     }
 
     @Test
@@ -193,21 +192,31 @@ public class LogReplicationTest {
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
-        // TODO 得多写一些数据，写太少了会不能真的触发 compact
-//        Constant.kMaxMemtableSize
-        List<byte[]> dataList = proposeSomeLogs(leader, 100);
-        List<LogEntry> logsOnLeader = leaderStateMachine.waitApplied(101);
-        assertEquals(100, leaderStateMachine.getLastStatus().getCommitIndex());
-        assertEquals(dataList.size() + 1, logsOnLeader.size());
+        List<byte[]> dataList = new ArrayList<>();
+        List<LogEntry> logsOnLeader = new ArrayList<>();
+        Future<Integer> compactFuture = null;
+
+        // propose some initial logs then schedule compaction job
+        dataList.addAll(proposeSomeLogs(leader, 100));
+        logsOnLeader.addAll(leaderStateMachine.waitApplied(100));
+        int compactLogIndex = logsOnLeader.get(99).getIndex();
+        compactFuture = leaderStateMachine.compact(compactLogIndex);
+        leaderStateMachine.flushMemtable();
+
+        // propose some logs again to trigger compaction actual happen
+        dataList.addAll(proposeSomeLogs(leader, 100));
+        logsOnLeader.addAll(leaderStateMachine.waitApplied(100));
+        leaderStateMachine.flushMemtable();
+
+        compactFuture.get();
+
+        assertEquals(200, leaderStateMachine.getLastStatus().getCommitIndex());
+        assertEquals(dataList.size(), logsOnLeader.size());
         compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
 
         compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
 
-        int compactLogIndex = logsOnLeader.get(50).getIndex();
-        Future f = leaderStateMachine.compact(compactLogIndex);
-        leaderStateMachine.flushMemtable();
-        f.get();
-        LogSnapshot expectSnapshot = leaderStateMachine.getRecentSnapshot(compactLogIndex).orElse(null);
+        LogSnapshot expectSnapshot = leaderStateMachine.getRecentSnapshot(100).orElse(null);
         assertNotNull(expectSnapshot);
 
         // start fall behind node

@@ -112,7 +112,7 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
 
             offset = toIndex;
         }
-        return CompletableFuture.completedFuture(null);
+        return CompletableFuture.completedFuture(offset);
     }
 
     @Override

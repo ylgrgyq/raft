@@ -1,16 +1,15 @@
 package raft.server;
 
 import org.slf4j.Logger;
+import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
 import raft.server.storage.FileBasedStorage;
 
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 class TestingRaftStateMachine implements StateMachine {
     private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
@@ -62,7 +61,7 @@ class TestingRaftStateMachine implements StateMachine {
     public void onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs) {
         assert msgs != null && !msgs.isEmpty() : "msgs is null:" + (msgs == null);
         lastStatus = status;
-        applied.addAll(msgs);
+        applied.addAll(msgs.stream().filter(e -> !e.equals(PersistentStorage.sentinel)).collect(Collectors.toList()));
     }
 
     @Override
@@ -225,7 +224,7 @@ class TestingRaftStateMachine implements StateMachine {
         });
     }
 
-    CompletableFuture<Void> compact(int toIndex) {
+    Future<Integer> compact(int toIndex) {
         int term = storage.getTerm(toIndex);
         assert term != -1;
         recentSnapshot = LogSnapshot.newBuilder()
