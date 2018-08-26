@@ -114,6 +114,7 @@ class Manifest {
                     assert remainMetas.size() == metas.size();
                 }
 
+                // TODO complete compact task with requesting toIndex in CompactTask
                 final Integer firstIndex = getFirstIndex();
                 tasks.forEach(t -> t.getFuture().complete(firstIndex));
                 return true;

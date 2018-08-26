@@ -274,8 +274,6 @@ public class RaftLogImpl implements RaftLog {
 
     @Override
     public synchronized void snapshotApplied(int snapshotIndex) {
-        // TODO 这个地方不做任何处理的话会导致 getLastIndex 在收到 snapshot 之后从 snapshot index 变回原始的 lastIndex 导致 last index 比 commit index 还小
-        
         if (recentSnapshotIndex == snapshotIndex) {
             recentSnapshotIndex = -1;
             recentSnapshotTerm = -1;
