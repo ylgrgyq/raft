@@ -262,10 +262,14 @@ public class RaftLogImpl implements RaftLog {
 
     @Override
     public synchronized void installSnapshot(LogSnapshot snapshot) {
+        logger.info("receive snapshot with index:{} and term: {}", snapshot.getIndex(), snapshot.getTerm());
+
         commitIndex = snapshot.getIndex();
 
         recentSnapshotIndex = snapshot.getIndex();
         recentSnapshotTerm = snapshot.getTerm();
+
+        buffer.installSnapshot(snapshot);
     }
 
     @Override

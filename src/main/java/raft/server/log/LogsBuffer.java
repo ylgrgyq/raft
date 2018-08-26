@@ -3,6 +3,8 @@ package raft.server.log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
+import raft.server.proto.LogEntryOrBuilder;
+import raft.server.proto.LogSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +31,7 @@ class LogsBuffer {
 
     synchronized int getTerm(int index) {
         assert index >= offsetIndex && index < offsetIndex + logsBuffer.size() :
-                String.format("index:%s offsetIndex:%s logsBufferSize:%s", index, offsetIndex, logsBuffer.size()) ;
+                String.format("index:%s offsetIndex:%s logsBufferSize:%s", index, offsetIndex, logsBuffer.size());
 
         return logsBuffer.get(index - offsetIndex).getTerm();
     }
@@ -76,6 +78,23 @@ class LogsBuffer {
 
 
             offsetIndex = index;
+        }
+    }
+
+    synchronized void installSnapshot(LogSnapshot snapshot) {
+        assert snapshot != null;
+
+        int index = snapshot.getIndex();
+        if (index > getLastIndex()) {
+            logsBuffer = new ArrayList<>();
+            offsetIndex = snapshot.getIndex();
+            LogEntry entry = LogEntry.newBuilder()
+                    .setIndex(snapshot.getIndex())
+                    .setTerm(snapshot.getTerm())
+                    .build();
+            logsBuffer.add(entry);
+        } else if (index > offsetIndex) {
+            truncateBuffer(index);
         }
     }
 }

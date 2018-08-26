@@ -5,13 +5,15 @@ import org.junit.Before;
 import org.junit.Test;
 import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
+import raft.server.proto.LogSnapshot;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.*;
 
@@ -39,7 +41,7 @@ public class LogReplicationTest {
 
         // check node status after logs proposed
         RaftStatusSnapshot status = stateMachine.getLastStatus();
-        assertEquals(logCount - 1, status.getCommitIndex());
+        assertEquals(logCount, status.getCommitIndex());
         assertTrue(applied.size() > 0);
 
         for (LogEntry e : applied) {
@@ -60,14 +62,7 @@ public class LogReplicationTest {
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
-        // propose some logs
-        List<byte[]> dataList = TestUtil.newDataList(100, 100);
-        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
-            CompletableFuture<ProposalResponse> resp = leader.propose(batch);
-            ProposalResponse p = resp.get();
-            assertTrue(p.isSuccess());
-            assertEquals(ErrorMsg.NONE, p.getError());
-        }
+        List<byte[]> dataList = proposeSomeLogs(leader, 150);
 
         // check raft status after logs have been processed
         RaftStatusSnapshot status = leaderStateMachine.getLastStatus();
@@ -96,63 +91,47 @@ public class LogReplicationTest {
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
-        // propose some logs
-        List<byte[]> dataList = TestUtil.newDataList(100, 100);
-        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
-            CompletableFuture<ProposalResponse> resp = leader.propose(batch);
-            ProposalResponse p = resp.get();
-            assertTrue(p.isSuccess());
-            assertEquals(ErrorMsg.NONE, p.getError());
-        }
+        List<byte[]> dataList = proposeSomeLogs(leader, 100);
 
         for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
+            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
         }
     }
 
     @Test
     public void testSyncLogOnRebootNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
+        peerIdSet.add("reboot node 001");
+        peerIdSet.add("reboot node 002");
+        peerIdSet.add("reboot node 003");
 
-        cluster.startCluster(peerIdSet);
-        TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
-
-        String oldLeaderId = leaderStateMachine.getId();
-        cluster.shutdownPeer(oldLeaderId);
+        String rebootNodeId = "reboot node 003";
+        cluster.addTestingNode("reboot node 001", peerIdSet).start();
+        cluster.addTestingNode("reboot node 002", peerIdSet).start();
         assertEquals(2, cluster.getAllStateMachines().size());
 
-        leaderStateMachine = cluster.waitGetLeader();
+        TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
-        // propose some logs
-        List<byte[]> dataList = TestUtil.newDataList(100, 100);
-        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
-            CompletableFuture<ProposalResponse> resp = leader.propose(batch);
-            ProposalResponse p = resp.get(5000, TimeUnit.SECONDS);
-            assertTrue(p.isSuccess());
-            assertEquals(ErrorMsg.NONE, p.getError());
-        }
+        List<byte[]> dataList = proposeSomeLogs(leader, 100);
 
         int expectTerm = leaderStateMachine.getLastStatus().getTerm();
         for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
+            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
         }
 
-        // reboot cluster including the old leader
+        // reboot cluster including the reboot node
         cluster.shutdownCluster();
         cluster.startCluster(peerIdSet);
         leaderStateMachine = cluster.waitGetLeader();
-        // old leader do not have the latest logs so it can not be elected as leader
-        assertNotEquals(oldLeaderId, leaderStateMachine.getId());
+        // reboot node do not have the latest logs so it can not be elected as leader
+        assertNotEquals(rebootNodeId, leaderStateMachine.getId());
 
-        // logs should sync to old leader
-        TestingRaftStateMachine follower = cluster.getStateMachineById(oldLeaderId);
+        // logs should sync to reboot node
+        TestingRaftStateMachine follower = cluster.getStateMachineById(rebootNodeId);
         Future f = follower.becomeFollowerFuture();
         f.get();
-        checkAppliedLogs(follower, expectTerm, 101, dataList);
+        checkAppliedLogs(follower, expectTerm, 100, dataList);
     }
 
     @Test
@@ -183,16 +162,11 @@ public class LogReplicationTest {
         followerStateMachines.forEach(s -> cluster.addTestingNode(s.getId(), peerIdSet).start());
         TestingRaftStateMachine newLeaderStateMachine = cluster.waitGetLeader();
         Raft newLeader = cluster.getNodeById(newLeaderStateMachine.getId());
-        List<byte[]> dataList = TestUtil.newDataList(100, 100);
-        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
-            CompletableFuture<ProposalResponse> resp = newLeader.propose(batch);
-            ProposalResponse p = resp.get(5000, TimeUnit.SECONDS);
-            assertTrue(p.isSuccess());
-            assertEquals(ErrorMsg.NONE, p.getError());
-        }
+
+        List<byte[]> dataList = proposeSomeLogs(newLeader, 100);
 
         for (TestingRaftStateMachine stateMachine : cluster.getAllStateMachines()) {
-            checkAppliedLogs(stateMachine, stateMachine.getLastStatus().getTerm(), 101, dataList);
+            checkAppliedLogs(stateMachine, stateMachine.getLastStatus().getTerm(), 100, dataList);
         }
 
         // add old leader back. logs on it's local storage will be overwritten by those logs synced from new leader
@@ -200,6 +174,97 @@ public class LogReplicationTest {
         TestingRaftStateMachine follower = cluster.getStateMachineById(oldLeader.getId());
         Future f = follower.becomeFollowerFuture();
         f.get();
-        checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 101, dataList);
+        checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
+    }
+
+    @Test
+    public void testSnapshot() throws Exception {
+        HashSet<String> peerIdSet = new HashSet<>();
+        peerIdSet.add("snapshot 001");
+        peerIdSet.add("snapshot 002");
+        peerIdSet.add("snapshot 003");
+
+        String fallBehindNodeId = "snapshot 003";
+        cluster.addTestingNode("snapshot 001", peerIdSet).start();
+        cluster.addTestingNode("snapshot 002", peerIdSet).start();
+        assertEquals(2, cluster.getAllStateMachines().size());
+
+        TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
+        Raft leader = cluster.getNodeById(leaderStateMachine.getId());
+
+        List<byte[]> dataList = new ArrayList<>(proposeSomeLogs(leader, 100));
+        List<LogEntry> logsOnLeader = new ArrayList<>(leaderStateMachine.waitApplied(100));
+        leaderStateMachine.flushMemtable();
+
+        // propose some initial logs then schedule compaction job
+        dataList.addAll(proposeSomeLogs(leader, 100));
+        logsOnLeader.addAll(leaderStateMachine.waitApplied(100));
+        int compactLogIndex = logsOnLeader.get(100).getIndex();
+        leaderStateMachine.compact(compactLogIndex);
+        // trigger compaction actual happen
+        leaderStateMachine.flushMemtable();
+
+        assertEquals(200, leaderStateMachine.getLastStatus().getCommitIndex());
+        assertEquals(dataList.size(), logsOnLeader.size());
+        compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
+
+        compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
+
+        CompletableFuture<LogSnapshot> expectSnapshot = leaderStateMachine.waitGetSnapshot();
+        expectSnapshot.get();
+        assertNotNull(expectSnapshot);
+
+        // start fall behind node
+        cluster.addTestingNode(fallBehindNodeId, peerIdSet).start();
+        leaderStateMachine = cluster.waitGetLeader();
+        assertNotEquals(fallBehindNodeId, leaderStateMachine.getId());
+
+        // snapshot should sync to fall behind node
+        TestingRaftStateMachine follower = cluster.getStateMachineById(fallBehindNodeId);
+        CompletableFuture<Void> becomeFollower = follower.becomeFollowerFuture();
+        CompletableFuture<LogSnapshot> waitSnapshot = follower.waitGetSnapshot();
+        CompletableFuture.allOf(becomeFollower, waitSnapshot).get();
+        assertEquals(expectSnapshot.get(), waitSnapshot.get());
+        compareLogsWithinCluster(logsOnLeader.subList(101, logsOnLeader.size()), Collections.singletonList(follower));
+    }
+
+    private List<byte[]> proposeSomeLogs(Raft leader, int count) throws InterruptedException, ExecutionException {
+        return proposeSomeLogs(leader, count, 100);
+    }
+
+    private List<byte[]> proposeSomeLogs(Raft leader, int count, int dataSize) throws InterruptedException, ExecutionException {
+        List<byte[]> dataList = TestUtil.newDataList(count, dataSize);
+        for (List<byte[]> batch : TestUtil.randomPartitionList(dataList)) {
+            CompletableFuture<ProposalResponse> resp = leader.propose(batch);
+            ProposalResponse p = resp.get();
+            assertTrue(p.isSuccess());
+            assertEquals(ErrorMsg.NONE, p.getError());
+        }
+        return dataList;
+    }
+
+    private void compareLogsWithSource(int expectTerm, List<LogEntry> logs, List<byte[]> sourceList) {
+        for (LogEntry e : logs) {
+            if (!e.equals(PersistentStorage.sentinel)) {
+                assertEquals(expectTerm, e.getTerm());
+                assertArrayEquals(sourceList.get(e.getIndex() - 1), e.getData().toByteArray());
+            }
+        }
+    }
+
+    private void compareLogsWithinCluster(List<LogEntry> logsOnLeader, List<TestingRaftStateMachine> stateMachines) {
+        int expectCommitIndex = logsOnLeader.get(logsOnLeader.size() - 1).getIndex();
+        for (TestingRaftStateMachine stateMachine : stateMachines) {
+            List<LogEntry> applied = stateMachine.waitApplied(logsOnLeader.size());
+
+            // check node status after logs proposed
+            RaftStatusSnapshot status = stateMachine.getLastStatus();
+            assertEquals(expectCommitIndex, status.getCommitIndex());
+            assertEquals(logsOnLeader.size(), applied.size());
+
+            for (int i = 0; i < logsOnLeader.size(); i++) {
+                assertEquals(logsOnLeader.get(i), applied.get(i));
+            }
+        }
     }
 }

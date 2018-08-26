@@ -1,17 +1,21 @@
 package raft.server;
 
 import org.slf4j.Logger;
+import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
+import raft.server.storage.FileBasedStorage;
 
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 class TestingRaftStateMachine implements StateMachine {
     private final BlockingQueue<LogEntry> applied = new LinkedBlockingQueue<>();
     private final Logger logger;
     private final String selfId;
+    private final FileBasedStorage storage;
     private final Set<String> knownPeerIds;
     private final AtomicBoolean isLeader = new AtomicBoolean(false);
     private final AtomicBoolean isFollower = new AtomicBoolean(false);
@@ -20,19 +24,21 @@ class TestingRaftStateMachine implements StateMachine {
     private volatile CompletableFuture<Void> waitLeaderFuture;
     private volatile CompletableFuture<Void> waitFollowerFuture;
     private volatile RaftStatusSnapshot lastStatus;
+    private LogSnapshot recentSnapshot;
 
-    public TestingRaftStateMachine(Logger logger, String selfId, Collection<String> knownPeerIds) {
+    TestingRaftStateMachine(Logger logger, String selfId, Collection<String> knownPeerIds, FileBasedStorage storage) {
         this.logger = logger;
         this.knownPeerIds = new HashSet<>(knownPeerIds);
         this.lastStatus = RaftStatusSnapshot.emptyStatus;
         this.selfId = selfId;
+        this.storage = storage;
     }
 
-    public String getId() {
+    String getId() {
         return selfId;
     }
 
-    public RaftStatusSnapshot getLastStatus() {
+    RaftStatusSnapshot getLastStatus() {
         return lastStatus;
     }
 
@@ -55,17 +61,23 @@ class TestingRaftStateMachine implements StateMachine {
     public void onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs) {
         assert msgs != null && !msgs.isEmpty() : "msgs is null:" + (msgs == null);
         lastStatus = status;
-        applied.addAll(msgs);
+        applied.addAll(msgs.stream().filter(e -> !e.equals(PersistentStorage.sentinel)).collect(Collectors.toList()));
     }
 
     @Override
     public void installSnapshot(RaftStatusSnapshot status, LogSnapshot snap) {
         lastStatus = status;
+        recentSnapshot = snap;
+        storage.compact(snap.getIndex());
     }
 
     @Override
     public Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
-        return null;
+        if (recentSnapshot != null && recentSnapshot.getIndex() >= expectIndex) {
+            return Optional.of(recentSnapshot);
+        } else {
+            return Optional.empty();
+        }
     }
 
     @Override
@@ -195,6 +207,37 @@ class TestingRaftStateMachine implements StateMachine {
         applied.drainTo(ret);
 
         return Collections.unmodifiableList(ret);
+    }
+
+    CompletableFuture<LogSnapshot> waitGetSnapshot() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                while (true) {
+                    if (recentSnapshot != null) {
+                        return recentSnapshot;
+                    }
+                    Thread.sleep(1000);
+                }
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+    }
+
+    Future<Integer> compact(int toIndex) {
+        int term = storage.getTerm(toIndex);
+        assert term != -1;
+        recentSnapshot = LogSnapshot.newBuilder()
+                .setIndex(toIndex)
+                .setTerm(term)
+                .addAllPeerIds(knownPeerIds)
+                .build();
+
+        return storage.compact(toIndex);
+    }
+
+    void flushMemtable() {
+        storage.forceFlushMemtable();
     }
 
     BlockingQueue<LogEntry> getApplied() {

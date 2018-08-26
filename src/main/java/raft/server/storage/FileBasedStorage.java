@@ -16,7 +16,10 @@ import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
@@ -274,6 +277,10 @@ public class FileBasedStorage implements PersistentStorage {
                 "FileBasedStorage's status is not normal, currently: %s", status);
         checkArgument(start < end, "end:%s should greater than start:%s", end, start);
 
+        if (start < getFirstIndex()) {
+            throw new LogsCompactedException(start);
+        }
+
         List<LogEntry> ret = new ArrayList<>();
         Itr itr = internalIterator(start, end);
         while (itr.hasNext()) {
@@ -306,7 +313,7 @@ public class FileBasedStorage implements PersistentStorage {
 
         try {
             for (LogEntry e : entries) {
-                if (makeRoomForEntry()) {
+                if (makeRoomForEntry(false)) {
                     byte[] data = e.toByteArray();
                     logWriter.append(data);
                     mm.add(e.getIndex(), e);
@@ -320,31 +327,20 @@ public class FileBasedStorage implements PersistentStorage {
         }
     }
 
-    private boolean makeRoomForEntry() {
+    private boolean makeRoomForEntry(boolean force) {
         try {
+            boolean forceRun = force;
             while (true) {
                 if (status != StorageStatus.OK) {
                     return false;
-                } else if (mm.getMemoryUsedInBytes() > Constant.kMaxMemtableSize) {
+                } else if (forceRun || mm.getMemoryUsedInBytes() > Constant.kMaxMemtableSize) {
                     if (imm != null) {
                         this.wait();
                         continue;
                     }
 
-                    int nextLogFileNumber = manifest.getNextFileNumber();
-                    String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
-                    FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
-                            StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-                    if (logWriter != null) {
-                        logWriter.close();
-                    }
-                    logWriter = new LogWriter(logFile);
-                    logFileNumber = nextLogFileNumber;
-                    imm = mm;
-                    mm = new Memtable();
-                    backgroundWriteSstableRunning = true;
-                    logger.debug("trigger compaction, new log file number={}", logFileNumber);
-                    sstableWriterPool.submit(this::writeMemTable);
+                    forceRun = false;
+                    makeRoomForEntry0();
                 } else {
                     return true;
                 }
@@ -355,22 +351,36 @@ public class FileBasedStorage implements PersistentStorage {
         return false;
     }
 
-    synchronized void waitWriteSstableFinish() throws InterruptedException {
-        if (backgroundWriteSstableRunning) {
-            this.wait();
+    private void makeRoomForEntry0() throws IOException {
+        int nextLogFileNumber = manifest.getNextFileNumber();
+        String nextLogFile = FileName.getLogFileName(storageName, nextLogFileNumber);
+        FileChannel logFile = FileChannel.open(Paths.get(baseDir, nextLogFile),
+                StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        if (logWriter != null) {
+            logWriter.close();
         }
+        logWriter = new LogWriter(logFile);
+        logFileNumber = nextLogFileNumber;
+        imm = mm;
+        mm = new Memtable();
+        backgroundWriteSstableRunning = true;
+        logger.debug("trigger compaction, new log file number={}", logFileNumber);
+        sstableWriterPool.submit(this::writeMemTable);
     }
 
     private void writeMemTable() {
         logger.debug("start write mem table in background");
         StorageStatus status = StorageStatus.OK;
         try {
-            SSTableFileMetaInfo meta = writeMemTableToSSTable(imm);
+            ManifestRecord record = null;
+            if (! imm.isEmpty()) {
+                SSTableFileMetaInfo meta = writeMemTableToSSTable(imm);
 
-            ManifestRecord record = ManifestRecord.newPlainRecord();
-            record.addMeta(meta);
-            record.setLogNumber(logFileNumber);
-            manifest.logRecord(record);
+                record = ManifestRecord.newPlainRecord();
+                record.addMeta(meta);
+                record.setLogNumber(logFileNumber);
+                manifest.logRecord(record);
+            }
 
             if (manifest.processCompactTask()) {
                 firstIndexInStorage = manifest.getFirstIndex();
@@ -439,6 +449,10 @@ public class FileBasedStorage implements PersistentStorage {
         return manifest.compact(toIndex);
     }
 
+    public synchronized void forceFlushMemtable() {
+        makeRoomForEntry(true);
+    }
+
     synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException {
         checkArgument(timeout >= 0);
         if (status == StorageStatus.SHUTTING_DOWN) {
@@ -471,6 +485,12 @@ public class FileBasedStorage implements PersistentStorage {
 
         if (storageLockChannel != null && storageLockChannel.isOpen()) {
             storageLockChannel.close();
+        }
+    }
+
+    synchronized void waitWriteSstableFinish() throws InterruptedException {
+        if (backgroundWriteSstableRunning) {
+            this.wait();
         }
     }
 

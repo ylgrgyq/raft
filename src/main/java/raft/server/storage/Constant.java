@@ -4,20 +4,20 @@ package raft.server.storage;
  * Author: ylgrgyq
  * Date: 18/6/10
  */
-class Constant {
-    static final int kBlockSize = 32768;
+public class Constant {
+    public static final int kBlockSize = 32768;
 
     // Header is checksum (Long) + length (Short) + record type (Byte).
-    static final int kHeaderSize = Long.BYTES + Short.BYTES + Byte.BYTES;
+    public static final int kHeaderSize = Long.BYTES + Short.BYTES + Byte.BYTES;
 
-    static final int kMaxBlockSize = 4096;
+    public static final int kMaxBlockSize = 4096;
 
     // Block Trailer is checksum(Long)
-    static final int kBlockTrailerSize = Long.BYTES;
+    public static final int kBlockTrailerSize = Long.BYTES;
 
-    static final long kTableMagicNumber = 24068102;
+    public static final long kTableMagicNumber = 24068102;
 
-    static final int kMaxMemtableSize = 8388608;
+    public static final int kMaxMemtableSize = 8388608;
 
-    static final int kBlockCheckpointInterval = 64;
+    public static final int kBlockCheckpointInterval = 64;
 }

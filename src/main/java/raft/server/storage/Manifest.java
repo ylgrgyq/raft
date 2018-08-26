@@ -92,7 +92,7 @@ class Manifest {
         }
 
         if (greatestToKey > 0) {
-            List<SSTableFileMetaInfo> remainMetas = searchMetas(greatestToKey + 1, Integer.MAX_VALUE);
+            List<SSTableFileMetaInfo> remainMetas = searchMetas(greatestToKey, Integer.MAX_VALUE);
             if (remainMetas.size() == 0) {
                 // we don't have enough meta tables to fulfill this compact.
                 // so we add compact tasks back to queue and wait for next flush SSTable time
@@ -114,6 +114,7 @@ class Manifest {
                     assert remainMetas.size() == metas.size();
                 }
 
+                // TODO complete compact task with requesting toIndex in CompactTask
                 final Integer firstIndex = getFirstIndex();
                 tasks.forEach(t -> t.getFuture().complete(firstIndex));
                 return true;
