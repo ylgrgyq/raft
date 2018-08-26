@@ -73,7 +73,7 @@ class TestingRaftStateMachine implements StateMachine {
 
     @Override
     public Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
-        if (recentSnapshot != null) {
+        if (recentSnapshot != null && recentSnapshot.getIndex() >= expectIndex) {
             return Optional.of(recentSnapshot);
         } else {
             return Optional.empty();

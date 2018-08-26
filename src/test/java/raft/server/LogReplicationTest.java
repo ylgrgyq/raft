@@ -41,7 +41,7 @@ public class LogReplicationTest {
 
         // check node status after logs proposed
         RaftStatusSnapshot status = stateMachine.getLastStatus();
-        assertEquals(logCount - 1, status.getCommitIndex());
+        assertEquals(logCount, status.getCommitIndex());
         assertTrue(applied.size() > 0);
 
         for (LogEntry e : applied) {
@@ -131,7 +131,7 @@ public class LogReplicationTest {
         TestingRaftStateMachine follower = cluster.getStateMachineById(rebootNodeId);
         Future f = follower.becomeFollowerFuture();
         f.get();
-        checkAppliedLogs(follower, expectTerm, 101, dataList);
+        checkAppliedLogs(follower, expectTerm, 100, dataList);
     }
 
     @Test
@@ -192,23 +192,17 @@ public class LogReplicationTest {
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
-        List<byte[]> dataList = new ArrayList<>();
-        List<LogEntry> logsOnLeader = new ArrayList<>();
-        Future<Integer> compactFuture = null;
+        List<byte[]> dataList = new ArrayList<>(proposeSomeLogs(leader, 100));
+        List<LogEntry> logsOnLeader = new ArrayList<>(leaderStateMachine.waitApplied(100));
+        leaderStateMachine.flushMemtable();
 
         // propose some initial logs then schedule compaction job
         dataList.addAll(proposeSomeLogs(leader, 100));
         logsOnLeader.addAll(leaderStateMachine.waitApplied(100));
-        int compactLogIndex = logsOnLeader.get(99).getIndex();
-        compactFuture = leaderStateMachine.compact(compactLogIndex);
+        int compactLogIndex = logsOnLeader.get(100).getIndex();
+        leaderStateMachine.compact(compactLogIndex);
+        // trigger compaction actual happen
         leaderStateMachine.flushMemtable();
-
-        // propose some logs again to trigger compaction actual happen
-        dataList.addAll(proposeSomeLogs(leader, 100));
-        logsOnLeader.addAll(leaderStateMachine.waitApplied(100));
-        leaderStateMachine.flushMemtable();
-
-        compactFuture.get();
 
         assertEquals(200, leaderStateMachine.getLastStatus().getCommitIndex());
         assertEquals(dataList.size(), logsOnLeader.size());
@@ -216,7 +210,8 @@ public class LogReplicationTest {
 
         compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
 
-        LogSnapshot expectSnapshot = leaderStateMachine.getRecentSnapshot(100).orElse(null);
+        CompletableFuture<LogSnapshot> expectSnapshot = leaderStateMachine.waitGetSnapshot();
+        expectSnapshot.get();
         assertNotNull(expectSnapshot);
 
         // start fall behind node
@@ -229,12 +224,12 @@ public class LogReplicationTest {
         CompletableFuture<Void> becomeFollower = follower.becomeFollowerFuture();
         CompletableFuture<LogSnapshot> waitSnapshot = follower.waitGetSnapshot();
         CompletableFuture.allOf(becomeFollower, waitSnapshot).get();
-        assertEquals(expectSnapshot, waitSnapshot.get());
-        compareLogsWithinCluster(logsOnLeader.subList(50, logsOnLeader.size()), Collections.singletonList(follower));
+        assertEquals(expectSnapshot.get(), waitSnapshot.get());
+        compareLogsWithinCluster(logsOnLeader.subList(101, logsOnLeader.size()), Collections.singletonList(follower));
     }
 
     private List<byte[]> proposeSomeLogs(Raft leader, int count) throws InterruptedException, ExecutionException {
-        return proposeSomeLogs(leader,count, 100);
+        return proposeSomeLogs(leader, count, 100);
     }
 
     private List<byte[]> proposeSomeLogs(Raft leader, int count, int dataSize) throws InterruptedException, ExecutionException {
@@ -259,7 +254,7 @@ public class LogReplicationTest {
 
     private void compareLogsWithinCluster(List<LogEntry> logsOnLeader, List<TestingRaftStateMachine> stateMachines) {
         int expectCommitIndex = logsOnLeader.get(logsOnLeader.size() - 1).getIndex();
-        for(TestingRaftStateMachine stateMachine : stateMachines) {
+        for (TestingRaftStateMachine stateMachine : stateMachines) {
             List<LogEntry> applied = stateMachine.waitApplied(logsOnLeader.size());
 
             // check node status after logs proposed
