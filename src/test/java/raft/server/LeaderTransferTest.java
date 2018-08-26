@@ -7,6 +7,7 @@ import org.junit.Test;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.*;
 
@@ -135,14 +136,14 @@ public class LeaderTransferTest {
         // propose will failed
         List<byte[]> failedData = TestUtil.newDataList(100);
         f = oldLeader.propose(failedData);
-        ProposalResponse p = f.get();
+        ProposalResponse p = f.get(5000, TimeUnit.SECONDS);
         assertFalse(p.isSuccess());
         assertEquals(ErrorMsg.LEADER_TRANSFERRING, p.getError());
 
         // check leadership on new leader
-        assertTrue(successFuture.get().isSuccess());
+        assertTrue(successFuture.get(5000, TimeUnit.SECONDS).isSuccess());
         TestingRaftStateMachine stateMachine = cluster.getStateMachineById(newLeaderId);
-        stateMachine.becomeLeaderFuture().get();
+        stateMachine.becomeLeaderFuture().get(5000, TimeUnit.SECONDS);
         assertEquals(State.LEADER, stateMachine.getLastStatus().getState());
     }
 }
