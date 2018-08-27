@@ -66,14 +66,14 @@ class Table implements Iterable<LogEntry> {
         return new Block(content);
     }
 
-    List<LogEntry> getEntries(int start, int end) {
-        SeekableIterator<LogEntry> itr = iterator();
+    List<LogEntry> getEntries(long start, long end) {
+        SeekableIterator<Long, LogEntry> itr = iterator();
         itr.seek(start);
 
         List<LogEntry> ret = new ArrayList<>();
         while (itr.hasNext()) {
             LogEntry v = itr.next();
-            int k = v.getIndex();
+            long k = v.getIndex();
             if (k >= start && k < end) {
                 ret.add(v);
             } else {
@@ -95,20 +95,20 @@ class Table implements Iterable<LogEntry> {
     }
 
     @Override
-    public SeekableIterator<LogEntry> iterator() {
+    public SeekableIterator<Long, LogEntry> iterator() {
         return new Itr(indexBlock);
     }
 
-    private class Itr implements SeekableIterator<LogEntry> {
-        private final SeekableIterator<KeyValueEntry<Integer, byte[]>> indexBlockIter;
-        private SeekableIterator<KeyValueEntry<Integer, byte[]>> innerBlockIter;
+    private class Itr implements SeekableIterator<Long, LogEntry> {
+        private final SeekableIterator<Long, KeyValueEntry<Long, byte[]>> indexBlockIter;
+        private SeekableIterator<Long, KeyValueEntry<Long, byte[]>> innerBlockIter;
 
         Itr(Block indexBlock) {
             this.indexBlockIter = indexBlock.iterator();
         }
 
         @Override
-        public void seek(int key) {
+        public void seek(Long key) {
             indexBlockIter.seek(key);
             if (indexBlockIter.hasNext()) {
                 innerBlockIter = createInnerBlockIter();
@@ -129,9 +129,9 @@ class Table implements Iterable<LogEntry> {
             return innerBlockIter != null && innerBlockIter.hasNext();
         }
 
-        private SeekableIterator<KeyValueEntry<Integer,byte[]>> createInnerBlockIter() {
+        private SeekableIterator<Long, KeyValueEntry<Long,byte[]>> createInnerBlockIter() {
             try {
-                KeyValueEntry<Integer, byte[]> kv = indexBlockIter.next();
+                KeyValueEntry<Long, byte[]> kv = indexBlockIter.next();
                 BlockHandle handle = BlockHandle.decode(kv.getVal());
                 Block block = getBlock(handle);
                 return block.iterator();
@@ -145,7 +145,7 @@ class Table implements Iterable<LogEntry> {
             assert innerBlockIter != null;
             assert innerBlockIter.hasNext();
             try {
-                KeyValueEntry<Integer, byte[]> ret = innerBlockIter.next();
+                KeyValueEntry<Long, byte[]> ret = innerBlockIter.next();
                 return LogEntry.parseFrom(ret.getVal());
             } catch (IOException ex) {
                 throw new StorageInternalError(ex);

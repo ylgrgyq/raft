@@ -83,8 +83,8 @@ class ManifestRecord {
         for (SSTableFileMetaInfo meta : metas) {
             out.writeLong(meta.getFileSize());
             out.writeInt(meta.getFileNumber());
-            out.writeInt(meta.getFirstKey());
-            out.writeInt(meta.getLastKey());
+            out.writeLong(meta.getFirstKey());
+            out.writeLong(meta.getLastKey());
         }
 
         return out.toByteArray();
@@ -102,8 +102,8 @@ class ManifestRecord {
             SSTableFileMetaInfo meta = new SSTableFileMetaInfo();
             meta.setFileSize(in.readLong());
             meta.setFileNumber(in.readInt());
-            meta.setFirstKey(in.readInt());
-            meta.setLastKey(in.readInt());
+            meta.setFirstKey(in.readLong());
+            meta.setLastKey(in.readLong());
 
             record.addMeta(meta);
         }
@@ -119,8 +119,8 @@ class ManifestRecord {
                 ", logNumber=" + logNumber);
 
         if (!metas.isEmpty()) {
-            int from = metas.get(0).getFirstKey();
-            int to = metas.get(metas.size() - 1).getLastKey();
+            long from = metas.get(0).getFirstKey();
+            long to = metas.get(metas.size() - 1).getLastKey();
             builder.append(", metaKeysFrom=");
             builder.append(from);
             builder.append(", metaKeysTo=");

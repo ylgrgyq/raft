@@ -42,7 +42,7 @@ class LogsBuffer {
     synchronized List<LogEntry> getEntries(long start, long end) {
         assert start >= offsetIndex && end > start;
         assert start < offsetIndex + logsBuffer.size();
-        assert end < offsetIndex + logsBuffer.size();
+        assert end <= offsetIndex + logsBuffer.size();
 
         return logsBuffer.subList(Math.max(0, (int)(start - offsetIndex)), (int)(end - offsetIndex));
     }

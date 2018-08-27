@@ -11,29 +11,29 @@ import java.util.concurrent.ConcurrentSkipListMap;
  * Date: 18/6/11
  */
 class Memtable implements Iterable<LogEntry> {
-    private ConcurrentSkipListMap<Integer, LogEntry> table;
+    private ConcurrentSkipListMap<Long, LogEntry> table;
     private int memSize;
 
     Memtable() {
         table = new ConcurrentSkipListMap<>();
     }
 
-    void add(int k, LogEntry v) {
+    void add(long k, LogEntry v) {
         table.put(k, v);
         memSize += Integer.BYTES + v.getSerializedSize();
     }
 
-    Integer firstKey() {
+    Long firstKey() {
         if (table.isEmpty()) {
-            return -1;
+            return -1L;
         } else {
             return table.firstKey();
         }
     }
 
-    Integer lastKey() {
+    Long lastKey() {
         if (table.isEmpty()) {
-            return -1;
+            return -1L;
         } else {
             return table.lastKey();
         }
@@ -43,16 +43,16 @@ class Memtable implements Iterable<LogEntry> {
         return table.isEmpty();
     }
 
-    LogEntry get(int k) {
+    LogEntry get(long k) {
         return table.get(k);
     }
 
-    List<LogEntry> getEntries(int start, int end) {
+    List<LogEntry> getEntries(long start, long end) {
         if (end < firstKey() || start > lastKey()) {
             return Collections.emptyList();
         }
 
-        SeekableIterator<LogEntry> iter = iterator();
+        SeekableIterator<Long, LogEntry> iter = iterator();
         iter.seek(start);
 
         List<LogEntry> ret = new ArrayList<>();
@@ -73,21 +73,21 @@ class Memtable implements Iterable<LogEntry> {
     }
 
     @Override
-    public SeekableIterator<LogEntry> iterator() {
+    public SeekableIterator<Long, LogEntry> iterator() {
         return new Itr(table.clone());
     }
 
-    private static class Itr implements SeekableIterator<LogEntry> {
-        private ConcurrentNavigableMap<Integer, LogEntry> innerMap;
-        private Map.Entry<Integer, LogEntry> offset;
+    private static class Itr implements SeekableIterator<Long, LogEntry> {
+        private ConcurrentNavigableMap<Long, LogEntry> innerMap;
+        private Map.Entry<Long, LogEntry> offset;
 
-        Itr(ConcurrentNavigableMap<Integer, LogEntry> innerMap) {
+        Itr(ConcurrentNavigableMap<Long, LogEntry> innerMap) {
             this.innerMap = innerMap;
             this.offset = innerMap.firstEntry();
         }
 
         @Override
-        public void seek(int key) {
+        public void seek(Long key) {
             offset = innerMap.ceilingEntry(key);
         }
 

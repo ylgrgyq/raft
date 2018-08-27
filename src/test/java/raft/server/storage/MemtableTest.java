@@ -32,12 +32,12 @@ public class MemtableTest {
 
     @Test
     public void firstKey() throws Exception {
-        assertEquals(testingEntries.get(0).getIndex(), (int)testingMm.firstKey());
+        assertEquals((Long)testingEntries.get(0).getIndex(), testingMm.firstKey());
     }
 
     @Test
     public void lastKey() throws Exception {
-        assertEquals(testingEntries.get(testingEntries.size() - 1).getIndex(), (int)testingMm.lastKey());
+        assertEquals((Long)testingEntries.get(testingEntries.size() - 1).getIndex(), testingMm.lastKey());
     }
 
     @Test
@@ -49,17 +49,17 @@ public class MemtableTest {
 
     @Test
     public void getEntries() throws Exception {
-        int firstIndex = testingEntries.get(0).getIndex();
-        int lastIndex = testingEntries.get(testingEntries.size() - 1).getIndex();
-        int cursor = firstIndex;
-        SeekableIterator<LogEntry> mmIter = testingMm.iterator();
+        long firstIndex = testingEntries.get(0).getIndex();
+        long lastIndex = testingEntries.get(testingEntries.size() - 1).getIndex();
+        long cursor = firstIndex;
+        SeekableIterator<Long, LogEntry> mmIter = testingMm.iterator();
         mmIter.seek(firstIndex);
 
         while (cursor < lastIndex + 1) {
             int step = ThreadLocalRandom.current().nextInt(10, 1000);
             List<LogEntry> actual = testingMm.getEntries(cursor, cursor + step);
-            List<LogEntry> expect = testingEntries.subList(cursor - firstIndex,
-                    Math.min(cursor + step - firstIndex, testingEntries.size()));
+            List<LogEntry> expect = testingEntries.subList((int)(cursor - firstIndex),
+                    Math.min((int)(cursor + step - firstIndex), testingEntries.size()));
             for (int i = 0; i < expect.size(); i++) {
                 assertEquals(expect.get(i), actual.get(i));
             }
@@ -70,9 +70,9 @@ public class MemtableTest {
 
     @Test
     public void getEntriesWithOutOfRangeKeys() throws Exception {
-        int firstIndex = testingEntries.get(0).getIndex();
-        int lastIndex = testingEntries.get(testingEntries.size() - 1).getIndex();
-        int cursor = ThreadLocalRandom.current().nextInt(1, firstIndex);
+        long firstIndex = testingEntries.get(0).getIndex();
+        long lastIndex = testingEntries.get(testingEntries.size() - 1).getIndex();
+        long cursor = ThreadLocalRandom.current().nextLong(1, firstIndex);
 
         List<LogEntry> actual = testingMm.getEntries(cursor, lastIndex + 100000);
         assertEquals(testingEntries.size(), actual.size());
@@ -83,9 +83,9 @@ public class MemtableTest {
 
     @Test
     public void forEach() throws Exception {
-        int firstIndex = testingMm.firstKey();
+        long firstIndex = testingMm.firstKey();
         for (LogEntry actual : testingMm) {
-            LogEntry expect = testingEntries.get(actual.getIndex() - firstIndex);
+            LogEntry expect = testingEntries.get((int)(actual.getIndex() - firstIndex));
             assertEquals(expect, actual);
         }
 

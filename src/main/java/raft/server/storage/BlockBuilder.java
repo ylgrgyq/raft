@@ -23,7 +23,7 @@ class BlockBuilder {
         checkPoints = new ArrayList<>();
     }
 
-    long add(int k, byte[] v) {
+    long add(long k, byte[] v) {
         assert !isBuilt;
         assert v.length > 0 : String.format("actual:%s", v.length);
         assert entryCounter >= 0 && entryCounter < Integer.MAX_VALUE;
@@ -32,8 +32,8 @@ class BlockBuilder {
             checkPoints.add(blockSize);
         }
 
-        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + Integer.BYTES + v.length);
-        buffer.putInt(k);
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + Integer.BYTES + v.length);
+        buffer.putLong(k);
         buffer.putInt(v.length);
         buffer.put(v);
         buffer.flip();

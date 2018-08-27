@@ -72,7 +72,7 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
+    public Optional<LogSnapshot> getRecentSnapshot(long expectIndex) {
         if (recentSnapshot != null && recentSnapshot.getIndex() >= expectIndex) {
             return Optional.of(recentSnapshot);
         } else {
@@ -224,8 +224,8 @@ class TestingRaftStateMachine implements StateMachine {
         });
     }
 
-    Future<Integer> compact(int toIndex) {
-        int term = storage.getTerm(toIndex);
+    Future<Long> compact(long toIndex) {
+        long term = storage.getTerm(toIndex);
         assert term != -1;
         recentSnapshot = LogSnapshot.newBuilder()
                 .setIndex(toIndex)

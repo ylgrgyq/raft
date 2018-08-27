@@ -44,7 +44,7 @@ class TableCache {
         return t;
     }
 
-    SeekableIterator<LogEntry> iterator(int fileNumber, long fileSize) throws IOException {
+    SeekableIterator<Long, LogEntry> iterator(int fileNumber, long fileSize) throws IOException {
         Table t = findTable(fileNumber, fileSize);
         return t.iterator();
     }

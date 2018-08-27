@@ -13,7 +13,7 @@ class TableBuilder {
     private BlockBuilder dataBlock;
     private BlockBuilder indexBlock;
     private BlockHandle pendingIndexBlockHandle;
-    private int lastKey = -1;
+    private long lastKey = -1;
     private long offset;
     private boolean isFinished;
 
@@ -24,7 +24,7 @@ class TableBuilder {
         indexBlock = new BlockBuilder();
     }
 
-    void add(int k, byte[] v) throws IOException {
+    void add(long k, byte[] v) throws IOException {
         assert k > lastKey;
         assert v.length > 0;
         assert !isFinished;
