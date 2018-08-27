@@ -18,16 +18,16 @@ public  final class RaftCommand extends
     type_ = 0;
     from_ = "";
     to_ = "";
-    term_ = 0;
-    prevLogIndex_ = 0;
-    prevLogTerm_ = 0;
-    matchIndex_ = 0;
-    leaderCommit_ = 0;
+    term_ = 0L;
+    prevLogIndex_ = 0L;
+    prevLogTerm_ = 0L;
+    matchIndex_ = 0L;
+    leaderCommit_ = 0L;
     success_ = false;
     entries_ = java.util.Collections.emptyList();
     leaderId_ = "";
-    lastLogIndex_ = 0;
-    lastLogTerm_ = 0;
+    lastLogIndex_ = 0L;
+    lastLogTerm_ = 0L;
     voteGranted_ = false;
     leaderHint_ = "";
     forceElection_ = false;
@@ -78,27 +78,27 @@ public  final class RaftCommand extends
           }
           case 32: {
 
-            term_ = input.readInt32();
+            term_ = input.readInt64();
             break;
           }
           case 40: {
 
-            prevLogIndex_ = input.readInt32();
+            prevLogIndex_ = input.readInt64();
             break;
           }
           case 48: {
 
-            prevLogTerm_ = input.readInt32();
+            prevLogTerm_ = input.readInt64();
             break;
           }
           case 56: {
 
-            matchIndex_ = input.readInt32();
+            matchIndex_ = input.readInt64();
             break;
           }
           case 64: {
 
-            leaderCommit_ = input.readInt32();
+            leaderCommit_ = input.readInt64();
             break;
           }
           case 72: {
@@ -123,12 +123,12 @@ public  final class RaftCommand extends
           }
           case 96: {
 
-            lastLogIndex_ = input.readInt32();
+            lastLogIndex_ = input.readInt64();
             break;
           }
           case 104: {
 
-            lastLogTerm_ = input.readInt32();
+            lastLogTerm_ = input.readInt64();
             break;
           }
           case 112: {
@@ -478,47 +478,47 @@ public  final class RaftCommand extends
   }
 
   public static final int TERM_FIELD_NUMBER = 4;
-  private int term_;
+  private long term_;
   /**
-   * <code>optional int32 term = 4;</code>
+   * <code>optional int64 term = 4;</code>
    */
-  public int getTerm() {
+  public long getTerm() {
     return term_;
   }
 
   public static final int PREV_LOG_INDEX_FIELD_NUMBER = 5;
-  private int prevLogIndex_;
+  private long prevLogIndex_;
   /**
-   * <code>optional int32 prev_log_index = 5;</code>
+   * <code>optional int64 prev_log_index = 5;</code>
    */
-  public int getPrevLogIndex() {
+  public long getPrevLogIndex() {
     return prevLogIndex_;
   }
 
   public static final int PREV_LOG_TERM_FIELD_NUMBER = 6;
-  private int prevLogTerm_;
+  private long prevLogTerm_;
   /**
-   * <code>optional int32 prev_log_term = 6;</code>
+   * <code>optional int64 prev_log_term = 6;</code>
    */
-  public int getPrevLogTerm() {
+  public long getPrevLogTerm() {
     return prevLogTerm_;
   }
 
   public static final int MATCH_INDEX_FIELD_NUMBER = 7;
-  private int matchIndex_;
+  private long matchIndex_;
   /**
-   * <code>optional int32 match_index = 7;</code>
+   * <code>optional int64 match_index = 7;</code>
    */
-  public int getMatchIndex() {
+  public long getMatchIndex() {
     return matchIndex_;
   }
 
   public static final int LEADER_COMMIT_FIELD_NUMBER = 8;
-  private int leaderCommit_;
+  private long leaderCommit_;
   /**
-   * <code>optional int32 leader_commit = 8;</code>
+   * <code>optional int64 leader_commit = 8;</code>
    */
-  public int getLeaderCommit() {
+  public long getLeaderCommit() {
     return leaderCommit_;
   }
 
@@ -601,20 +601,20 @@ public  final class RaftCommand extends
   }
 
   public static final int LAST_LOG_INDEX_FIELD_NUMBER = 12;
-  private int lastLogIndex_;
+  private long lastLogIndex_;
   /**
-   * <code>optional int32 last_log_index = 12;</code>
+   * <code>optional int64 last_log_index = 12;</code>
    */
-  public int getLastLogIndex() {
+  public long getLastLogIndex() {
     return lastLogIndex_;
   }
 
   public static final int LAST_LOG_TERM_FIELD_NUMBER = 13;
-  private int lastLogTerm_;
+  private long lastLogTerm_;
   /**
-   * <code>optional int32 last_log_term = 13;</code>
+   * <code>optional int64 last_log_term = 13;</code>
    */
-  public int getLastLogTerm() {
+  public long getLastLogTerm() {
     return lastLogTerm_;
   }
 
@@ -712,20 +712,20 @@ public  final class RaftCommand extends
     if (!getToBytes().isEmpty()) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 3, to_);
     }
-    if (term_ != 0) {
-      output.writeInt32(4, term_);
+    if (term_ != 0L) {
+      output.writeInt64(4, term_);
     }
-    if (prevLogIndex_ != 0) {
-      output.writeInt32(5, prevLogIndex_);
+    if (prevLogIndex_ != 0L) {
+      output.writeInt64(5, prevLogIndex_);
     }
-    if (prevLogTerm_ != 0) {
-      output.writeInt32(6, prevLogTerm_);
+    if (prevLogTerm_ != 0L) {
+      output.writeInt64(6, prevLogTerm_);
     }
-    if (matchIndex_ != 0) {
-      output.writeInt32(7, matchIndex_);
+    if (matchIndex_ != 0L) {
+      output.writeInt64(7, matchIndex_);
     }
-    if (leaderCommit_ != 0) {
-      output.writeInt32(8, leaderCommit_);
+    if (leaderCommit_ != 0L) {
+      output.writeInt64(8, leaderCommit_);
     }
     if (success_ != false) {
       output.writeBool(9, success_);
@@ -736,11 +736,11 @@ public  final class RaftCommand extends
     if (!getLeaderIdBytes().isEmpty()) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 11, leaderId_);
     }
-    if (lastLogIndex_ != 0) {
-      output.writeInt32(12, lastLogIndex_);
+    if (lastLogIndex_ != 0L) {
+      output.writeInt64(12, lastLogIndex_);
     }
-    if (lastLogTerm_ != 0) {
-      output.writeInt32(13, lastLogTerm_);
+    if (lastLogTerm_ != 0L) {
+      output.writeInt64(13, lastLogTerm_);
     }
     if (voteGranted_ != false) {
       output.writeBool(14, voteGranted_);
@@ -771,25 +771,25 @@ public  final class RaftCommand extends
     if (!getToBytes().isEmpty()) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(3, to_);
     }
-    if (term_ != 0) {
+    if (term_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, term_);
+        .computeInt64Size(4, term_);
     }
-    if (prevLogIndex_ != 0) {
+    if (prevLogIndex_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(5, prevLogIndex_);
+        .computeInt64Size(5, prevLogIndex_);
     }
-    if (prevLogTerm_ != 0) {
+    if (prevLogTerm_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(6, prevLogTerm_);
+        .computeInt64Size(6, prevLogTerm_);
     }
-    if (matchIndex_ != 0) {
+    if (matchIndex_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(7, matchIndex_);
+        .computeInt64Size(7, matchIndex_);
     }
-    if (leaderCommit_ != 0) {
+    if (leaderCommit_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(8, leaderCommit_);
+        .computeInt64Size(8, leaderCommit_);
     }
     if (success_ != false) {
       size += com.google.protobuf.CodedOutputStream
@@ -802,13 +802,13 @@ public  final class RaftCommand extends
     if (!getLeaderIdBytes().isEmpty()) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(11, leaderId_);
     }
-    if (lastLogIndex_ != 0) {
+    if (lastLogIndex_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(12, lastLogIndex_);
+        .computeInt64Size(12, lastLogIndex_);
     }
-    if (lastLogTerm_ != 0) {
+    if (lastLogTerm_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(13, lastLogTerm_);
+        .computeInt64Size(13, lastLogTerm_);
     }
     if (voteGranted_ != false) {
       size += com.google.protobuf.CodedOutputStream
@@ -894,15 +894,20 @@ public  final class RaftCommand extends
     hash = (37 * hash) + TO_FIELD_NUMBER;
     hash = (53 * hash) + getTo().hashCode();
     hash = (37 * hash) + TERM_FIELD_NUMBER;
-    hash = (53 * hash) + getTerm();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getTerm());
     hash = (37 * hash) + PREV_LOG_INDEX_FIELD_NUMBER;
-    hash = (53 * hash) + getPrevLogIndex();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getPrevLogIndex());
     hash = (37 * hash) + PREV_LOG_TERM_FIELD_NUMBER;
-    hash = (53 * hash) + getPrevLogTerm();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getPrevLogTerm());
     hash = (37 * hash) + MATCH_INDEX_FIELD_NUMBER;
-    hash = (53 * hash) + getMatchIndex();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getMatchIndex());
     hash = (37 * hash) + LEADER_COMMIT_FIELD_NUMBER;
-    hash = (53 * hash) + getLeaderCommit();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getLeaderCommit());
     hash = (37 * hash) + SUCCESS_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getSuccess());
@@ -913,9 +918,11 @@ public  final class RaftCommand extends
     hash = (37 * hash) + LEADER_ID_FIELD_NUMBER;
     hash = (53 * hash) + getLeaderId().hashCode();
     hash = (37 * hash) + LAST_LOG_INDEX_FIELD_NUMBER;
-    hash = (53 * hash) + getLastLogIndex();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getLastLogIndex());
     hash = (37 * hash) + LAST_LOG_TERM_FIELD_NUMBER;
-    hash = (53 * hash) + getLastLogTerm();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getLastLogTerm());
     hash = (37 * hash) + VOTE_GRANTED_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getVoteGranted());
@@ -1053,15 +1060,15 @@ public  final class RaftCommand extends
 
       to_ = "";
 
-      term_ = 0;
+      term_ = 0L;
 
-      prevLogIndex_ = 0;
+      prevLogIndex_ = 0L;
 
-      prevLogTerm_ = 0;
+      prevLogTerm_ = 0L;
 
-      matchIndex_ = 0;
+      matchIndex_ = 0L;
 
-      leaderCommit_ = 0;
+      leaderCommit_ = 0L;
 
       success_ = false;
 
@@ -1073,9 +1080,9 @@ public  final class RaftCommand extends
       }
       leaderId_ = "";
 
-      lastLogIndex_ = 0;
+      lastLogIndex_ = 0L;
 
-      lastLogTerm_ = 0;
+      lastLogTerm_ = 0L;
 
       voteGranted_ = false;
 
@@ -1195,19 +1202,19 @@ public  final class RaftCommand extends
         to_ = other.to_;
         onChanged();
       }
-      if (other.getTerm() != 0) {
+      if (other.getTerm() != 0L) {
         setTerm(other.getTerm());
       }
-      if (other.getPrevLogIndex() != 0) {
+      if (other.getPrevLogIndex() != 0L) {
         setPrevLogIndex(other.getPrevLogIndex());
       }
-      if (other.getPrevLogTerm() != 0) {
+      if (other.getPrevLogTerm() != 0L) {
         setPrevLogTerm(other.getPrevLogTerm());
       }
-      if (other.getMatchIndex() != 0) {
+      if (other.getMatchIndex() != 0L) {
         setMatchIndex(other.getMatchIndex());
       }
-      if (other.getLeaderCommit() != 0) {
+      if (other.getLeaderCommit() != 0L) {
         setLeaderCommit(other.getLeaderCommit());
       }
       if (other.getSuccess() != false) {
@@ -1243,10 +1250,10 @@ public  final class RaftCommand extends
         leaderId_ = other.leaderId_;
         onChanged();
       }
-      if (other.getLastLogIndex() != 0) {
+      if (other.getLastLogIndex() != 0L) {
         setLastLogIndex(other.getLastLogIndex());
       }
-      if (other.getLastLogTerm() != 0) {
+      if (other.getLastLogTerm() != 0L) {
         setLastLogTerm(other.getLastLogTerm());
       }
       if (other.getVoteGranted() != false) {
@@ -1471,132 +1478,132 @@ public  final class RaftCommand extends
       return this;
     }
 
-    private int term_ ;
+    private long term_ ;
     /**
-     * <code>optional int32 term = 4;</code>
+     * <code>optional int64 term = 4;</code>
      */
-    public int getTerm() {
+    public long getTerm() {
       return term_;
     }
     /**
-     * <code>optional int32 term = 4;</code>
+     * <code>optional int64 term = 4;</code>
      */
-    public Builder setTerm(int value) {
+    public Builder setTerm(long value) {
       
       term_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 term = 4;</code>
+     * <code>optional int64 term = 4;</code>
      */
     public Builder clearTerm() {
       
-      term_ = 0;
+      term_ = 0L;
       onChanged();
       return this;
     }
 
-    private int prevLogIndex_ ;
+    private long prevLogIndex_ ;
     /**
-     * <code>optional int32 prev_log_index = 5;</code>
+     * <code>optional int64 prev_log_index = 5;</code>
      */
-    public int getPrevLogIndex() {
+    public long getPrevLogIndex() {
       return prevLogIndex_;
     }
     /**
-     * <code>optional int32 prev_log_index = 5;</code>
+     * <code>optional int64 prev_log_index = 5;</code>
      */
-    public Builder setPrevLogIndex(int value) {
+    public Builder setPrevLogIndex(long value) {
       
       prevLogIndex_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 prev_log_index = 5;</code>
+     * <code>optional int64 prev_log_index = 5;</code>
      */
     public Builder clearPrevLogIndex() {
       
-      prevLogIndex_ = 0;
+      prevLogIndex_ = 0L;
       onChanged();
       return this;
     }
 
-    private int prevLogTerm_ ;
+    private long prevLogTerm_ ;
     /**
-     * <code>optional int32 prev_log_term = 6;</code>
+     * <code>optional int64 prev_log_term = 6;</code>
      */
-    public int getPrevLogTerm() {
+    public long getPrevLogTerm() {
       return prevLogTerm_;
     }
     /**
-     * <code>optional int32 prev_log_term = 6;</code>
+     * <code>optional int64 prev_log_term = 6;</code>
      */
-    public Builder setPrevLogTerm(int value) {
+    public Builder setPrevLogTerm(long value) {
       
       prevLogTerm_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 prev_log_term = 6;</code>
+     * <code>optional int64 prev_log_term = 6;</code>
      */
     public Builder clearPrevLogTerm() {
       
-      prevLogTerm_ = 0;
+      prevLogTerm_ = 0L;
       onChanged();
       return this;
     }
 
-    private int matchIndex_ ;
+    private long matchIndex_ ;
     /**
-     * <code>optional int32 match_index = 7;</code>
+     * <code>optional int64 match_index = 7;</code>
      */
-    public int getMatchIndex() {
+    public long getMatchIndex() {
       return matchIndex_;
     }
     /**
-     * <code>optional int32 match_index = 7;</code>
+     * <code>optional int64 match_index = 7;</code>
      */
-    public Builder setMatchIndex(int value) {
+    public Builder setMatchIndex(long value) {
       
       matchIndex_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 match_index = 7;</code>
+     * <code>optional int64 match_index = 7;</code>
      */
     public Builder clearMatchIndex() {
       
-      matchIndex_ = 0;
+      matchIndex_ = 0L;
       onChanged();
       return this;
     }
 
-    private int leaderCommit_ ;
+    private long leaderCommit_ ;
     /**
-     * <code>optional int32 leader_commit = 8;</code>
+     * <code>optional int64 leader_commit = 8;</code>
      */
-    public int getLeaderCommit() {
+    public long getLeaderCommit() {
       return leaderCommit_;
     }
     /**
-     * <code>optional int32 leader_commit = 8;</code>
+     * <code>optional int64 leader_commit = 8;</code>
      */
-    public Builder setLeaderCommit(int value) {
+    public Builder setLeaderCommit(long value) {
       
       leaderCommit_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 leader_commit = 8;</code>
+     * <code>optional int64 leader_commit = 8;</code>
      */
     public Builder clearLeaderCommit() {
       
-      leaderCommit_ = 0;
+      leaderCommit_ = 0L;
       onChanged();
       return this;
     }
@@ -1936,54 +1943,54 @@ public  final class RaftCommand extends
       return this;
     }
 
-    private int lastLogIndex_ ;
+    private long lastLogIndex_ ;
     /**
-     * <code>optional int32 last_log_index = 12;</code>
+     * <code>optional int64 last_log_index = 12;</code>
      */
-    public int getLastLogIndex() {
+    public long getLastLogIndex() {
       return lastLogIndex_;
     }
     /**
-     * <code>optional int32 last_log_index = 12;</code>
+     * <code>optional int64 last_log_index = 12;</code>
      */
-    public Builder setLastLogIndex(int value) {
+    public Builder setLastLogIndex(long value) {
       
       lastLogIndex_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 last_log_index = 12;</code>
+     * <code>optional int64 last_log_index = 12;</code>
      */
     public Builder clearLastLogIndex() {
       
-      lastLogIndex_ = 0;
+      lastLogIndex_ = 0L;
       onChanged();
       return this;
     }
 
-    private int lastLogTerm_ ;
+    private long lastLogTerm_ ;
     /**
-     * <code>optional int32 last_log_term = 13;</code>
+     * <code>optional int64 last_log_term = 13;</code>
      */
-    public int getLastLogTerm() {
+    public long getLastLogTerm() {
       return lastLogTerm_;
     }
     /**
-     * <code>optional int32 last_log_term = 13;</code>
+     * <code>optional int64 last_log_term = 13;</code>
      */
-    public Builder setLastLogTerm(int value) {
+    public Builder setLastLogTerm(long value) {
       
       lastLogTerm_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 last_log_term = 13;</code>
+     * <code>optional int64 last_log_term = 13;</code>
      */
     public Builder clearLastLogTerm() {
       
-      lastLogTerm_ = 0;
+      lastLogTerm_ = 0L;
       onChanged();
       return this;
     }

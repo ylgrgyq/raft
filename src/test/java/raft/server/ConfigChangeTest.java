@@ -19,7 +19,7 @@ public class ConfigChangeTest {
     private TestingRaftCluster cluster;
 
     @Before
-    public void before() throws Exception {
+    public void before() {
         peerIdSet = new HashSet<>();
         peerIdSet.add("triple node 001");
         peerIdSet.add("triple node 002");
@@ -32,7 +32,7 @@ public class ConfigChangeTest {
     }
 
     @After
-    public void after() throws Exception {
+    public void after() {
         cluster.shutdownCluster();
     }
 

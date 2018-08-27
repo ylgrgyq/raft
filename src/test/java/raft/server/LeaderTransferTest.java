@@ -19,7 +19,7 @@ public class LeaderTransferTest {
     private TestingRaftCluster cluster;
 
     @Before
-    public void before() throws Exception {
+    public void before() {
         HashSet<String> peerIdSet = new HashSet<>();
         peerIdSet.add("001");
         peerIdSet.add("002");
@@ -34,7 +34,7 @@ public class LeaderTransferTest {
     }
 
     @After
-    public void after() throws Exception {
+    public void after() {
         cluster.shutdownCluster();
     }
 

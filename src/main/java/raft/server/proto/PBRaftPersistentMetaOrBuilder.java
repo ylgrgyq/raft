@@ -8,9 +8,9 @@ public interface PBRaftPersistentMetaOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>optional int32 term = 1;</code>
+   * <code>optional int64 term = 1;</code>
    */
-  int getTerm();
+  long getTerm();
 
   /**
    * <code>optional string votedFor = 2;</code>
@@ -23,7 +23,7 @@ public interface PBRaftPersistentMetaOrBuilder extends
       getVotedForBytes();
 
   /**
-   * <code>optional int32 commitIndex = 3;</code>
+   * <code>optional int64 commitIndex = 3;</code>
    */
-  int getCommitIndex();
+  long getCommitIndex();
 }

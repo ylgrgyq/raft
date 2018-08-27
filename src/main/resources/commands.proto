@@ -3,9 +3,9 @@ package raft.server.proto;
 option java_multiple_files = true;
 
 message PBRaftPersistentMeta {
-    int32 term = 1;
+    int64 term = 1;
     string votedFor = 2;
-    int32 commitIndex = 3;
+    int64 commitIndex = 3;
 }
 
 message LogEntry {
@@ -15,16 +15,16 @@ message LogEntry {
         TRANSFER_LEADER = 2;
     }
 
-    int32 index = 1;
-    int32 term = 2;
+    int64 index = 1;
+    int64 term = 2;
     bytes data = 3;
     EntryType type = 4;
 }
 
 message LogSnapshot {
 	bytes data = 1;
-	int32 index = 2;
-    int32 term = 3;
+	int64 index = 2;
+    int64 term = 3;
     repeated string peer_ids = 4;
 }
 
@@ -59,16 +59,16 @@ message RaftCommand {
     CmdType type = 1;
     string from = 2;
     string to = 3;
-    int32 term = 4;
-    int32 prev_log_index = 5;
-    int32 prev_log_term = 6;
-    int32 match_index = 7;
-    int32 leader_commit = 8;
+    int64 term = 4;
+    int64 prev_log_index = 5;
+    int64 prev_log_term = 6;
+    int64 match_index = 7;
+    int64 leader_commit = 8;
     bool success = 9;
     repeated LogEntry entries = 10;
     string leader_id = 11;
-    int32 last_log_index = 12;
-    int32 last_log_term = 13;
+    int64 last_log_index = 12;
+    int64 last_log_term = 13;
     bool vote_granted = 14;
     string leader_hint = 15;
     bool force_election = 16;

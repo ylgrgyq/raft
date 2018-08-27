@@ -23,7 +23,7 @@ public interface PersistentStorage {
      *
      * @return the index of the last entry in storage or -1 when storage is empty
      */
-    int getLastIndex();
+    long getLastIndex();
 
     /**
      * Search the LogEntry in this storage by the index then return the term of this retrieved LogEntry
@@ -31,16 +31,16 @@ public interface PersistentStorage {
      * @param index index of the searched LogEntry
      * @return the term of the searched LogEntry or -1 when target LogEntry is not found
      */
-    int getTerm(int index);
+    long getTerm(long index);
 
     /**
      * Get the index of the first entry in the storage. The default value is -1 when this storage is empty.
      *
      * @return the index of the first entry in storage or -1 when storage is empty
      */
-    int getFirstIndex();
+    long getFirstIndex();
 
-    List<LogEntry> getEntries(int start, int end);
+    List<LogEntry> getEntries(long start, long end);
 
     void append(List<LogEntry> entries);
 
@@ -52,7 +52,7 @@ public interface PersistentStorage {
      * @param toIndex the end index of the LogEntry in this storage this compaction try to discard to
      * @return A future which contains the actual index of this compaction
      */
-    Future<Integer> compact(int toIndex);
+    Future<Long> compact(long toIndex);
 
     void shutdown();
 }

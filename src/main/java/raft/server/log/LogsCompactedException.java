@@ -8,7 +8,7 @@ public class LogsCompactedException extends RuntimeException {
 
     private static final long serialVersionUID = 6345804997282967172L;
 
-    public LogsCompactedException(int index) {
+    public LogsCompactedException(long index) {
         super(String.format("index %s already compactted", index));
     }
 

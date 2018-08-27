@@ -15,9 +15,9 @@ public  final class PBRaftPersistentMeta extends
     super(builder);
   }
   private PBRaftPersistentMeta() {
-    term_ = 0;
+    term_ = 0L;
     votedFor_ = "";
-    commitIndex_ = 0;
+    commitIndex_ = 0L;
   }
 
   @java.lang.Override
@@ -47,7 +47,7 @@ public  final class PBRaftPersistentMeta extends
           }
           case 8: {
 
-            term_ = input.readInt32();
+            term_ = input.readInt64();
             break;
           }
           case 18: {
@@ -58,7 +58,7 @@ public  final class PBRaftPersistentMeta extends
           }
           case 24: {
 
-            commitIndex_ = input.readInt32();
+            commitIndex_ = input.readInt64();
             break;
           }
         }
@@ -85,11 +85,11 @@ public  final class PBRaftPersistentMeta extends
   }
 
   public static final int TERM_FIELD_NUMBER = 1;
-  private int term_;
+  private long term_;
   /**
-   * <code>optional int32 term = 1;</code>
+   * <code>optional int64 term = 1;</code>
    */
-  public int getTerm() {
+  public long getTerm() {
     return term_;
   }
 
@@ -128,11 +128,11 @@ public  final class PBRaftPersistentMeta extends
   }
 
   public static final int COMMITINDEX_FIELD_NUMBER = 3;
-  private int commitIndex_;
+  private long commitIndex_;
   /**
-   * <code>optional int32 commitIndex = 3;</code>
+   * <code>optional int64 commitIndex = 3;</code>
    */
-  public int getCommitIndex() {
+  public long getCommitIndex() {
     return commitIndex_;
   }
 
@@ -148,14 +148,14 @@ public  final class PBRaftPersistentMeta extends
 
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (term_ != 0) {
-      output.writeInt32(1, term_);
+    if (term_ != 0L) {
+      output.writeInt64(1, term_);
     }
     if (!getVotedForBytes().isEmpty()) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 2, votedFor_);
     }
-    if (commitIndex_ != 0) {
-      output.writeInt32(3, commitIndex_);
+    if (commitIndex_ != 0L) {
+      output.writeInt64(3, commitIndex_);
     }
   }
 
@@ -164,16 +164,16 @@ public  final class PBRaftPersistentMeta extends
     if (size != -1) return size;
 
     size = 0;
-    if (term_ != 0) {
+    if (term_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, term_);
+        .computeInt64Size(1, term_);
     }
     if (!getVotedForBytes().isEmpty()) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, votedFor_);
     }
-    if (commitIndex_ != 0) {
+    if (commitIndex_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, commitIndex_);
+        .computeInt64Size(3, commitIndex_);
     }
     memoizedSize = size;
     return size;
@@ -208,11 +208,13 @@ public  final class PBRaftPersistentMeta extends
     int hash = 41;
     hash = (19 * hash) + getDescriptorForType().hashCode();
     hash = (37 * hash) + TERM_FIELD_NUMBER;
-    hash = (53 * hash) + getTerm();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getTerm());
     hash = (37 * hash) + VOTEDFOR_FIELD_NUMBER;
     hash = (53 * hash) + getVotedFor().hashCode();
     hash = (37 * hash) + COMMITINDEX_FIELD_NUMBER;
-    hash = (53 * hash) + getCommitIndex();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getCommitIndex());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -331,11 +333,11 @@ public  final class PBRaftPersistentMeta extends
     }
     public Builder clear() {
       super.clear();
-      term_ = 0;
+      term_ = 0L;
 
       votedFor_ = "";
 
-      commitIndex_ = 0;
+      commitIndex_ = 0L;
 
       return this;
     }
@@ -403,14 +405,14 @@ public  final class PBRaftPersistentMeta extends
 
     public Builder mergeFrom(raft.server.proto.PBRaftPersistentMeta other) {
       if (other == raft.server.proto.PBRaftPersistentMeta.getDefaultInstance()) return this;
-      if (other.getTerm() != 0) {
+      if (other.getTerm() != 0L) {
         setTerm(other.getTerm());
       }
       if (!other.getVotedFor().isEmpty()) {
         votedFor_ = other.votedFor_;
         onChanged();
       }
-      if (other.getCommitIndex() != 0) {
+      if (other.getCommitIndex() != 0L) {
         setCommitIndex(other.getCommitIndex());
       }
       onChanged();
@@ -439,28 +441,28 @@ public  final class PBRaftPersistentMeta extends
       return this;
     }
 
-    private int term_ ;
+    private long term_ ;
     /**
-     * <code>optional int32 term = 1;</code>
+     * <code>optional int64 term = 1;</code>
      */
-    public int getTerm() {
+    public long getTerm() {
       return term_;
     }
     /**
-     * <code>optional int32 term = 1;</code>
+     * <code>optional int64 term = 1;</code>
      */
-    public Builder setTerm(int value) {
+    public Builder setTerm(long value) {
       
       term_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 term = 1;</code>
+     * <code>optional int64 term = 1;</code>
      */
     public Builder clearTerm() {
       
-      term_ = 0;
+      term_ = 0L;
       onChanged();
       return this;
     }
@@ -534,28 +536,28 @@ public  final class PBRaftPersistentMeta extends
       return this;
     }
 
-    private int commitIndex_ ;
+    private long commitIndex_ ;
     /**
-     * <code>optional int32 commitIndex = 3;</code>
+     * <code>optional int64 commitIndex = 3;</code>
      */
-    public int getCommitIndex() {
+    public long getCommitIndex() {
       return commitIndex_;
     }
     /**
-     * <code>optional int32 commitIndex = 3;</code>
+     * <code>optional int64 commitIndex = 3;</code>
      */
-    public Builder setCommitIndex(int value) {
+    public Builder setCommitIndex(long value) {
       
       commitIndex_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 commitIndex = 3;</code>
+     * <code>optional int64 commitIndex = 3;</code>
      */
     public Builder clearCommitIndex() {
       
-      commitIndex_ = 0;
+      commitIndex_ = 0L;
       onChanged();
       return this;
     }

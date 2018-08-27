@@ -32,7 +32,7 @@ public interface StateMachine {
      * @return A raft LogSnapshot wrapped by Optional if there's already a prepared snapshot which covers the expectedIndex,
      * or else return the Optional.empty() if there is not.
      */
-    Optional<LogSnapshot> getRecentSnapshot(int expectIndex);
+    Optional<LogSnapshot> getRecentSnapshot(long expectIndex);
 
     void onShutdown();
 }
