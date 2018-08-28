@@ -48,7 +48,7 @@ public class RaftLogImpl implements RaftLog {
         storage.init();
 
         long lastIndex = storage.getLastIndex();
-        if (lastIndex < 0) {
+        if (lastIndex < 0L) {
             storage.append(Collections.singletonList(PersistentStorage.sentinel));
             lastIndex = storage.getLastIndex();
         }

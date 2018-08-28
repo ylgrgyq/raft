@@ -14,7 +14,7 @@ import java.util.concurrent.Future;
  */
 public interface PersistentStorage {
     // TODO can we remove this sentinel?
-    LogEntry sentinel = LogEntry.newBuilder().setTerm(0).setIndex(0).setData(ByteString.copyFrom(new byte[1])).build();
+    LogEntry sentinel = LogEntry.newBuilder().setTerm(0L).setIndex(0L).setData(ByteString.copyFrom(new byte[1])).build();
 
     void init();
 

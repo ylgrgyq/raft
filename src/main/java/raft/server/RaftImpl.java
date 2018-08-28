@@ -97,13 +97,13 @@ public class RaftImpl implements Raft {
         tickGenerator.scheduleWithFixedDelay(() -> {
             boolean wakeup = false;
             if (electionTickCounter.incrementAndGet() >= electionTimeoutTicks) {
-                electionTickCounter.set(0);
+                electionTickCounter.set(0L);
                 electionTickerTimeout.compareAndSet(false, true);
                 wakeup = true;
             }
 
             if (pingTickCounter.incrementAndGet() >= c.pingIntervalTicks) {
-                pingTickCounter.set(0);
+                pingTickCounter.set(0L);
                 pingTickerTimeout.compareAndSet(false, true);
                 wakeup = true;
             }
@@ -636,6 +636,7 @@ public class RaftImpl implements Raft {
     }
 
     private void broadcastPing() {
+        System.out.println("broadcast ping to " + peerNodes);
         final long selfTerm = meta.getTerm();
         if (peerNodes.size() == 1) {
             tryCommitTo(raftLog.getLastIndex());
