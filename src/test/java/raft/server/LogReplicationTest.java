@@ -35,21 +35,6 @@ public class LogReplicationTest {
         cluster.shutdownCluster();
     }
 
-    private static void checkAppliedLogs(TestingRaftStateMachine stateMachine, long expectTerm, int logCount, List<byte[]> sourceDataList) {
-        List<LogEntry> applied = stateMachine.waitApplied(logCount);
-
-        // check node status after logs proposed
-        RaftStatusSnapshot status = stateMachine.getLastStatus();
-        assertEquals(logCount, status.getCommitIndex());
-        assertTrue(applied.size() > 0);
-
-        for (int i = 0; i < applied.size(); i++) {
-            LogEntry e = applied.get(i);
-            assertEquals(expectTerm, e.getTerm());
-            assertArrayEquals(sourceDataList.get(i), e.getData().toByteArray());
-        }
-    }
-
     @Test
     public void testProposeOnSingleNode() throws Exception {
         String selfId = "single node 001";
@@ -69,12 +54,8 @@ public class LogReplicationTest {
         assertEquals(1L, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
 
-        List<LogEntry> applied = leaderStateMachine.drainAvailableApplied();
-        for (int i = 0; i < applied.size(); i++) {
-            LogEntry e = applied.get(i);
-            assertEquals(status.getTerm(), e.getTerm());
-            assertArrayEquals(dataList.get(i), e.getData().toByteArray());
-        }
+        compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(),
+                leaderStateMachine.waitApplied(150), dataList);
     }
 
     @Test
@@ -90,9 +71,9 @@ public class LogReplicationTest {
 
         List<byte[]> dataList = proposeSomeLogs(leader, 100);
 
-        for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
-        }
+        List<LogEntry> logsOnLeader = leaderStateMachine.waitApplied(100);
+        compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
+        compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
     }
 
     @Test
@@ -113,9 +94,9 @@ public class LogReplicationTest {
         List<byte[]> dataList = proposeSomeLogs(leader, 100);
 
         long expectTerm = leaderStateMachine.getLastStatus().getTerm();
-        for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
-        }
+        List<LogEntry> logsOnLeader = leaderStateMachine.waitApplied(100);
+        compareLogsWithSource(expectTerm, logsOnLeader, dataList);
+        compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
 
         // reboot cluster including the reboot node
         cluster.shutdownCluster();
@@ -128,7 +109,7 @@ public class LogReplicationTest {
         TestingRaftStateMachine follower = cluster.getStateMachineById(rebootNodeId);
         Future f = follower.becomeFollowerFuture();
         f.get();
-        checkAppliedLogs(follower, expectTerm, 100, dataList);
+        compareLogsWithinCluster(logsOnLeader, Collections.singletonList(follower));
     }
 
     @Test
@@ -162,6 +143,7 @@ public class LogReplicationTest {
 
         List<byte[]> dataList = proposeSomeLogs(newLeader, 100);
         List<LogEntry> logsOnLeader = new ArrayList<>(newLeaderStateMachine.waitApplied(100));
+        compareLogsWithSource(newLeaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
         compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
         // restart cluster so new leader will initialize all follower's last index as 100
         cluster.shutdownCluster();
@@ -210,7 +192,7 @@ public class LogReplicationTest {
 
         assertEquals(200, leaderStateMachine.getLastStatus().getCommitIndex());
         assertEquals(dataList.size(), logsOnLeader.size());
-        compareLogsWithSource(logsOnLeader, dataList);
+        compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
 
         compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
 
@@ -247,9 +229,10 @@ public class LogReplicationTest {
         return dataList;
     }
 
-    private void compareLogsWithSource(List<LogEntry> logs, List<byte[]> sourceList) {
+    private void compareLogsWithSource(long expectTerm, List<LogEntry> logs, List<byte[]> sourceList) {
         for (int i = 0; i < logs.size(); i++) {
             LogEntry e = logs.get(i);
+            assertEquals(expectTerm, e.getTerm());
             assertArrayEquals(sourceList.get(i), e.getData().toByteArray());
         }
     }
