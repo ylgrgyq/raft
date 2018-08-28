@@ -8,6 +8,8 @@ import raft.server.storage.FileBasedStorage;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -104,7 +106,7 @@ class TestingRaftCluster {
         }
     }
 
-    List<TestingRaftStateMachine> getFollowers() throws TimeoutException, InterruptedException {
+    List<TestingRaftStateMachine> getFollowers() throws TimeoutException, InterruptedException, ExecutionException {
         TestingRaftStateMachine leader = waitGetLeader();
         List<TestingRaftStateMachine> followers = stateMachines.values()
                 .stream()
@@ -112,7 +114,7 @@ class TestingRaftCluster {
                 .collect(Collectors.toList());
 
         for (TestingRaftStateMachine follower : followers) {
-            follower.becomeFollowerFuture();
+            follower.becomeFollowerFuture().get(3, TimeUnit.SECONDS);
         }
         return followers;
     }
