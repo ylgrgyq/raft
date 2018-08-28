@@ -116,10 +116,10 @@ public class RaftPersistentMeta {
             }
         }
 
-        term = 0;
+        term = 0L;
         votedFor = null;
         initialized = true;
-        commitIndex = -1;
+        commitIndex = -1L;
     }
 
     public String getVotedFor() {

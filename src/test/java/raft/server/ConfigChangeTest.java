@@ -21,9 +21,9 @@ public class ConfigChangeTest {
     @Before
     public void before() {
         peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
+        peerIdSet.add("config change 001");
+        peerIdSet.add("config change 002");
+        peerIdSet.add("config change 003");
 
         cluster = new TestingRaftCluster(ConfigChangeTest.class.getSimpleName());
         cluster.clearLogStorage();

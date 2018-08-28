@@ -31,7 +31,7 @@ class RaftPeerNode {
     RaftPeerNode(String peerId, RaftImpl raft, RaftLog log, long nextIndex, int maxEntriesPerAppend) {
         this.peerId = peerId;
         this.nextIndex = nextIndex;
-        this.matchIndex = -1;
+        this.matchIndex = -1L;
         this.raft = raft;
         this.raftLog = log;
         this.maxEntriesPerAppend = maxEntriesPerAppend;
@@ -127,9 +127,9 @@ class RaftPeerNode {
      */
     synchronized void decreaseIndexAndResendAppend(long term) {
         nextIndex--;
-        if (nextIndex < 1) {
+        if (nextIndex < 1L) {
             logger.warn("nextIndex for {} decreased to 1", this.toString());
-            nextIndex = 1;
+            nextIndex = 1L;
         }
         assert nextIndex > matchIndex : "nextIndex: " + nextIndex + " is not greater than matchIndex: " + matchIndex;
         sendAppend(term);
@@ -141,7 +141,7 @@ class RaftPeerNode {
      */
     synchronized void reset(long nextIndex) {
         this.nextIndex = nextIndex;
-        this.matchIndex = -1;
+        this.matchIndex = -1L;
     }
 
     /**

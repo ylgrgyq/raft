@@ -18,9 +18,9 @@ public class RaftStatusSnapshot {
     private List<String> peerNodeIds;
 
     public RaftStatusSnapshot() {
-        this.term = 0;
-        this.commitIndex = -1;
-        this.appliedIndex = -1;
+        this.term = 0L;
+        this.commitIndex = -1L;
+        this.appliedIndex = -1L;
         this.leaderId = null;
         this.state = State.FOLLOWER;
         this.peerNodeIds = Collections.emptyList();

@@ -301,6 +301,11 @@ public class FileBasedStorage implements PersistentStorage {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
+        try {
+            Thread.sleep(1000);
+        } catch (Exception ex) {
+            //
+        }
         if (entries.isEmpty()) {
             logger.warn("append with empty entries");
             return;

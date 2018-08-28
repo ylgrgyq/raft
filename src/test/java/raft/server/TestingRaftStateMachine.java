@@ -226,7 +226,7 @@ class TestingRaftStateMachine implements StateMachine {
 
     Future<Long> compact(long toIndex) {
         long term = storage.getTerm(toIndex);
-        assert term != -1;
+        assert term != -1L;
         recentSnapshot = LogSnapshot.newBuilder()
                 .setIndex(toIndex)
                 .setTerm(term)
