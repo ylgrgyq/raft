@@ -97,13 +97,13 @@ public class RaftImpl implements Raft {
         tickGenerator.scheduleWithFixedDelay(() -> {
             boolean wakeup = false;
             if (electionTickCounter.incrementAndGet() >= electionTimeoutTicks) {
-                electionTickCounter.set(0);
+                electionTickCounter.set(0L);
                 electionTickerTimeout.compareAndSet(false, true);
                 wakeup = true;
             }
 
             if (pingTickCounter.incrementAndGet() >= c.pingIntervalTicks) {
-                pingTickCounter.set(0);
+                pingTickCounter.set(0L);
                 pingTickerTimeout.compareAndSet(false, true);
                 wakeup = true;
             }
@@ -164,7 +164,7 @@ public class RaftImpl implements Raft {
         return leaderId;
     }
 
-    Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
+    Optional<LogSnapshot> getRecentSnapshot(long expectIndex) {
         return stateMachine.getRecentSnapshot(expectIndex);
     }
 
@@ -375,7 +375,7 @@ public class RaftImpl implements Raft {
     }
 
     private void processReceivedCommand(RaftCommand cmd) {
-        final int selfTerm = meta.getTerm();
+        final long selfTerm = meta.getTerm();
         if (cmd.getType() == RaftCommand.CmdType.REQUEST_VOTE) {
             if (!cmd.getForceElection() && leaderId != null && electionTickCounter.get() < electionTimeoutTicks) {
                 // if a server receives a RequestVote request within the minimum election timeout of hearing
@@ -459,8 +459,8 @@ public class RaftImpl implements Raft {
                             existsPendingConfigChange = true;
                             // fall through
                         case LOG:
-                            final int term = meta.getTerm();
-                            int newLastIndex = raftLog.leaderAsyncAppend(term, proposal.getEntries(), (lastIndex, err) -> {
+                            final long term = meta.getTerm();
+                            long newLastIndex = raftLog.leaderAsyncAppend(term, proposal.getEntries(), (lastIndex, err) -> {
                                 if (err != null) {
                                     panic("async append logs failed", err);
                                 } else {
@@ -526,7 +526,7 @@ public class RaftImpl implements Raft {
         if (peerNodes.size() == 1) {
             tryCommitTo(raftLog.getLastIndex());
         } else {
-            final int selfTerm = meta.getTerm();
+            final long selfTerm = meta.getTerm();
             for (final RaftPeerNode peer : peerNodes.values()) {
                 if (!peer.getPeerId().equals(selfId)) {
                     peer.sendAppend(selfTerm);
@@ -614,10 +614,10 @@ public class RaftImpl implements Raft {
 
         // kth biggest number
         int k = getQuorum() - 1;
-        List<Integer> matchedIndexes = peerNodes.values().stream()
+        List<Long> matchedIndexes = peerNodes.values().stream()
                 .map(RaftPeerNode::getMatchIndex).sorted().collect(Collectors.toList());
         logger.info("node {} update commit with peerNodes {}", this, peerNodes);
-        int kthMatchedIndexes = matchedIndexes.get(k);
+        long kthMatchedIndexes = matchedIndexes.get(k);
         if (kthMatchedIndexes >= raftLog.getFirstIndex()) {
             Optional<LogEntry> kthLog = raftLog.getEntry(kthMatchedIndexes);
             if (kthLog.isPresent()) {
@@ -636,7 +636,8 @@ public class RaftImpl implements Raft {
     }
 
     private void broadcastPing() {
-        final int selfTerm = meta.getTerm();
+        System.out.println("broadcast ping to " + peerNodes);
+        final long selfTerm = meta.getTerm();
         if (peerNodes.size() == 1) {
             tryCommitTo(raftLog.getLastIndex());
         } else {
@@ -648,10 +649,10 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private void tryBecomeFollower(int term, String leaderId) {
+    private void tryBecomeFollower(long term, String leaderId) {
         assert Thread.currentThread() == workerThread;
 
-        final int selfTerm = meta.getTerm();
+        final long selfTerm = meta.getTerm();
         if (term >= selfTerm) {
             transitState(follower, term, leaderId);
         } else {
@@ -682,7 +683,7 @@ public class RaftImpl implements Raft {
         transitState(candidate, meta.getTerm(), null);
     }
 
-    private void reset(int term) {
+    private void reset(long term) {
         // reset votedFor only when term changed
         // so when a candidate transit to leader it can keep votedFor to itself then when it receives
         // a request vote with the same term, it can reject that request
@@ -715,7 +716,7 @@ public class RaftImpl implements Raft {
         return suggestElectionTimeoutTicks + ThreadLocalRandom.current().nextLong(suggestElectionTimeoutTicks);
     }
 
-    private void transitState(RaftState nextState, int newTerm, String newLeaderId) {
+    private void transitState(RaftState nextState, long newTerm, String newLeaderId) {
         assert Thread.currentThread() == workerThread;
 
         // we'd better finish old state before reset term and set leader id. this can insure that old state
@@ -738,8 +739,8 @@ public class RaftImpl implements Raft {
         if (cmd.getPrevLogIndex() < raftLog.getCommitIndex()) {
             resp = resp.setMatchIndex(raftLog.getCommitIndex()).setSuccess(true);
         } else {
-            int matchIndex = RaftImpl.this.replicateLogsOnFollower(cmd);
-            if (matchIndex != -1) {
+            long matchIndex = RaftImpl.this.replicateLogsOnFollower(cmd);
+            if (matchIndex != -1L) {
                 tryCommitTo(Math.min(cmd.getLeaderCommit(), matchIndex));
 
                 resp.setSuccess(true);
@@ -749,9 +750,9 @@ public class RaftImpl implements Raft {
         writeOutCommand(resp);
     }
 
-    private int replicateLogsOnFollower(RaftCommand cmd) {
-        int prevIndex = cmd.getPrevLogIndex();
-        int prevTerm = cmd.getPrevLogTerm();
+    private long replicateLogsOnFollower(RaftCommand cmd) {
+        long prevIndex = cmd.getPrevLogIndex();
+        long prevTerm = cmd.getPrevLogTerm();
         String leaderId = cmd.getLeaderId();
         List<raft.server.proto.LogEntry> entries = cmd.getEntriesList();
 
@@ -781,7 +782,7 @@ public class RaftImpl implements Raft {
         writeOutCommand(pong);
     }
 
-    private void tryCommitTo(int commitTo) {
+    private void tryCommitTo(long commitTo) {
         if (logger.isDebugEnabled()) {
             logger.debug("node {} try commit to {} with current commitIndex: {} and lastIndex: {}",
                     this, commitTo, raftLog.getCommitIndex(), raftLog.getLastIndex());
@@ -835,7 +836,7 @@ public class RaftImpl implements Raft {
         raftLog.installSnapshot(snapshot);
         stateMachine.installSnapshot(getStatus(), snapshot);
 
-        int lastIndex = raftLog.getLastIndex();
+        long lastIndex = raftLog.getLastIndex();
         Set<String> removedPeerIds = new HashSet<>(peerNodes.keySet());
 
         for (String peerId : snapshot.getPeerIdsList()) {
@@ -860,6 +861,7 @@ public class RaftImpl implements Raft {
         shutdown();
     }
 
+    @Override
     public void shutdown() {
         if (!started.compareAndSet(true, false)) {
             return;
@@ -941,7 +943,7 @@ public class RaftImpl implements Raft {
 
         @Override
         void process(RaftCommand cmd) {
-            final int selfTerm = RaftImpl.this.meta.getTerm();
+            final long selfTerm = RaftImpl.this.meta.getTerm();
             switch (cmd.getType()) {
                 case APPEND_ENTRIES_RESP:
                     if (cmd.getTerm() > selfTerm) {
@@ -1071,8 +1073,8 @@ public class RaftImpl implements Raft {
             RaftImpl.this.meta.setVotedFor(RaftImpl.this.selfId);
             assert RaftImpl.this.getState() == State.CANDIDATE;
 
-            int oldTerm = RaftImpl.this.meta.getTerm();
-            final int candidateTerm = oldTerm + 1;
+            long oldTerm = RaftImpl.this.meta.getTerm();
+            final long candidateTerm = oldTerm + 1;
             RaftImpl.this.meta.setTerm(candidateTerm);
 
             // got self vote initially
@@ -1081,8 +1083,8 @@ public class RaftImpl implements Raft {
             if (votesToWin == 0) {
                 RaftImpl.this.tryBecomeLeader();
             } else {
-                int lastIndex = raftLog.getLastIndex();
-                Optional<Integer> term = raftLog.getTerm(lastIndex);
+                long lastIndex = raftLog.getLastIndex();
+                Optional<Long> term = raftLog.getTerm(lastIndex);
 
                 assert term.isPresent();
 

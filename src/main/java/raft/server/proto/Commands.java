@@ -49,26 +49,26 @@ public final class Commands {
   static {
     java.lang.String[] descriptorData = {
       "\n\016commands.proto\022\021raft.server.proto\"K\n\024P" +
-      "BRaftPersistentMeta\022\014\n\004term\030\001 \001(\005\022\020\n\010vot" +
-      "edFor\030\002 \001(\t\022\023\n\013commitIndex\030\003 \001(\005\"\241\001\n\010Log" +
-      "Entry\022\r\n\005index\030\001 \001(\005\022\014\n\004term\030\002 \001(\005\022\014\n\004da" +
+      "BRaftPersistentMeta\022\014\n\004term\030\001 \001(\003\022\020\n\010vot" +
+      "edFor\030\002 \001(\t\022\023\n\013commitIndex\030\003 \001(\003\"\241\001\n\010Log" +
+      "Entry\022\r\n\005index\030\001 \001(\003\022\014\n\004term\030\002 \001(\003\022\014\n\004da" +
       "ta\030\003 \001(\014\0223\n\004type\030\004 \001(\0162%.raft.server.pro" +
       "to.LogEntry.EntryType\"5\n\tEntryType\022\007\n\003LO" +
       "G\020\000\022\n\n\006CONFIG\020\001\022\023\n\017TRANSFER_LEADER\020\002\"J\n\013" +
-      "LogSnapshot\022\014\n\004data\030\001 \001(\014\022\r\n\005index\030\002 \001(\005" +
-      "\022\014\n\004term\030\003 \001(\005\022\020\n\010peer_ids\030\004 \003(\t\"\230\001\n\014Con" +
+      "LogSnapshot\022\014\n\004data\030\001 \001(\014\022\r\n\005index\030\002 \001(\003" +
+      "\022\014\n\004term\030\003 \001(\003\022\020\n\010peer_ids\030\004 \003(\t\"\230\001\n\014Con" +
       "figChange\022\017\n\007peer_id\030\001 \001(\t\022B\n\006action\030\002 \001",
       "(\01622.raft.server.proto.ConfigChange.Conf" +
       "igChangeAction\"3\n\022ConfigChangeAction\022\014\n\010" +
       "ADD_NODE\020\000\022\017\n\013REMOVE_NODE\020\001\"\300\005\n\013RaftComm" +
       "and\0224\n\004type\030\001 \001(\0162&.raft.server.proto.Ra" +
       "ftCommand.CmdType\022\014\n\004from\030\002 \001(\t\022\n\n\002to\030\003 " +
-      "\001(\t\022\014\n\004term\030\004 \001(\005\022\026\n\016prev_log_index\030\005 \001(" +
-      "\005\022\025\n\rprev_log_term\030\006 \001(\005\022\023\n\013match_index\030" +
-      "\007 \001(\005\022\025\n\rleader_commit\030\010 \001(\005\022\017\n\007success\030" +
+      "\001(\t\022\014\n\004term\030\004 \001(\003\022\026\n\016prev_log_index\030\005 \001(" +
+      "\003\022\025\n\rprev_log_term\030\006 \001(\003\022\023\n\013match_index\030" +
+      "\007 \001(\003\022\025\n\rleader_commit\030\010 \001(\003\022\017\n\007success\030" +
       "\t \001(\010\022,\n\007entries\030\n \003(\0132\033.raft.server.pro" +
       "to.LogEntry\022\021\n\tleader_id\030\013 \001(\t\022\026\n\016last_l",
-      "og_index\030\014 \001(\005\022\025\n\rlast_log_term\030\r \001(\005\022\024\n" +
+      "og_index\030\014 \001(\003\022\025\n\rlast_log_term\030\r \001(\003\022\024\n" +
       "\014vote_granted\030\016 \001(\010\022\023\n\013leader_hint\030\017 \001(\t" +
       "\022\026\n\016force_election\030\020 \001(\010\0220\n\010snapshot\030\021 \001" +
       "(\0132\036.raft.server.proto.LogSnapshot\"\201\002\n\007C" +

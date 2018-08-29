@@ -19,7 +19,7 @@ public class LeaderTransferTest {
     private TestingRaftCluster cluster;
 
     @Before
-    public void before() throws Exception {
+    public void before() {
         HashSet<String> peerIdSet = new HashSet<>();
         peerIdSet.add("001");
         peerIdSet.add("002");
@@ -34,7 +34,7 @@ public class LeaderTransferTest {
     }
 
     @After
-    public void after() throws Exception {
+    public void after() {
         cluster.shutdownCluster();
     }
 
@@ -136,14 +136,14 @@ public class LeaderTransferTest {
         // propose will failed
         List<byte[]> failedData = TestUtil.newDataList(100);
         f = oldLeader.propose(failedData);
-        ProposalResponse p = f.get(5000, TimeUnit.SECONDS);
+        ProposalResponse p = f.get(5, TimeUnit.SECONDS);
         assertFalse(p.isSuccess());
         assertEquals(ErrorMsg.LEADER_TRANSFERRING, p.getError());
 
         // check leadership on new leader
-        assertTrue(successFuture.get(5000, TimeUnit.SECONDS).isSuccess());
+        assertTrue(successFuture.get(5, TimeUnit.SECONDS).isSuccess());
         TestingRaftStateMachine stateMachine = cluster.getStateMachineById(newLeaderId);
-        stateMachine.becomeLeaderFuture().get(5000, TimeUnit.SECONDS);
+        stateMachine.becomeLeaderFuture().get(5, TimeUnit.SECONDS);
         assertEquals(State.LEADER, stateMachine.getLastStatus().getState());
     }
 }

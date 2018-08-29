@@ -32,11 +32,11 @@ public class RaftLogImpl implements RaftLog {
 
     private LogsBuffer buffer;
 
-    private int commitIndex;
-    private int appliedIndex;
+    private long commitIndex;
+    private long appliedIndex;
 
-    private int recentSnapshotIndex;
-    private int recentSnapshotTerm;
+    private long recentSnapshotIndex;
+    private long recentSnapshotTerm;
 
     public RaftLogImpl(PersistentStorage storage) {
         this.storage = storage;
@@ -47,8 +47,8 @@ public class RaftLogImpl implements RaftLog {
     public void init(RaftPersistentMeta meta) {
         storage.init();
 
-        int lastIndex = storage.getLastIndex();
-        if (lastIndex < 0) {
+        long lastIndex = storage.getLastIndex();
+        if (lastIndex < 0L) {
             storage.append(Collections.singletonList(PersistentStorage.sentinel));
             lastIndex = storage.getLastIndex();
         }
@@ -62,7 +62,7 @@ public class RaftLogImpl implements RaftLog {
 
         buffer = new LogsBuffer(entries.get(0));
 
-        int firstIndex = storage.getFirstIndex();
+        long firstIndex = storage.getFirstIndex();
         // we shell assume every logs in storage is not committed and applied including the first dummy empty log and
         // initialize commitIndex and appliedIndex to the index before the firstIndex in storage. Because we don't know where
         // the log has already committed or applied to at this moment. If we have persistent commitIndex and
@@ -75,7 +75,7 @@ public class RaftLogImpl implements RaftLog {
         }
     }
 
-    public synchronized int getFirstIndex() {
+    public synchronized long getFirstIndex() {
         if (recentSnapshotIndex > 0) {
             return recentSnapshotIndex;
         }
@@ -83,12 +83,12 @@ public class RaftLogImpl implements RaftLog {
         return storage.getFirstIndex();
     }
 
-    public synchronized int getLastIndex() {
+    public synchronized long getLastIndex() {
         // buffer always know the last index
         return Math.max(buffer.getLastIndex(), recentSnapshotIndex);
     }
 
-    public synchronized Optional<Integer> getTerm(int index){
+    public synchronized Optional<Long> getTerm(long index){
         if (index < getFirstIndex()) {
             throw new LogsCompactedException(index);
         }
@@ -108,7 +108,7 @@ public class RaftLogImpl implements RaftLog {
         return Optional.of(storage.getTerm(index));
     }
 
-    public Optional<LogEntry> getEntry(int index){
+    public Optional<LogEntry> getEntry(long index){
         List<LogEntry> entries = getEntries(index, index + 1);
 
         if (entries.isEmpty()) {
@@ -118,21 +118,21 @@ public class RaftLogImpl implements RaftLog {
         }
     }
 
-    public synchronized List<LogEntry> getEntries(int start, int end){
+    public synchronized List<LogEntry> getEntries(long start, long end){
         checkArgument(start <= end, "invalid start and end: %s %s", start, end);
 
         if (start < getFirstIndex()) {
             throw new LogsCompactedException(start);
         }
 
-        int lastIndex = getLastIndex();
+        long lastIndex = getLastIndex();
         if (start == end || start > lastIndex) {
             return Collections.emptyList();
         }
 
         List<LogEntry> entries = new ArrayList<>();
 
-        int bufferOffset = buffer.getOffsetIndex();
+        long bufferOffset = buffer.getOffsetIndex();
         if (start < bufferOffset) {
             entries.addAll(storage.getEntries(start, Math.min(end, bufferOffset)));
         }
@@ -145,13 +145,13 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public int leaderAsyncAppend(int term, List<LogEntry> entries, BiConsumer<? super Integer, ? super Throwable> callback) {
+    public long leaderAsyncAppend(long term, List<LogEntry> entries, BiConsumer<? super Long, ? super Throwable> callback) {
         if (entries.size() == 0) {
             return getLastIndex();
         }
 
         final ArrayList<LogEntry> preparedEntries = new ArrayList<>(entries.size());
-        int i = getLastIndex();
+        long i = getLastIndex();
         for (LogEntry entry : entries) {
             ++i;
             LogEntry e = LogEntry.newBuilder(entry)
@@ -175,19 +175,22 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public synchronized int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries) {
+    public synchronized long followerSyncAppend(long prevIndex, long prevTerm, List<LogEntry> entries) {
         if (match(prevTerm, prevIndex)) {
-            int conflictIndex = searchConflict(entries);
-            int lastIndex = prevIndex + entries.size();
+            long conflictIndex = searchConflict(entries);
+            long lastIndex = prevIndex + entries.size();
             if (conflictIndex != 0) {
+                assert conflictIndex - prevIndex - 1 < entries.size():
+                        "conflictIndex:" + conflictIndex + " prevIndex:" + prevIndex + " entriesSize:" + entries.size();
+
                 if (conflictIndex <= commitIndex) {
                     logger.error("try append entries conflict with committed entry on index: {}, " +
                                     "new entry: {}, committed entry: {}",
-                            conflictIndex, entries.get(conflictIndex - prevIndex - 1), getEntry(conflictIndex));
+                            conflictIndex, entries.get((int)(conflictIndex - prevIndex - 1)), getEntry(conflictIndex));
                     throw new IllegalStateException();
                 }
 
-                List<LogEntry> entriesNeedToStore = entries.subList(conflictIndex - prevIndex - 1, entries.size());
+                List<LogEntry> entriesNeedToStore = entries.subList((int)(conflictIndex - prevIndex - 1), entries.size());
                 buffer.append(entriesNeedToStore);
                 storage.append(entriesNeedToStore);
             }
@@ -197,12 +200,12 @@ public class RaftLogImpl implements RaftLog {
         return -1;
     }
 
-    private int searchConflict(List<LogEntry> entries) {
+    private long searchConflict(List<LogEntry> entries) {
         for (LogEntry entry : entries) {
             if (!match(entry.getTerm(), entry.getIndex())) {
                 if (entry.getIndex() <= getLastIndex()) {
                     logger.warn("found conflict entry at index {}, existing term: {}, conflicting term: {}",
-                            entry.getIndex(), getTerm(entry.getIndex()).orElse(0), entry.getTerm());
+                            entry.getIndex(), getTerm(entry.getIndex()).orElse(0L), entry.getTerm());
                 }
                 return entry.getIndex();
             }
@@ -211,15 +214,15 @@ public class RaftLogImpl implements RaftLog {
         return 0;
     }
 
-    public boolean match(int term, int index) {
-        Optional<Integer> storedTerm = getTerm(index);
+    public boolean match(long term, long index) {
+        Optional<Long> storedTerm = getTerm(index);
 
         return storedTerm.isPresent() && term == storedTerm.get();
     }
 
-    public synchronized boolean isUpToDate(int term, int index) {
-        int lastIndex = getLastIndex();
-        Optional<Integer> lastTerm = getTerm(lastIndex);
+    public synchronized boolean isUpToDate(long term, long index) {
+        long lastIndex = getLastIndex();
+        Optional<Long> lastTerm = getTerm(lastIndex);
 
         assert lastTerm.isPresent();
 
@@ -228,18 +231,18 @@ public class RaftLogImpl implements RaftLog {
                         index >= lastIndex);
     }
 
-    public synchronized int getCommitIndex() {
+    public synchronized long getCommitIndex() {
         return commitIndex;
     }
 
-    public synchronized int getAppliedIndex() {
+    public synchronized long getAppliedIndex() {
         return appliedIndex;
     }
 
-    public synchronized List<LogEntry> tryCommitTo(int commitTo) {
+    public synchronized List<LogEntry> tryCommitTo(long commitTo) {
         checkArgument(commitTo <= getLastIndex(),
                 "try commit to %s but last index in log is %s", commitTo, getLastIndex());
-        int oldCommit = getCommitIndex();
+        long oldCommit = getCommitIndex();
         if (commitTo > oldCommit) {
             commitIndex = commitTo;
             return getEntries(oldCommit + 1, commitTo + 1);
@@ -248,9 +251,9 @@ public class RaftLogImpl implements RaftLog {
         return Collections.emptyList();
     }
 
-    public synchronized void appliedTo(int appliedTo) {
-        int commitIndex = this.commitIndex;
-        int appliedIndex = this.appliedIndex;
+    public synchronized void appliedTo(long appliedTo) {
+        long commitIndex = this.commitIndex;
+        long appliedIndex = this.appliedIndex;
         checkArgument(appliedTo <= this.commitIndex,
                 "try applied log to %s but commit index in log is %s", appliedTo, commitIndex);
         checkArgument(appliedTo >= appliedIndex,
@@ -273,7 +276,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public synchronized void snapshotApplied(int snapshotIndex) {
+    public synchronized void snapshotApplied(long snapshotIndex) {
         if (recentSnapshotIndex == snapshotIndex) {
             recentSnapshotIndex = -1;
             recentSnapshotTerm = -1;

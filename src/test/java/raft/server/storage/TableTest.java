@@ -56,13 +56,13 @@ public class TableTest {
 
     @Test
     public void getEntries() throws Exception {
-        int firstIndex = testingEntries.get(0).getIndex();
-        int lastIndex = testingEntries.get(testingEntries.size() - 1).getIndex();
-        int cursor = firstIndex;
+        long firstIndex = testingEntries.get(0).getIndex();
+        long lastIndex = testingEntries.get(testingEntries.size() - 1).getIndex();
+        long cursor = firstIndex;
         while (cursor < lastIndex + 1) {
             int step = ThreadLocalRandom.current().nextInt(10, 1000);
             List<LogEntry> actual = testingTable.getEntries(cursor, cursor + step);
-            List<LogEntry> expect = testingEntries.subList(cursor - firstIndex, Math.min(cursor + step - firstIndex, testingEntries.size()));
+            List<LogEntry> expect = testingEntries.subList((int)(cursor - firstIndex), Math.min((int)(cursor + step - firstIndex), testingEntries.size()));
             for (int i = 0; i < expect.size(); i++) {
                 assertEquals(expect.get(i), actual.get(i));
             }
@@ -73,9 +73,9 @@ public class TableTest {
 
     @Test
     public void getEntriesWithOutOfRangeKeys() throws Exception {
-        int firstIndex = testingEntries.get(0).getIndex();
-        int lastIndex = testingEntries.get(testingEntries.size() - 1).getIndex();
-        int cursor = ThreadLocalRandom.current().nextInt(1, firstIndex);
+        long firstIndex = testingEntries.get(0).getIndex();
+        long lastIndex = testingEntries.get(testingEntries.size() - 1).getIndex();
+        long cursor = ThreadLocalRandom.current().nextLong(1L, firstIndex);
         List<LogEntry> actual = testingTable.getEntries(cursor, lastIndex + 1000);
         assertEquals(testingEntries.size(), actual.size());
         for (int i = 0; i < testingEntries.size(); i++) {

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -22,7 +23,7 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
 
     // log entries; each entry contains command for state machine, and term when entry was received by leader (first index is 1)
     private List<LogEntry> logs = new ArrayList<>();
-    private int offset;
+    private long offset;
 
     public MemoryBasedTestingStorage(){
         this.logs.add(PersistentStorage.sentinel);
@@ -35,32 +36,32 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized int getLastIndex() {
+    public synchronized long getLastIndex() {
         return offset + logs.size() - 1;
     }
 
     @Override
-    public synchronized int getTerm(int index){
+    public synchronized long getTerm(long index){
         if (index < offset) {
             throw new LogsCompactedException(index);
         }
 
-        int lastIndex = getLastIndex();
+        long lastIndex = getLastIndex();
         checkArgument(index <= lastIndex,
                 "index: %s out of bound, lastIndex: %s",
                 index, lastIndex);
 
-        return logs.get(index - offset).getTerm();
+        return logs.get((int)(index - offset)).getTerm();
     }
 
     @Override
-    public synchronized int getFirstIndex() {
+    public synchronized long getFirstIndex() {
 
         return logs.get(0).getIndex();
     }
 
     @Override
-    public synchronized List<LogEntry> getEntries(int start, int end){
+    public synchronized List<LogEntry> getEntries(long start, long end){
         checkArgument(start < end, "invalid start and end: %s %s", start, end);
 
         if (start < offset) {
@@ -69,7 +70,7 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
 
         start = start - this.offset;
         end = end - this.offset;
-        return new ArrayList<>(this.logs.subList(start, Math.min(end, this.logs.size())));
+        return new ArrayList<>(this.logs.subList((int)start, Math.min((int)end, this.logs.size())));
     }
 
     @Override
@@ -78,7 +79,7 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
             return;
         }
 
-        int firstIndex = entries.get(0).getIndex();
+        long firstIndex = entries.get(0).getIndex();
         if (firstIndex == offset + logs.size()) {
             // normal append
             logs.addAll(entries);
@@ -94,7 +95,7 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
         }
     }
 
-    public synchronized Future<Integer> compact(int toIndex) {
+    public synchronized Future<Long> compact(long toIndex) {
         checkArgument(toIndex <= getLastIndex(),
                 "compactIndex: %s should lower than last index: %s",
                 toIndex, getLastIndex());
@@ -105,7 +106,7 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
 
         if (toIndex > offset) {
             // always at least keep last log entry in buffer
-            List<LogEntry> remainLogs = logs.subList(toIndex - offset, logs.size());
+            List<LogEntry> remainLogs = logs.subList((int)(toIndex - offset), logs.size());
             logs = new ArrayList<>();
             logs.addAll(remainLogs);
 
@@ -117,6 +118,11 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
 
     @Override
     public void shutdown() {
+
+    }
+
+    @Override
+    public void awaitShutdown(long timeout, TimeUnit unit) {
 
     }
 }

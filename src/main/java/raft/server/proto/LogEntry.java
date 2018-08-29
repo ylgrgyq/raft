@@ -15,8 +15,8 @@ public  final class LogEntry extends
     super(builder);
   }
   private LogEntry() {
-    index_ = 0;
-    term_ = 0;
+    index_ = 0L;
+    term_ = 0L;
     data_ = com.google.protobuf.ByteString.EMPTY;
     type_ = 0;
   }
@@ -48,12 +48,12 @@ public  final class LogEntry extends
           }
           case 8: {
 
-            index_ = input.readInt32();
+            index_ = input.readInt64();
             break;
           }
           case 16: {
 
-            term_ = input.readInt32();
+            term_ = input.readInt64();
             break;
           }
           case 26: {
@@ -198,20 +198,20 @@ public  final class LogEntry extends
   }
 
   public static final int INDEX_FIELD_NUMBER = 1;
-  private int index_;
+  private long index_;
   /**
-   * <code>optional int32 index = 1;</code>
+   * <code>optional int64 index = 1;</code>
    */
-  public int getIndex() {
+  public long getIndex() {
     return index_;
   }
 
   public static final int TERM_FIELD_NUMBER = 2;
-  private int term_;
+  private long term_;
   /**
-   * <code>optional int32 term = 2;</code>
+   * <code>optional int64 term = 2;</code>
    */
-  public int getTerm() {
+  public long getTerm() {
     return term_;
   }
 
@@ -252,11 +252,11 @@ public  final class LogEntry extends
 
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (index_ != 0) {
-      output.writeInt32(1, index_);
+    if (index_ != 0L) {
+      output.writeInt64(1, index_);
     }
-    if (term_ != 0) {
-      output.writeInt32(2, term_);
+    if (term_ != 0L) {
+      output.writeInt64(2, term_);
     }
     if (!data_.isEmpty()) {
       output.writeBytes(3, data_);
@@ -271,13 +271,13 @@ public  final class LogEntry extends
     if (size != -1) return size;
 
     size = 0;
-    if (index_ != 0) {
+    if (index_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, index_);
+        .computeInt64Size(1, index_);
     }
-    if (term_ != 0) {
+    if (term_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, term_);
+        .computeInt64Size(2, term_);
     }
     if (!data_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
@@ -321,9 +321,11 @@ public  final class LogEntry extends
     int hash = 41;
     hash = (19 * hash) + getDescriptorForType().hashCode();
     hash = (37 * hash) + INDEX_FIELD_NUMBER;
-    hash = (53 * hash) + getIndex();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getIndex());
     hash = (37 * hash) + TERM_FIELD_NUMBER;
-    hash = (53 * hash) + getTerm();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getTerm());
     hash = (37 * hash) + DATA_FIELD_NUMBER;
     hash = (53 * hash) + getData().hashCode();
     hash = (37 * hash) + TYPE_FIELD_NUMBER;
@@ -446,9 +448,9 @@ public  final class LogEntry extends
     }
     public Builder clear() {
       super.clear();
-      index_ = 0;
+      index_ = 0L;
 
-      term_ = 0;
+      term_ = 0L;
 
       data_ = com.google.protobuf.ByteString.EMPTY;
 
@@ -521,10 +523,10 @@ public  final class LogEntry extends
 
     public Builder mergeFrom(raft.server.proto.LogEntry other) {
       if (other == raft.server.proto.LogEntry.getDefaultInstance()) return this;
-      if (other.getIndex() != 0) {
+      if (other.getIndex() != 0L) {
         setIndex(other.getIndex());
       }
-      if (other.getTerm() != 0) {
+      if (other.getTerm() != 0L) {
         setTerm(other.getTerm());
       }
       if (other.getData() != com.google.protobuf.ByteString.EMPTY) {
@@ -559,54 +561,54 @@ public  final class LogEntry extends
       return this;
     }
 
-    private int index_ ;
+    private long index_ ;
     /**
-     * <code>optional int32 index = 1;</code>
+     * <code>optional int64 index = 1;</code>
      */
-    public int getIndex() {
+    public long getIndex() {
       return index_;
     }
     /**
-     * <code>optional int32 index = 1;</code>
+     * <code>optional int64 index = 1;</code>
      */
-    public Builder setIndex(int value) {
+    public Builder setIndex(long value) {
       
       index_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 index = 1;</code>
+     * <code>optional int64 index = 1;</code>
      */
     public Builder clearIndex() {
       
-      index_ = 0;
+      index_ = 0L;
       onChanged();
       return this;
     }
 
-    private int term_ ;
+    private long term_ ;
     /**
-     * <code>optional int32 term = 2;</code>
+     * <code>optional int64 term = 2;</code>
      */
-    public int getTerm() {
+    public long getTerm() {
       return term_;
     }
     /**
-     * <code>optional int32 term = 2;</code>
+     * <code>optional int64 term = 2;</code>
      */
-    public Builder setTerm(int value) {
+    public Builder setTerm(long value) {
       
       term_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 term = 2;</code>
+     * <code>optional int64 term = 2;</code>
      */
     public Builder clearTerm() {
       
-      term_ = 0;
+      term_ = 0L;
       onChanged();
       return this;
     }

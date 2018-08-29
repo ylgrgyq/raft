@@ -37,29 +37,29 @@ public interface RaftCommandOrBuilder extends
       getToBytes();
 
   /**
-   * <code>optional int32 term = 4;</code>
+   * <code>optional int64 term = 4;</code>
    */
-  int getTerm();
+  long getTerm();
 
   /**
-   * <code>optional int32 prev_log_index = 5;</code>
+   * <code>optional int64 prev_log_index = 5;</code>
    */
-  int getPrevLogIndex();
+  long getPrevLogIndex();
 
   /**
-   * <code>optional int32 prev_log_term = 6;</code>
+   * <code>optional int64 prev_log_term = 6;</code>
    */
-  int getPrevLogTerm();
+  long getPrevLogTerm();
 
   /**
-   * <code>optional int32 match_index = 7;</code>
+   * <code>optional int64 match_index = 7;</code>
    */
-  int getMatchIndex();
+  long getMatchIndex();
 
   /**
-   * <code>optional int32 leader_commit = 8;</code>
+   * <code>optional int64 leader_commit = 8;</code>
    */
-  int getLeaderCommit();
+  long getLeaderCommit();
 
   /**
    * <code>optional bool success = 9;</code>
@@ -101,14 +101,14 @@ public interface RaftCommandOrBuilder extends
       getLeaderIdBytes();
 
   /**
-   * <code>optional int32 last_log_index = 12;</code>
+   * <code>optional int64 last_log_index = 12;</code>
    */
-  int getLastLogIndex();
+  long getLastLogIndex();
 
   /**
-   * <code>optional int32 last_log_term = 13;</code>
+   * <code>optional int64 last_log_term = 13;</code>
    */
-  int getLastLogTerm();
+  long getLastLogTerm();
 
   /**
    * <code>optional bool vote_granted = 14;</code>

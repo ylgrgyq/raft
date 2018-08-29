@@ -3,7 +3,6 @@ package raft.server;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import raft.server.log.PersistentStorage;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
 
@@ -36,22 +35,6 @@ public class LogReplicationTest {
         cluster.shutdownCluster();
     }
 
-    private static void checkAppliedLogs(TestingRaftStateMachine stateMachine, int expectTerm, int logCount, List<byte[]> sourceDataList) {
-        List<LogEntry> applied = stateMachine.waitApplied(logCount);
-
-        // check node status after logs proposed
-        RaftStatusSnapshot status = stateMachine.getLastStatus();
-        assertEquals(logCount, status.getCommitIndex());
-        assertTrue(applied.size() > 0);
-
-        for (LogEntry e : applied) {
-            if (!e.equals(PersistentStorage.sentinel)) {
-                assertEquals(expectTerm, e.getTerm());
-                assertArrayEquals(sourceDataList.get(e.getIndex() - 1), e.getData().toByteArray());
-            }
-        }
-    }
-
     @Test
     public void testProposeOnSingleNode() throws Exception {
         String selfId = "single node 001";
@@ -68,16 +51,11 @@ public class LogReplicationTest {
         RaftStatusSnapshot status = leaderStateMachine.getLastStatus();
         assertEquals(State.LEADER, status.getState());
         assertEquals(dataList.size(), status.getCommitIndex());
-        assertEquals(1, status.getTerm());
+        assertEquals(1L, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
 
-        List<LogEntry> applied = leaderStateMachine.drainAvailableApplied();
-        for (LogEntry e : applied) {
-            if (e != PersistentStorage.sentinel) {
-                assertEquals(status.getTerm(), e.getTerm());
-                assertArrayEquals(dataList.get(e.getIndex() - 1), e.getData().toByteArray());
-            }
-        }
+        compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(),
+                leaderStateMachine.waitApplied(150), dataList);
     }
 
     @Test
@@ -93,9 +71,9 @@ public class LogReplicationTest {
 
         List<byte[]> dataList = proposeSomeLogs(leader, 100);
 
-        for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
-        }
+        List<LogEntry> logsOnLeader = leaderStateMachine.waitApplied(100);
+        compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
+        compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
     }
 
     @Test
@@ -115,10 +93,10 @@ public class LogReplicationTest {
 
         List<byte[]> dataList = proposeSomeLogs(leader, 100);
 
-        int expectTerm = leaderStateMachine.getLastStatus().getTerm();
-        for (TestingRaftStateMachine follower : cluster.getAllStateMachines()) {
-            checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
-        }
+        long expectTerm = leaderStateMachine.getLastStatus().getTerm();
+        List<LogEntry> logsOnLeader = leaderStateMachine.waitApplied(100);
+        compareLogsWithSource(expectTerm, logsOnLeader, dataList);
+        compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
 
         // reboot cluster including the reboot node
         cluster.shutdownCluster();
@@ -131,7 +109,7 @@ public class LogReplicationTest {
         TestingRaftStateMachine follower = cluster.getStateMachineById(rebootNodeId);
         Future f = follower.becomeFollowerFuture();
         f.get();
-        checkAppliedLogs(follower, expectTerm, 100, dataList);
+        compareLogsWithinCluster(logsOnLeader, Collections.singletonList(follower));
     }
 
     @Test
@@ -149,7 +127,7 @@ public class LogReplicationTest {
         followerStateMachines.forEach(s -> cluster.shutdownPeer(s.getId()));
 
         // all followers in cluster is removed. proposals on leader will write to it's local storage
-        // but can never be committed
+        // but will never be committed
         List<byte[]> neverCommitDatas = TestUtil.newDataList(100, 100);
         TestUtil.randomPartitionList(neverCommitDatas).forEach(oldLeader::propose);
 
@@ -158,23 +136,31 @@ public class LogReplicationTest {
         cluster.shutdownPeer(oldLeader.getId());
 
         // add followers back. they will elect a new leader among themselves
-        // proposals on the new leader will be committed
+        // proposals on the new leader will be committed due to there are enough nodes online
         followerStateMachines.forEach(s -> cluster.addTestingNode(s.getId(), peerIdSet).start());
         TestingRaftStateMachine newLeaderStateMachine = cluster.waitGetLeader();
         Raft newLeader = cluster.getNodeById(newLeaderStateMachine.getId());
 
         List<byte[]> dataList = proposeSomeLogs(newLeader, 100);
+        List<LogEntry> logsOnLeader = new ArrayList<>(newLeaderStateMachine.waitApplied(100));
+        compareLogsWithSource(newLeaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
+        compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
+        // restart cluster so new leader will initialize all follower's last index as 100
+        cluster.shutdownCluster();
+        cluster.startCluster(peerIdSet);
 
-        for (TestingRaftStateMachine stateMachine : cluster.getAllStateMachines()) {
-            checkAppliedLogs(stateMachine, stateMachine.getLastStatus().getTerm(), 100, dataList);
-        }
+        newLeaderStateMachine = cluster.waitGetLeader();
+        newLeader = cluster.getNodeById(newLeaderStateMachine.getId());
+        // propose one more log on new leader to ensure all logs on previous term are committed
+        // remember that new leader can not commit logs with previous term by counting replicas
+        dataList.addAll(proposeSomeLogs(newLeader, 1));
+        logsOnLeader.addAll(newLeaderStateMachine.waitApplied(1));
 
-        // add old leader back. logs on it's local storage will be overwritten by those logs synced from new leader
-        cluster.addTestingNode(oldLeader.getId(), peerIdSet).start();
+        // logs on old leader's local storage will be overwritten by those logs synced from new leader
         TestingRaftStateMachine follower = cluster.getStateMachineById(oldLeader.getId());
         Future f = follower.becomeFollowerFuture();
         f.get();
-        checkAppliedLogs(follower, follower.getLastStatus().getTerm(), 100, dataList);
+        compareLogsWithinCluster(logsOnLeader, Collections.singletonList(follower));
     }
 
     @Test
@@ -199,7 +185,7 @@ public class LogReplicationTest {
         // propose some initial logs then schedule compaction job
         dataList.addAll(proposeSomeLogs(leader, 100));
         logsOnLeader.addAll(leaderStateMachine.waitApplied(100));
-        int compactLogIndex = logsOnLeader.get(100).getIndex();
+        long compactLogIndex = logsOnLeader.get(100).getIndex();
         leaderStateMachine.compact(compactLogIndex);
         // trigger compaction actual happen
         leaderStateMachine.flushMemtable();
@@ -243,17 +229,16 @@ public class LogReplicationTest {
         return dataList;
     }
 
-    private void compareLogsWithSource(int expectTerm, List<LogEntry> logs, List<byte[]> sourceList) {
-        for (LogEntry e : logs) {
-            if (!e.equals(PersistentStorage.sentinel)) {
-                assertEquals(expectTerm, e.getTerm());
-                assertArrayEquals(sourceList.get(e.getIndex() - 1), e.getData().toByteArray());
-            }
+    private void compareLogsWithSource(long expectTerm, List<LogEntry> logs, List<byte[]> sourceList) {
+        for (int i = 0; i < logs.size(); i++) {
+            LogEntry e = logs.get(i);
+            assertEquals(expectTerm, e.getTerm());
+            assertArrayEquals(sourceList.get(i), e.getData().toByteArray());
         }
     }
 
     private void compareLogsWithinCluster(List<LogEntry> logsOnLeader, List<TestingRaftStateMachine> stateMachines) {
-        int expectCommitIndex = logsOnLeader.get(logsOnLeader.size() - 1).getIndex();
+        long expectCommitIndex = logsOnLeader.get(logsOnLeader.size() - 1).getIndex();
         for (TestingRaftStateMachine stateMachine : stateMachines) {
             List<LogEntry> applied = stateMachine.waitApplied(logsOnLeader.size());
 

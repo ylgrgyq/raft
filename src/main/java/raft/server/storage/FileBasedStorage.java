@@ -42,8 +42,8 @@ public class FileBasedStorage implements PersistentStorage {
     private FileLock storageLock;
     private LogWriter logWriter;
     private volatile int logFileNumber;
-    private int firstIndexInStorage;
-    private int lastIndexInStorage;
+    private long firstIndexInStorage;
+    private long lastIndexInStorage;
     private Memtable mm;
     private volatile Memtable imm;
     private volatile StorageStatus status;
@@ -220,7 +220,7 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized int getTerm(int index) {
+    public synchronized long getTerm(long index) {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
@@ -228,7 +228,7 @@ public class FileBasedStorage implements PersistentStorage {
             throw new LogsCompactedException(index);
         }
 
-        int lastIndex = getLastIndex();
+        long lastIndex = getLastIndex();
         checkArgument(index <= lastIndex,
                 "index: %s out of bound, lastIndex: %s",
                 index, lastIndex);
@@ -255,7 +255,7 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized int getLastIndex() {
+    public synchronized long getLastIndex() {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
@@ -265,14 +265,14 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized int getFirstIndex() {
+    public synchronized long getFirstIndex() {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
         return firstIndexInStorage;
     }
 
     @Override
-    public synchronized List<LogEntry> getEntries(int start, int end) {
+    public synchronized List<LogEntry> getEntries(long start, long end) {
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
         checkArgument(start < end, "end:%s should greater than start:%s", end, start);
@@ -443,7 +443,8 @@ public class FileBasedStorage implements PersistentStorage {
         return meta;
     }
 
-    public Future<Integer> compact(int toIndex) {
+    @Override
+    public Future<Long> compact(long toIndex) {
         checkArgument(toIndex > 0);
 
         return manifest.compact(toIndex);
@@ -453,56 +454,24 @@ public class FileBasedStorage implements PersistentStorage {
         makeRoomForEntry(true);
     }
 
-    synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException {
-        checkArgument(timeout >= 0);
-        if (status == StorageStatus.SHUTTING_DOWN) {
-            return;
-        }
-
-        status = StorageStatus.SHUTTING_DOWN;
-
-        long start = System.nanoTime();
-        try {
-            waitWriteSstableFinish();
-            sstableWriterPool.shutdown();
-            timeout = unit.toNanos(timeout) - (System.nanoTime() - start);
-            sstableWriterPool.awaitTermination(timeout, TimeUnit.NANOSECONDS);
-        } catch (InterruptedException ex) {
-            sstableWriterPool.shutdownNow();
-        }
-
-        if (logWriter != null) {
-            logWriter.close();
-        }
-
-        manifest.close();
-
-        tableCache.evictAll();
-
-        if (storageLock != null && storageLock.isValid()) {
-            storageLock.release();
-        }
-
-        if (storageLockChannel != null && storageLockChannel.isOpen()) {
-            storageLockChannel.close();
-        }
-    }
-
-    synchronized void waitWriteSstableFinish() throws InterruptedException {
-        if (backgroundWriteSstableRunning) {
-            this.wait();
-        }
-    }
-
     @Override
-    public void shutdown() throws StorageInternalError {
+    public synchronized void awaitShutdown(long timeout, TimeUnit unit) {
+        checkArgument(timeout >= 0);
         if (status == StorageStatus.SHUTTING_DOWN) {
             return;
         }
 
         try {
             status = StorageStatus.SHUTTING_DOWN;
-            sstableWriterPool.shutdownNow();
+            sstableWriterPool.shutdown();
+
+            if (timeout > 0) {
+                try {
+                    sstableWriterPool.awaitTermination(timeout, unit);
+                } catch (InterruptedException ex) {
+                    sstableWriterPool.shutdownNow();
+                }
+            }
 
             if (logWriter != null) {
                 logWriter.close();
@@ -524,13 +493,24 @@ public class FileBasedStorage implements PersistentStorage {
         }
     }
 
-    private Itr internalIterator(int start, int end) {
-        List<SeekableIterator<LogEntry>> itrs = getSSTableIterators(start, end);
+    synchronized void waitWriteSstableFinish() throws InterruptedException {
+        if (backgroundWriteSstableRunning) {
+            this.wait();
+        }
+    }
+
+    @Override
+    public synchronized void shutdown() {
+        awaitShutdown(0, TimeUnit.MILLISECONDS);
+    }
+
+    private Itr internalIterator(long start, long end) {
+        List<SeekableIterator<Long, LogEntry>> itrs = getSSTableIterators(start, end);
         if (imm != null) {
             itrs.add(imm.iterator());
         }
         itrs.add(mm.iterator());
-        for (SeekableIterator<LogEntry> itr : itrs) {
+        for (SeekableIterator<Long, LogEntry> itr : itrs) {
             itr.seek(start);
             if (itr.hasNext()) {
                 break;
@@ -540,10 +520,10 @@ public class FileBasedStorage implements PersistentStorage {
         return new Itr(itrs);
     }
 
-    private List<SeekableIterator<LogEntry>> getSSTableIterators(int start, int end) {
+    private List<SeekableIterator<Long, LogEntry>> getSSTableIterators(long start, long end) {
         try {
             List<SSTableFileMetaInfo> metas = manifest.searchMetas(start, end);
-            List<SeekableIterator<LogEntry>> ret = new ArrayList<>(metas.size());
+            List<SeekableIterator<Long, LogEntry>> ret = new ArrayList<>(metas.size());
             for (SSTableFileMetaInfo meta : metas) {
                 ret.add(tableCache.iterator(meta.getFileNumber(), meta.getFileSize()));
             }
@@ -555,17 +535,17 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     private static class Itr implements Iterator<LogEntry> {
-        private final List<SeekableIterator<LogEntry>> iterators;
+        private final List<SeekableIterator<Long, LogEntry>> iterators;
         private int lastItrIndex;
 
-        Itr(List<SeekableIterator<LogEntry>> iterators) {
+        Itr(List<SeekableIterator<Long, LogEntry>> iterators) {
             this.iterators = iterators;
         }
 
         @Override
         public boolean hasNext() {
             for (int i = lastItrIndex; i < iterators.size(); i++) {
-                SeekableIterator<LogEntry> itr = iterators.get(i);
+                SeekableIterator<Long, LogEntry> itr = iterators.get(i);
                 if (itr.hasNext()) {
                     lastItrIndex = i;
                     return true;

@@ -29,7 +29,7 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
         this.raftLog = Objects.requireNonNull(raftLog);
     }
 
-    CompletableFuture<Void> onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs, int lastIndex) {
+    CompletableFuture<Void> onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs, long lastIndex) {
         return notify(() -> {
             if (! msgs.isEmpty()) {
                 stateMachine.onProposalCommitted(status, msgs);
@@ -92,7 +92,7 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
     }
 
     @Override
-    public Optional<LogSnapshot> getRecentSnapshot(int expectIndex) {
+    public Optional<LogSnapshot> getRecentSnapshot(long expectIndex) {
         return stateMachine.getRecentSnapshot(expectIndex);
     }
 

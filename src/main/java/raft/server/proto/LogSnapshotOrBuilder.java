@@ -13,14 +13,14 @@ public interface LogSnapshotOrBuilder extends
   com.google.protobuf.ByteString getData();
 
   /**
-   * <code>optional int32 index = 2;</code>
+   * <code>optional int64 index = 2;</code>
    */
-  int getIndex();
+  long getIndex();
 
   /**
-   * <code>optional int32 term = 3;</code>
+   * <code>optional int64 term = 3;</code>
    */
-  int getTerm();
+  long getTerm();
 
   /**
    * <code>repeated string peer_ids = 4;</code>

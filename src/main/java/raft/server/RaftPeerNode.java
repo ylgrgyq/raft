@@ -23,24 +23,24 @@ class RaftPeerNode {
     private final RaftLog raftLog;
 
     // index of the next log entry to send to that raft (initialized to leader last log index + 1)
-    private int nextIndex;
+    private long nextIndex;
     // index of highest log entry known to be replicated on raft (initialized to 0, increases monotonically)
-    private int matchIndex;
+    private long matchIndex;
     private int maxEntriesPerAppend;
 
-    RaftPeerNode(String peerId, RaftImpl raft, RaftLog log, int nextIndex, int maxEntriesPerAppend) {
+    RaftPeerNode(String peerId, RaftImpl raft, RaftLog log, long nextIndex, int maxEntriesPerAppend) {
         this.peerId = peerId;
         this.nextIndex = nextIndex;
-        this.matchIndex = -1;
+        this.matchIndex = -1L;
         this.raft = raft;
         this.raftLog = log;
         this.maxEntriesPerAppend = maxEntriesPerAppend;
     }
 
-    void sendAppend(int term) {
-        final int startIndex = getNextIndex();
+    void sendAppend(long term) {
+        final long startIndex = getNextIndex();
         boolean compacted = false;
-        Optional<Integer> prevTerm;
+        Optional<Long> prevTerm;
         RaftCommand.Builder msgBuilder = RaftCommand.newBuilder()
                 .setLeaderId(raft.getLeaderId())
                 .setLeaderCommit(raftLog.getCommitIndex())
@@ -82,7 +82,7 @@ class RaftPeerNode {
         raft.writeOutCommand(msgBuilder);
     }
 
-    void sendPing(int term) {
+    void sendPing(long term) {
         RaftCommand.Builder msg = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.PING)
                 .setTerm(term)
@@ -92,7 +92,7 @@ class RaftPeerNode {
         raft.writeOutCommand(msg);
     }
 
-    void sendTimeout(int term) {
+    void sendTimeout(long term) {
         RaftCommand.Builder msg = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.TIMEOUT_NOW)
                 .setTerm(term)
@@ -107,7 +107,7 @@ class RaftPeerNode {
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended by
      * raft main worker thread and leader async append log thread
      */
-    synchronized boolean updateIndexes(int matchIndex) {
+    synchronized boolean updateIndexes(long matchIndex) {
         boolean updated = false;
         if (this.matchIndex < matchIndex) {
             this.matchIndex = matchIndex;
@@ -125,11 +125,11 @@ class RaftPeerNode {
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended between
      * raft main worker thread and leader async append log thread
      */
-    synchronized void decreaseIndexAndResendAppend(int term) {
+    synchronized void decreaseIndexAndResendAppend(long term) {
         nextIndex--;
-        if (nextIndex < 1) {
+        if (nextIndex < 1L) {
             logger.warn("nextIndex for {} decreased to 1", this.toString());
-            nextIndex = 1;
+            nextIndex = 1L;
         }
         assert nextIndex > matchIndex : "nextIndex: " + nextIndex + " is not greater than matchIndex: " + matchIndex;
         sendAppend(term);
@@ -139,16 +139,16 @@ class RaftPeerNode {
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended between
      * raft main worker thread and leader async append log thread
      */
-    synchronized void reset(int nextIndex) {
+    synchronized void reset(long nextIndex) {
         this.nextIndex = nextIndex;
-        this.matchIndex = -1;
+        this.matchIndex = -1L;
     }
 
     /**
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended between
      * raft main worker thread and leader async append log thread
      */
-    synchronized int getMatchIndex() {
+    synchronized long getMatchIndex() {
         return matchIndex;
     }
 
@@ -156,7 +156,7 @@ class RaftPeerNode {
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended between
      * raft main worker thread and leader async append log thread
      */
-    private synchronized int getNextIndex() {
+    private synchronized long getNextIndex() {
         return nextIndex;
     }
 

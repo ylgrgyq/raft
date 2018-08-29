@@ -8,7 +8,7 @@ import java.util.List;
  * Author: ylgrgyq
  * Date: 18/6/24
  */
-class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
+class Block implements Iterable<KeyValueEntry<Long, byte[]>>{
     private final ByteBuffer content;
     private final List<Integer> checkpoints;
 
@@ -35,16 +35,16 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
         content.limit(checkpointStart);
     }
 
-    List<byte[]> getValuesByKeyRange(int startKey, int endKey) {
+    List<byte[]> getValuesByKeyRange(long startKey, long endKey) {
         assert startKey < endKey;
 
         List<byte[]> ret = new ArrayList<>();
 
-        SeekableIterator<KeyValueEntry<Integer, byte[]>> iter = iterator();
+        SeekableIterator<Long, KeyValueEntry<Long, byte[]>> iter = iterator();
         iter.seek(startKey);
 
         while (iter.hasNext()) {
-            KeyValueEntry<Integer, byte[]> entry = iter.next();
+            KeyValueEntry<Long, byte[]> entry = iter.next();
             if (entry.getKey() < endKey) {
                 ret.add(entry.getVal());
             } else {
@@ -55,14 +55,14 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
         return ret;
     }
 
-    private int findStartCheckpoint(int key) {
+    private int findStartCheckpoint(long key) {
         int start = 0;
         int end = checkpoints.size();
         while (start < end - 1) {
             int mid = (start + end) / 2;
 
             content.position(checkpoints.get(mid));
-            int k = content.getInt();
+            long k = content.getLong();
 
             if (key < k) {
                 end = mid;
@@ -71,7 +71,7 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
                     start = mid;
                 } else {
                     content.position(checkpoints.get(mid + 1));
-                    k = content.getInt();
+                    k = content.getLong();
                     if (key > k) {
                         start = mid + 1;
                     } else {
@@ -94,11 +94,11 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
     }
 
     @Override
-    public SeekableIterator<KeyValueEntry<Integer, byte[]>> iterator() {
+    public SeekableIterator<Long, KeyValueEntry<Long, byte[]>> iterator() {
         return new Itr(content);
     }
 
-    private class Itr implements SeekableIterator<KeyValueEntry<Integer, byte[]>> {
+    private class Itr implements SeekableIterator<Long, KeyValueEntry<Long, byte[]>> {
         private final ByteBuffer content;
         private int offset;
 
@@ -107,17 +107,17 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
         }
 
         @Override
-        public void seek(int key) {
+        public void seek(Long key) {
             int checkpoint = findStartCheckpoint(key);
             offset = checkpoints.get(checkpoint);
             assert offset < content.limit();
             while (offset < content.limit()) {
                 content.position(offset);
-                int k = content.getInt();
+                long k = content.getLong();
                 int len = content.getInt();
                 assert len > 0;
                 if (k < key) {
-                    offset += len + Integer.BYTES + Integer.BYTES;
+                    offset += len + Long.BYTES + Integer.BYTES;
                 } else {
                     break;
                 }
@@ -130,16 +130,16 @@ class Block implements Iterable<KeyValueEntry<Integer, byte[]>>{
         }
 
         @Override
-        public KeyValueEntry<Integer, byte[]> next() {
+        public KeyValueEntry<Long, byte[]> next() {
             assert offset < content.limit();
 
             content.position(offset);
-            int k = content.getInt();
+            long k = content.getLong();
             int len = content.getInt();
             assert len > 0;
             byte[] val = readVal(content, len);
 
-            offset += len + Integer.BYTES + Integer.BYTES;
+            offset += len + Long.BYTES + Integer.BYTES;
 
             return new KeyValueEntry<>(k, val);
         }

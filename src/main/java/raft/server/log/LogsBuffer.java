@@ -3,7 +3,6 @@ package raft.server.log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.proto.LogEntry;
-import raft.server.proto.LogEntryOrBuilder;
 import raft.server.proto.LogSnapshot;
 
 import java.util.ArrayList;
@@ -17,7 +16,7 @@ class LogsBuffer {
     private static final Logger logger = LoggerFactory.getLogger(LogsBuffer.class.getName());
 
     private List<LogEntry> logsBuffer;
-    private int offsetIndex;
+    private long offsetIndex;
 
     LogsBuffer(LogEntry offsetEntry) {
         logsBuffer = new ArrayList<>();
@@ -25,23 +24,27 @@ class LogsBuffer {
         this.offsetIndex = offsetEntry.getIndex();
     }
 
-    synchronized int getLastIndex() {
+    synchronized long getLastIndex() {
         return offsetIndex + logsBuffer.size() - 1;
     }
 
-    synchronized int getTerm(int index) {
+    synchronized long getTerm(long index) {
         assert index >= offsetIndex && index < offsetIndex + logsBuffer.size() :
                 String.format("index:%s offsetIndex:%s logsBufferSize:%s", index, offsetIndex, logsBuffer.size());
 
-        return logsBuffer.get(index - offsetIndex).getTerm();
+        return logsBuffer.get((int)(index - offsetIndex)).getTerm();
     }
 
-    synchronized int getOffsetIndex() {
+    synchronized long getOffsetIndex() {
         return offsetIndex;
     }
 
-    synchronized List<LogEntry> getEntries(int start, int end) {
-        return logsBuffer.subList(Math.max(0, start - offsetIndex), end - offsetIndex);
+    synchronized List<LogEntry> getEntries(long start, long end) {
+        assert start >= offsetIndex && end > start;
+        assert start < offsetIndex + logsBuffer.size();
+        assert end <= offsetIndex + logsBuffer.size();
+
+        return logsBuffer.subList(Math.max(0, (int)(start - offsetIndex)), (int)(end - offsetIndex));
     }
 
     synchronized void append(List<LogEntry> entries) {
@@ -49,7 +52,7 @@ class LogsBuffer {
             return;
         }
 
-        int firstIndex = entries.get(0).getIndex();
+        long firstIndex = entries.get(0).getIndex();
         if (firstIndex == offsetIndex + logsBuffer.size()) {
             // normal append
             logsBuffer.addAll(entries);
@@ -65,14 +68,15 @@ class LogsBuffer {
         }
     }
 
-    synchronized void truncateBuffer(int index) {
+    synchronized void truncateBuffer(long index) {
         logger.debug("try truncating logs from {}, current offset:{}", index, offsetIndex);
 
         assert index <= getLastIndex();
+        assert index < offsetIndex + logsBuffer.size();
 
         if (index > offsetIndex) {
             // always at least keep last log entry in buffer
-            List<LogEntry> remainLogs = logsBuffer.subList(index - offsetIndex, logsBuffer.size());
+            List<LogEntry> remainLogs = logsBuffer.subList((int)(index - offsetIndex), logsBuffer.size());
             logsBuffer = new ArrayList<>();
             logsBuffer.addAll(remainLogs);
 
@@ -84,7 +88,7 @@ class LogsBuffer {
     synchronized void installSnapshot(LogSnapshot snapshot) {
         assert snapshot != null;
 
-        int index = snapshot.getIndex();
+        long index = snapshot.getIndex();
         if (index > getLastIndex()) {
             logsBuffer = new ArrayList<>();
             offsetIndex = snapshot.getIndex();

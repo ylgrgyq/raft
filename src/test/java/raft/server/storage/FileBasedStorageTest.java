@@ -143,8 +143,8 @@ public class FileBasedStorageTest {
         int expectLogCount = Constant.kMaxMemtableSize / dataLowSize;
         // create at least 2 tables
         List<LogEntry> expectEntries = TestUtil.newLogEntryList(expectLogCount * 2, dataLowSize, 2048);
-        int firstIndex = expectEntries.get(0).getIndex();
-        int lastIndex = expectEntries.get(expectEntries.size() - 1).getIndex();
+        long firstIndex = expectEntries.get(0).getIndex();
+        long lastIndex = expectEntries.get(expectEntries.size() - 1).getIndex();
 
         List<List<LogEntry>> batches = TestUtil.randomPartitionList(expectEntries);
         for (List<LogEntry> batch : batches) {
@@ -153,11 +153,11 @@ public class FileBasedStorageTest {
             assertEquals(batch.get(batch.size() - 1).getIndex(), testingStorage.getLastIndex());
         }
 
-        int cursor = firstIndex;
+        long cursor = firstIndex;
         while (cursor < lastIndex + 1) {
             int step = ThreadLocalRandom.current().nextInt(10, 1000);
             List<LogEntry> actual = testingStorage.getEntries(cursor, cursor + step);
-            List<LogEntry> expect = expectEntries.subList(cursor - firstIndex, Math.min(cursor + step - firstIndex, expectEntries.size()));
+            List<LogEntry> expect = expectEntries.subList((int)(cursor - firstIndex), Math.min((int)(cursor + step - firstIndex), expectEntries.size()));
             for (int i = 0; i < expect.size(); i++) {
                 LogEntry expectEntry = expect.get(i);
                 assertEquals(expectEntry, actual.get(i));
@@ -206,8 +206,8 @@ public class FileBasedStorageTest {
         int expectSstableCount = 3;
         int entryPerTable = Constant.kMaxMemtableSize / dataLowSize;
         List<LogEntry> expectEntries = TestUtil.newLogEntryList(entryPerTable * expectSstableCount, dataLowSize);
-        int firstIndex = expectEntries.get(0).getIndex();
-        int lastIndex = expectEntries.get(expectEntries.size() - 1).getIndex();
+        long firstIndex = expectEntries.get(0).getIndex();
+        long lastIndex = expectEntries.get(expectEntries.size() - 1).getIndex();
 
         List<List<LogEntry>> batches = TestUtil.randomPartitionList(expectEntries);
         for (List<LogEntry> batch : batches) {
@@ -223,22 +223,22 @@ public class FileBasedStorageTest {
 
         Set<Integer> sstableFileNumbers = getSstableFileNumbers();
         assertEquals(expectSstableCount, sstableFileNumbers.size());
-        int compactCursor = firstIndex + entryPerTable / 2;
+        long compactCursor = firstIndex + entryPerTable / 2;
         while (compactCursor < lastIndex + 1) {
-            Future<Integer> future = testingStorage.compact(compactCursor);
+            Future<Long> future = testingStorage.compact(compactCursor);
             lastE = triggerCompaction(lastE);
             testingStorage.waitWriteSstableFinish();
-            int actualToIndex = future.get();
+            long actualToIndex = future.get();
             assertEquals(actualToIndex, testingStorage.getFirstIndex());
             assertTrue(actualToIndex <= compactCursor);
             sstableFileNumbers = getSstableFileNumbers();
             assertEquals(expectSstableCount + 1, sstableFileNumbers.size());
 
-            int cursor = compactCursor;
+            long cursor = compactCursor;
             while (cursor < lastIndex + 1) {
                 int step = ThreadLocalRandom.current().nextInt(10, 1000);
                 List<LogEntry> actual = testingStorage.getEntries(cursor, cursor + step);
-                List<LogEntry> expect = expectEntries.subList(cursor - firstIndex, Math.min(cursor + step - firstIndex, expectEntries.size()));
+                List<LogEntry> expect = expectEntries.subList((int)(cursor - firstIndex), Math.min((int)(cursor + step - firstIndex), expectEntries.size()));
                 for (int i = 0; i < expect.size(); i++) {
                     LogEntry expectEntry = expect.get(i);
                     assertEquals(expectEntry, actual.get(i));

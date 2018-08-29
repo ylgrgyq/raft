@@ -1,24 +1,26 @@
 package raft.server.storage;
 
+import java.util.Objects;
+
 /**
  * Author: ylgrgyq
  * Date: 18/6/10
  */
 class SSTableFileMetaInfo {
     private int fileNumber;
-    private int firstKey;
-    private int lastKey;
+    private long firstKey;
+    private long lastKey;
     private long fileSize;
 
     void setFileNumber(int fileNumber) {
         this.fileNumber = fileNumber;
     }
 
-    void setFirstKey(int firstIndex) {
+    void setFirstKey(long firstIndex) {
         this.firstKey = firstIndex;
     }
 
-    void setLastKey(int lastIndex) {
+    void setLastKey(long lastIndex) {
         this.lastKey = lastIndex;
     }
 
@@ -30,11 +32,11 @@ class SSTableFileMetaInfo {
         return fileNumber;
     }
 
-    int getFirstKey() {
+    long getFirstKey() {
         return firstKey;
     }
 
-    int getLastKey() {
+    long getLastKey() {
         return lastKey;
     }
 
@@ -46,21 +48,16 @@ class SSTableFileMetaInfo {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof SSTableFileMetaInfo)) return false;
-
         SSTableFileMetaInfo that = (SSTableFileMetaInfo) o;
-
-        if (fileNumber != that.fileNumber) return false;
-        if (firstKey != that.firstKey) return false;
-        if (lastKey != that.lastKey) return false;
-        return fileSize == that.fileSize;
+        return getFileNumber() == that.getFileNumber() &&
+                getFirstKey() == that.getFirstKey() &&
+                getLastKey() == that.getLastKey() &&
+                getFileSize() == that.getFileSize();
     }
 
     @Override
     public int hashCode() {
-        int result = fileNumber;
-        result = 31 * result + firstKey;
-        result = 31 * result + lastKey;
-        result = 31 * result + (int) (fileSize ^ (fileSize >>> 32));
-        return result;
+
+        return Objects.hash(getFileNumber(), getFirstKey(), getLastKey(), getFileSize());
     }
 }

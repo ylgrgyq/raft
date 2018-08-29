@@ -10,27 +10,27 @@ import java.util.List;
 public class RaftStatusSnapshot {
     public static final RaftStatusSnapshot emptyStatus = new RaftStatusSnapshot();
 
-    private int term;
-    private int commitIndex;
-    private int appliedIndex;
+    private long term;
+    private long commitIndex;
+    private long appliedIndex;
     private String leaderId;
     private State state;
     private List<String> peerNodeIds;
 
     public RaftStatusSnapshot() {
-        this.term = 0;
-        this.commitIndex = -1;
-        this.appliedIndex = -1;
+        this.term = 0L;
+        this.commitIndex = -1L;
+        this.appliedIndex = -1L;
         this.leaderId = null;
         this.state = State.FOLLOWER;
         this.peerNodeIds = Collections.emptyList();
     }
 
-    public void setTerm(int term) {
+    public void setTerm(long term) {
         this.term = term;
     }
 
-    public void setCommitIndex(int commitIndex) {
+    public void setCommitIndex(long commitIndex) {
         this.commitIndex = commitIndex;
     }
 
@@ -46,11 +46,11 @@ public class RaftStatusSnapshot {
         this.peerNodeIds = peerNodeIds;
     }
 
-    public int getTerm() {
+    public long getTerm() {
         return term;
     }
 
-    public int getCommitIndex() {
+    public long getCommitIndex() {
         return commitIndex;
     }
 
@@ -62,11 +62,11 @@ public class RaftStatusSnapshot {
         return state;
     }
 
-    public int getAppliedIndex() {
+    public long getAppliedIndex() {
         return appliedIndex;
     }
 
-    public void setAppliedIndex(int appliedIndex) {
+    public void setAppliedIndex(long appliedIndex) {
         this.appliedIndex = appliedIndex;
     }
 

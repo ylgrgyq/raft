@@ -14,35 +14,35 @@ import java.util.function.BiConsumer;
 public interface RaftLog {
     void init(RaftPersistentMeta meta);
 
-    int getLastIndex();
+    long getLastIndex();
 
-    int getFirstIndex();
+    long getFirstIndex();
 
-    Optional<Integer> getTerm(int index);
+    Optional<Long> getTerm(long index);
 
-    Optional<LogEntry> getEntry(int index);
+    Optional<LogEntry> getEntry(long index);
 
-    List<LogEntry> getEntries(int start, int end);
+    List<LogEntry> getEntries(long start, long end);
 
-    boolean match(int term, int index);
+    boolean match(long term, long index);
 
-    int leaderAsyncAppend(int term, List<LogEntry> entries, BiConsumer<? super Integer, ? super Throwable> action);
+    long leaderAsyncAppend(long term, List<LogEntry> entries, BiConsumer<? super Long, ? super Throwable> action);
 
-    int followerSyncAppend(int prevIndex, int prevTerm, List<LogEntry> entries);
+    long followerSyncAppend(long prevIndex, long prevTerm, List<LogEntry> entries);
 
-    boolean isUpToDate(int term, int index);
+    boolean isUpToDate(long term, long index);
 
-    int getCommitIndex();
+    long getCommitIndex();
 
-    int getAppliedIndex();
+    long getAppliedIndex();
 
-    List<LogEntry> tryCommitTo(int commitTo);
+    List<LogEntry> tryCommitTo(long commitTo);
 
-    void appliedTo(int appliedTo);
+    void appliedTo(long appliedTo);
 
     void installSnapshot(LogSnapshot snapshot);
 
-    void snapshotApplied(int snapshotIndex);
+    void snapshotApplied(long snapshotIndex);
 
     void shutdown();
 }

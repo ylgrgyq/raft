@@ -27,8 +27,8 @@ public class RaftPersistentMeta {
     private final OpenOption[] openFileOpts;
 
     private String votedFor;
-    private int term;
-    private int commitIndex;
+    private long term;
+    private long commitIndex;
     private Path stateFilePath;
     private volatile boolean initialized;
 
@@ -116,10 +116,10 @@ public class RaftPersistentMeta {
             }
         }
 
-        term = 0;
+        term = 0L;
         votedFor = null;
         initialized = true;
-        commitIndex = -1;
+        commitIndex = -1L;
     }
 
     public String getVotedFor() {
@@ -136,20 +136,20 @@ public class RaftPersistentMeta {
         this.persistent();
     }
 
-    public int getTerm() {
+    public long getTerm() {
         checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         return term;
     }
 
-    public void setTerm(int term) {
+    public void setTerm(long term) {
         checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         this.term = term;
         this.persistent();
     }
 
-    public void setTermAndVotedFor(int term, String votedFor) {
+    public void setTermAndVotedFor(long term, String votedFor) {
         checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         this.term = term;
@@ -157,13 +157,13 @@ public class RaftPersistentMeta {
         persistent();
     }
 
-    public int getCommitIndex() {
+    public long getCommitIndex() {
         checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         return commitIndex;
     }
 
-    public void setCommitIndex(int commitIndex) {
+    public void setCommitIndex(long commitIndex) {
         checkState(initialized, "should initialize RaftPersistentMeta before using it");
 
         this.commitIndex = commitIndex;

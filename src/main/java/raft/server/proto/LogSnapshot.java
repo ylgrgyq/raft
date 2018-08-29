@@ -16,8 +16,8 @@ public  final class LogSnapshot extends
   }
   private LogSnapshot() {
     data_ = com.google.protobuf.ByteString.EMPTY;
-    index_ = 0;
-    term_ = 0;
+    index_ = 0L;
+    term_ = 0L;
     peerIds_ = com.google.protobuf.LazyStringArrayList.EMPTY;
   }
 
@@ -53,12 +53,12 @@ public  final class LogSnapshot extends
           }
           case 16: {
 
-            index_ = input.readInt32();
+            index_ = input.readInt64();
             break;
           }
           case 24: {
 
-            term_ = input.readInt32();
+            term_ = input.readInt64();
             break;
           }
           case 34: {
@@ -107,20 +107,20 @@ public  final class LogSnapshot extends
   }
 
   public static final int INDEX_FIELD_NUMBER = 2;
-  private int index_;
+  private long index_;
   /**
-   * <code>optional int32 index = 2;</code>
+   * <code>optional int64 index = 2;</code>
    */
-  public int getIndex() {
+  public long getIndex() {
     return index_;
   }
 
   public static final int TERM_FIELD_NUMBER = 3;
-  private int term_;
+  private long term_;
   /**
-   * <code>optional int32 term = 3;</code>
+   * <code>optional int64 term = 3;</code>
    */
-  public int getTerm() {
+  public long getTerm() {
     return term_;
   }
 
@@ -168,11 +168,11 @@ public  final class LogSnapshot extends
     if (!data_.isEmpty()) {
       output.writeBytes(1, data_);
     }
-    if (index_ != 0) {
-      output.writeInt32(2, index_);
+    if (index_ != 0L) {
+      output.writeInt64(2, index_);
     }
-    if (term_ != 0) {
-      output.writeInt32(3, term_);
+    if (term_ != 0L) {
+      output.writeInt64(3, term_);
     }
     for (int i = 0; i < peerIds_.size(); i++) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 4, peerIds_.getRaw(i));
@@ -188,13 +188,13 @@ public  final class LogSnapshot extends
       size += com.google.protobuf.CodedOutputStream
         .computeBytesSize(1, data_);
     }
-    if (index_ != 0) {
+    if (index_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, index_);
+        .computeInt64Size(2, index_);
     }
-    if (term_ != 0) {
+    if (term_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, term_);
+        .computeInt64Size(3, term_);
     }
     {
       int dataSize = 0;
@@ -241,9 +241,11 @@ public  final class LogSnapshot extends
     hash = (37 * hash) + DATA_FIELD_NUMBER;
     hash = (53 * hash) + getData().hashCode();
     hash = (37 * hash) + INDEX_FIELD_NUMBER;
-    hash = (53 * hash) + getIndex();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getIndex());
     hash = (37 * hash) + TERM_FIELD_NUMBER;
-    hash = (53 * hash) + getTerm();
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getTerm());
     if (getPeerIdsCount() > 0) {
       hash = (37 * hash) + PEER_IDS_FIELD_NUMBER;
       hash = (53 * hash) + getPeerIdsList().hashCode();
@@ -368,9 +370,9 @@ public  final class LogSnapshot extends
       super.clear();
       data_ = com.google.protobuf.ByteString.EMPTY;
 
-      index_ = 0;
+      index_ = 0L;
 
-      term_ = 0;
+      term_ = 0L;
 
       peerIds_ = com.google.protobuf.LazyStringArrayList.EMPTY;
       bitField0_ = (bitField0_ & ~0x00000008);
@@ -451,10 +453,10 @@ public  final class LogSnapshot extends
       if (other.getData() != com.google.protobuf.ByteString.EMPTY) {
         setData(other.getData());
       }
-      if (other.getIndex() != 0) {
+      if (other.getIndex() != 0L) {
         setIndex(other.getIndex());
       }
-      if (other.getTerm() != 0) {
+      if (other.getTerm() != 0L) {
         setTerm(other.getTerm());
       }
       if (!other.peerIds_.isEmpty()) {
@@ -523,54 +525,54 @@ public  final class LogSnapshot extends
       return this;
     }
 
-    private int index_ ;
+    private long index_ ;
     /**
-     * <code>optional int32 index = 2;</code>
+     * <code>optional int64 index = 2;</code>
      */
-    public int getIndex() {
+    public long getIndex() {
       return index_;
     }
     /**
-     * <code>optional int32 index = 2;</code>
+     * <code>optional int64 index = 2;</code>
      */
-    public Builder setIndex(int value) {
+    public Builder setIndex(long value) {
       
       index_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 index = 2;</code>
+     * <code>optional int64 index = 2;</code>
      */
     public Builder clearIndex() {
       
-      index_ = 0;
+      index_ = 0L;
       onChanged();
       return this;
     }
 
-    private int term_ ;
+    private long term_ ;
     /**
-     * <code>optional int32 term = 3;</code>
+     * <code>optional int64 term = 3;</code>
      */
-    public int getTerm() {
+    public long getTerm() {
       return term_;
     }
     /**
-     * <code>optional int32 term = 3;</code>
+     * <code>optional int64 term = 3;</code>
      */
-    public Builder setTerm(int value) {
+    public Builder setTerm(long value) {
       
       term_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>optional int32 term = 3;</code>
+     * <code>optional int64 term = 3;</code>
      */
     public Builder clearTerm() {
       
-      term_ = 0;
+      term_ = 0L;
       onChanged();
       return this;
     }

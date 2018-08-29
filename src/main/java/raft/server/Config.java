@@ -16,7 +16,7 @@ public class Config {
     final long pingIntervalTicks;
     final long suggestElectionTimeoutTicks;
     final int maxEntriesPerAppend;
-    final int appliedTo;
+    final long appliedTo;
     final boolean syncWriteStateFile;
 
     final List<String> peers;
@@ -50,7 +50,7 @@ public class Config {
         private long pingIntervalTicks = 20;
         private long suggestElectionTimeoutTicks = 60;
         private int maxEntriesPerAppend = 16;
-        private int appliedTo = -1;
+        private long appliedTo = -1L;
         private List<String> peers = Collections.emptyList();
         private boolean syncWriteStateFile = false;
 
@@ -111,7 +111,7 @@ public class Config {
             return this;
         }
 
-        public ConfigBuilder withAppliedTo(int appliedTo) {
+        public ConfigBuilder withAppliedTo(long appliedTo) {
             this.appliedTo = appliedTo;
             return this;
         }

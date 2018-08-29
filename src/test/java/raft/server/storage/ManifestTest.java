@@ -68,8 +68,8 @@ public class ManifestTest {
         assertEquals(expectNextFileNumber, testingManifest.getNextFileNumber());
         assertEquals(expectLogNumber, testingManifest.getLogFileNumber());
 
-        int firstIndex = testingManifest.getFirstIndex();
-        int lastIndex = testingManifest.getLastIndex();
+        long firstIndex = testingManifest.getFirstIndex();
+        long lastIndex = testingManifest.getLastIndex();
         assertEquals(firstIndex, expectMetas.get(0).getFirstKey());
         assertEquals(lastIndex, expectMetas.get(expectMetas.size() - 1).getLastKey());
 

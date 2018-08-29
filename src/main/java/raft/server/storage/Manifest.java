@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 class Manifest {
     private static final Logger logger = LoggerFactory.getLogger(Manifest.class.getName());
 
-    private final BlockingQueue<CompactTask<Integer>> compactTaskQueue;
+    private final BlockingQueue<CompactTask<Long>> compactTaskQueue;
     private final String baseDir;
     private final String storageName;
     private final List<SSTableFileMetaInfo> metas;
@@ -81,9 +81,9 @@ class Manifest {
     }
 
     boolean processCompactTask() throws IOException {
-        int greatestToKey = -1;
-        List<CompactTask<Integer>> tasks = new ArrayList<>();
-        CompactTask<Integer> task;
+        long greatestToKey = -1L;
+        List<CompactTask<Long>> tasks = new ArrayList<>();
+        CompactTask<Long> task;
         while ((task = compactTaskQueue.poll()) != null) {
             tasks.add(task);
             if (task.getToKey() > greatestToKey) {
@@ -115,7 +115,7 @@ class Manifest {
                 }
 
                 // TODO complete compact task with requesting toIndex in CompactTask
-                final Integer firstIndex = getFirstIndex();
+                final Long firstIndex = getFirstIndex();
                 tasks.forEach(t -> t.getFuture().complete(firstIndex));
                 return true;
             }
@@ -124,9 +124,9 @@ class Manifest {
         return false;
     }
 
-    CompletableFuture<Integer> compact(int toKey) {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
-        CompactTask<Integer> task = new CompactTask<>(future, toKey);
+    CompletableFuture<Long> compact(long toKey) {
+        CompletableFuture<Long> future = new CompletableFuture<>();
+        CompactTask<Long> task = new CompactTask<>(future, toKey);
         compactTaskQueue.add(task);
         return future;
     }
@@ -167,26 +167,26 @@ class Manifest {
         }
     }
 
-    int getFirstIndex() {
+    long getFirstIndex() {
         metasLock.lock();
         try {
             if (!metas.isEmpty()) {
                 return metas.get(0).getFirstKey();
             } else {
-                return -1;
+                return -1L;
             }
         } finally {
             metasLock.unlock();
         }
     }
 
-    int getLastIndex() {
+    long getLastIndex() {
         metasLock.lock();
         try {
             if (!metas.isEmpty()) {
                 return metas.get(metas.size() - 1).getLastKey();
             } else {
-                return -1;
+                return -1L;
             }
         } finally {
             metasLock.unlock();
@@ -226,7 +226,7 @@ class Manifest {
      * @param endKey   target end key (exclusive)
      * @return iterator for found SSTableFileMetaInfo
      */
-    List<SSTableFileMetaInfo> searchMetas(int startKey, int endKey) {
+    List<SSTableFileMetaInfo> searchMetas(long startKey, long endKey) {
         metasLock.lock();
         try {
             int startMetaIndex;
@@ -245,7 +245,7 @@ class Manifest {
         }
     }
 
-    private int traverseSearchStartMeta(int index) {
+    private int traverseSearchStartMeta(long index) {
         int i = 0;
         while (i < metas.size()) {
             SSTableFileMetaInfo meta = metas.get(i);
@@ -260,7 +260,7 @@ class Manifest {
         return i;
     }
 
-    private int binarySearchStartMeta(int index) {
+    private int binarySearchStartMeta(long index) {
         int start = 0;
         int end = metas.size();
 
@@ -281,9 +281,9 @@ class Manifest {
 
     private static class CompactTask<T> {
         private final CompletableFuture<T> future;
-        private final int toKey;
+        private final long toKey;
 
-        CompactTask(CompletableFuture<T> future, int toKey) {
+        CompactTask(CompletableFuture<T> future, long toKey) {
             this.future = future;
             this.toKey = toKey;
         }
@@ -292,7 +292,7 @@ class Manifest {
             return future;
         }
 
-        int getToKey() {
+        long getToKey() {
             return toKey;
         }
     }
