@@ -6,9 +6,10 @@ Write a raft to know more about it.
 
 Supported raft features:
 - Leader election
-- Log replication
+- Log replication/compaction
 - Membership changes
 - Leadership transfer
+- Snapshot
 
 ## Testing coverage report
 
