@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Author: ylgrgyq
@@ -55,4 +56,6 @@ public interface PersistentStorage {
     Future<Long> compact(long toIndex);
 
     void shutdown();
+
+    void awaitShutdown(long timeout, TimeUnit unit);
 }

@@ -861,6 +861,7 @@ public class RaftImpl implements Raft {
         shutdown();
     }
 
+    @Override
     public void shutdown() {
         if (!started.compareAndSet(true, false)) {
             return;

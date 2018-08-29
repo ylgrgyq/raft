@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -117,6 +118,11 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
 
     @Override
     public void shutdown() {
+
+    }
+
+    @Override
+    public void awaitShutdown(long timeout, TimeUnit unit) {
 
     }
 }

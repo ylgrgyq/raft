@@ -454,56 +454,24 @@ public class FileBasedStorage implements PersistentStorage {
         makeRoomForEntry(true);
     }
 
-    synchronized void awaitShutdown(long timeout, TimeUnit unit) throws IOException {
-        checkArgument(timeout >= 0);
-        if (status == StorageStatus.SHUTTING_DOWN) {
-            return;
-        }
-
-        status = StorageStatus.SHUTTING_DOWN;
-
-        long start = System.nanoTime();
-        try {
-            waitWriteSstableFinish();
-            sstableWriterPool.shutdown();
-            timeout = unit.toNanos(timeout) - (System.nanoTime() - start);
-            sstableWriterPool.awaitTermination(timeout, TimeUnit.NANOSECONDS);
-        } catch (InterruptedException ex) {
-            sstableWriterPool.shutdownNow();
-        }
-
-        if (logWriter != null) {
-            logWriter.close();
-        }
-
-        manifest.close();
-
-        tableCache.evictAll();
-
-        if (storageLock != null && storageLock.isValid()) {
-            storageLock.release();
-        }
-
-        if (storageLockChannel != null && storageLockChannel.isOpen()) {
-            storageLockChannel.close();
-        }
-    }
-
-    synchronized void waitWriteSstableFinish() throws InterruptedException {
-        if (backgroundWriteSstableRunning) {
-            this.wait();
-        }
-    }
-
     @Override
-    public void shutdown() throws StorageInternalError {
+    public synchronized void awaitShutdown(long timeout, TimeUnit unit) {
+        checkArgument(timeout >= 0);
         if (status == StorageStatus.SHUTTING_DOWN) {
             return;
         }
 
         try {
             status = StorageStatus.SHUTTING_DOWN;
-            sstableWriterPool.shutdownNow();
+            sstableWriterPool.shutdown();
+
+            if (timeout > 0) {
+                try {
+                    sstableWriterPool.awaitTermination(timeout, unit);
+                } catch (InterruptedException ex) {
+                    sstableWriterPool.shutdownNow();
+                }
+            }
 
             if (logWriter != null) {
                 logWriter.close();
@@ -523,6 +491,17 @@ public class FileBasedStorage implements PersistentStorage {
         } catch (IOException ex) {
             throw new StorageInternalError(ex);
         }
+    }
+
+    synchronized void waitWriteSstableFinish() throws InterruptedException {
+        if (backgroundWriteSstableRunning) {
+            this.wait();
+        }
+    }
+
+    @Override
+    public synchronized void shutdown() {
+        awaitShutdown(0, TimeUnit.MILLISECONDS);
     }
 
     private Itr internalIterator(long start, long end) {
