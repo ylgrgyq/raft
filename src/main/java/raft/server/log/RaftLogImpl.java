@@ -166,6 +166,11 @@ public class RaftLogImpl implements RaftLog {
             // followers afterwards and don't need to wait them to persistent in storage
             buffer.append(preparedEntries);
             CompletableFuture.supplyAsync(() -> {
+                try {
+                    Thread.sleep(1000);
+                } catch (Exception ex) {
+                    System.out.println(ex);
+                }
                 storage.append(preparedEntries);
                 return getLastIndex();
             }, pool).whenComplete(callback);
@@ -260,7 +265,7 @@ public class RaftLogImpl implements RaftLog {
                 "try applied log to %s but applied index in log is %s", appliedTo, appliedIndex);
 
         this.appliedIndex = appliedTo;
-        buffer.truncateBuffer(appliedTo);
+        buffer.truncateBuffer(Math.min(appliedTo, storage.getLastIndex()));
     }
 
     @Override

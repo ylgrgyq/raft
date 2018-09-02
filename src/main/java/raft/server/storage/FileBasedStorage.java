@@ -311,6 +311,8 @@ public class FileBasedStorage implements PersistentStorage {
             firstIndexInStorage = first.getIndex();
         }
 
+
+        // todo support overwrite log
         try {
             for (LogEntry e : entries) {
                 if (makeRoomForEntry(false)) {

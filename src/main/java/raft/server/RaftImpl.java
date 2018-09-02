@@ -41,6 +41,7 @@ public class RaftImpl implements Raft {
     private final AtomicBoolean wakenUp = new AtomicBoolean();
     private final BlockingQueue<Proposal> proposalQueue = new LinkedBlockingQueue<>(1000);
     private final BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>(1000);
+    private final BlockingQueue<RaftCommand> outputCmdQueue;
     private final PendingProposalFutures pendingProposal = new PendingProposalFutures();
 
     private final Config c;
@@ -53,7 +54,7 @@ public class RaftImpl implements Raft {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     private volatile String leaderId;
-    private RaftState state;
+    private volatile RaftState state;
     private long electionTimeoutTicks;
     private Thread workerThread;
     private volatile boolean workerRun = true;
@@ -72,6 +73,7 @@ public class RaftImpl implements Raft {
         this.meta = new RaftPersistentMeta(c.persistentMetaFileDirPath, c.selfId, c.syncWriteStateFile);
         this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
         this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
+        this.outputCmdQueue = c.outputQueue;
 
         for (String peerId : c.peers) {
             this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, c.maxEntriesPerAppend));
@@ -226,6 +228,8 @@ public class RaftImpl implements Raft {
         return doPropose(data, LogEntry.EntryType.LOG);
     }
 
+    // TODO 看上去需要一个单独的线程专门负责在处于 follower 状态时，将 log 写入 storage，再向 Broker 把消息写出。一定要保证 follower 是先存好 log 之后再向外写 command
+
     private CompletableFuture<ProposalResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
         List<LogEntry> logEntries = datas
                 .stream()
@@ -238,8 +242,12 @@ public class RaftImpl implements Raft {
         CompletableFuture<ProposalResponse> future;
         if (getState() == State.LEADER) {
             future = proposal.getFuture();
-            proposalQueue.add(proposal);
-            wakeUpWorker();
+            if (proposalQueue.add(proposal)) {
+                wakeUpWorker();
+            } else {
+                future = CompletableFuture.completedFuture(
+                        ProposalResponse.errorWithLeaderHint(leaderId, ErrorMsg.TOO_MANY_PENDING_PROPOSALS));
+            }
         } else {
             future = CompletableFuture.completedFuture(ProposalResponse.errorWithLeaderHint(leaderId, ErrorMsg.NOT_LEADER));
         }
@@ -370,6 +378,7 @@ public class RaftImpl implements Raft {
                 processReceivedCommand(cmd);
             } catch (Throwable t) {
                 logger.error("process received command {} on node {} failed", cmd, this, t);
+                //TODO panic when process received command failed?
             }
         }
     }
@@ -739,6 +748,8 @@ public class RaftImpl implements Raft {
         if (cmd.getPrevLogIndex() < raftLog.getCommitIndex()) {
             resp = resp.setMatchIndex(raftLog.getCommitIndex()).setSuccess(true);
         } else {
+            // TODO consider async replicate logs on follower to prevent worker thread missing ping and transfer to
+            // candidate even leader is functional
             long matchIndex = RaftImpl.this.replicateLogsOnFollower(cmd);
             if (matchIndex != -1L) {
                 tryCommitTo(Math.min(cmd.getLeaderCommit(), matchIndex));
