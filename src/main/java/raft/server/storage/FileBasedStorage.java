@@ -311,10 +311,13 @@ public class FileBasedStorage implements PersistentStorage {
             firstIndexInStorage = first.getIndex();
         }
 
-
         // todo support overwrite log
         try {
+            long lastIndex = -1;
             for (LogEntry e : entries) {
+                checkArgument(e.getIndex() > lastIndex,
+                        "log entries being appended is not monotone increasing: %s", entries);
+                lastIndex = e.getIndex();
                 if (makeRoomForEntry(false)) {
                     byte[] data = e.toByteArray();
                     logWriter.append(data);

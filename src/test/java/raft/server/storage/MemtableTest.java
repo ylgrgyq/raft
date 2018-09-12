@@ -90,4 +90,39 @@ public class MemtableTest {
         }
 
     }
+
+    @Test
+    public void overwrite() throws Exception {
+        LogEntry overwritingStartEntry = testingEntries.get(testingEntries.size() / 2);
+        List<LogEntry> expectRemainEntries = testingEntries.subList(0, testingEntries.size() / 2);
+
+        List<LogEntry> overwritingEntries = TestUtil.newLogEntryList(10000, 128,
+                2048, overwritingStartEntry.getTerm(), overwritingStartEntry.getIndex(),
+                1, 1);
+        for (LogEntry e : overwritingEntries) {
+            testingMm.add(e.getIndex(), e);
+        }
+
+        long firstIndex = testingEntries.get(0).getIndex();
+        long lastIndex = testingEntries.get(testingEntries.size() - 1).getIndex();
+        long cursor = ThreadLocalRandom.current().nextLong(1, firstIndex);
+
+        List<LogEntry> actual = testingMm.getEntries(cursor, lastIndex + 100000);
+        int expectTotalSize = expectRemainEntries.size() + overwritingEntries.size();
+        assertEquals(expectTotalSize, actual.size());
+        int expectMemSize = 0;
+        for (int i = 0; i < expectRemainEntries.size(); i++) {
+            LogEntry actualE = actual.get(i);
+            expectMemSize += Long.BYTES + actualE.getSerializedSize();
+            assertEquals(expectRemainEntries.get(i), actualE);
+        }
+
+        for(int i = expectRemainEntries.size(); i < expectTotalSize; ++i) {
+            LogEntry actualE = actual.get(i);
+            expectMemSize += Long.BYTES + actualE.getSerializedSize();
+            assertEquals(overwritingEntries.get(i - expectRemainEntries.size()), actualE);
+        }
+
+        assertEquals(expectMemSize, testingMm.getMemoryUsedInBytes());
+    }
 }
