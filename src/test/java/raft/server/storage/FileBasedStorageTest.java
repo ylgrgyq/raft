@@ -202,10 +202,10 @@ public class FileBasedStorageTest {
 
     @Test
     public void compact() throws Exception {
-        int dataLowSize = 1024;
+        int dataSize = 1024;
         int expectSstableCount = 3;
-        int entryPerTable = Constant.kMaxMemtableSize / dataLowSize;
-        List<LogEntry> expectEntries = TestUtil.newLogEntryList(entryPerTable * expectSstableCount, dataLowSize);
+        int entryPerTable = Constant.kMaxMemtableSize / dataSize;
+        List<LogEntry> expectEntries = TestUtil.newLogEntryList(entryPerTable * expectSstableCount, dataSize);
         long firstIndex = expectEntries.get(0).getIndex();
         long lastIndex = expectEntries.get(expectEntries.size() - 1).getIndex();
 
@@ -223,7 +223,9 @@ public class FileBasedStorageTest {
 
         Set<Integer> sstableFileNumbers = getSstableFileNumbers();
         assertEquals(expectSstableCount, sstableFileNumbers.size());
-        long compactCursor = firstIndex + entryPerTable / 2;
+
+        // start compact at the middle of the second table
+        long compactCursor = firstIndex  + entryPerTable / 2;
         while (compactCursor < lastIndex + 1) {
             Future<Long> future = testingStorage.compact(compactCursor);
             lastE = triggerCompaction(lastE);

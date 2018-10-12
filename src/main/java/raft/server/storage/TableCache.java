@@ -10,6 +10,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Author: ylgrgyq
@@ -46,7 +47,13 @@ class TableCache {
 
     SeekableIterator<Long, LogEntry> iterator(int fileNumber, long fileSize) throws IOException {
         Table t = findTable(fileNumber, fileSize);
+        assert t != null;
         return t.iterator();
+    }
+
+    boolean hasTable(int fileNumber) {
+        Table t = cache.getIfPresent(fileNumber);
+        return t != null;
     }
 
     void evict(int fileNumber) throws IOException {
@@ -57,10 +64,20 @@ class TableCache {
         cache.invalidate(fileNumber);
     }
 
+    void evict(List<Integer> fileNumbers) throws IOException {
+        for (int fileNumber : fileNumbers) {
+            evict(fileNumber);
+        }
+    }
+
     void evictAll() throws IOException {
         for(Map.Entry<Integer, Table> e : cache.asMap().entrySet()) {
             e.getValue().close();
         }
         cache.invalidateAll();
+    }
+
+    Set<Integer> getAllFileNumbers() {
+        return cache.asMap().keySet();
     }
 }

@@ -281,8 +281,23 @@ public class FileBasedStorage implements PersistentStorage {
             throw new LogsCompactedException(start);
         }
 
+        if (! mm.isEmpty() && start >= mm.firstKey()) {
+            return mm.getEntries(start, end);
+        }
+
+        Itr itr;
+        if (imm != null && start >= imm.firstKey()) {
+            List<SeekableIterator<Long, LogEntry>> itrs = Arrays.asList(imm.iterator(), mm.iterator());
+            for (SeekableIterator<Long, LogEntry> it : itrs) {
+                it.seek(start);
+            }
+
+            itr = new Itr(itrs);
+        } else {
+            itr = internalIterator(start, end);
+        }
+
         List<LogEntry> ret = new ArrayList<>();
-        Itr itr = internalIterator(start, end);
         while (itr.hasNext()) {
             LogEntry e = itr.next();
             if (e.getIndex() >= end) {
@@ -378,12 +393,31 @@ public class FileBasedStorage implements PersistentStorage {
         StorageStatus status = StorageStatus.OK;
         try {
             ManifestRecord record = null;
-            if (! imm.isEmpty()) {
-                SSTableFileMetaInfo meta = writeMemTableToSSTable(imm);
+            if (!imm.isEmpty()) {
+                if (imm.firstKey() > manifest.getLastIndex()) {
+                    SSTableFileMetaInfo meta = writeMemTableToSSTable(imm);
+                    record = ManifestRecord.newPlainRecord();
+                    record.addMeta(meta);
+                    record.setLogNumber(logFileNumber);
+                } else {
+                    List<SSTableFileMetaInfo> remainMetas = new ArrayList<>();
 
-                record = ManifestRecord.newPlainRecord();
-                record.addMeta(meta);
-                record.setLogNumber(logFileNumber);
+                    long firstKeyInImm = imm.firstKey();
+                    List<SSTableFileMetaInfo> allMetas = manifest.searchMetas(Long.MIN_VALUE, Long.MAX_VALUE);
+                    for (SSTableFileMetaInfo meta : allMetas) {
+                        if (firstKeyInImm >= meta.getFirstKey()) {
+                            remainMetas.add(mergeMemTableAndSStable(meta, imm));
+                            break;
+                        } else {
+                            remainMetas.add(meta);
+                        }
+                    }
+
+                    assert !remainMetas.isEmpty();
+                    record = ManifestRecord.newReplaceAllExistedMetasRecord();
+                    record.addMetas(remainMetas);
+                    record.setLogNumber(logFileNumber);
+                }
                 manifest.logRecord(record);
             }
 
@@ -391,8 +425,17 @@ public class FileBasedStorage implements PersistentStorage {
                 firstIndexInStorage = manifest.getFirstIndex();
             }
 
-            int lowestUsedSSTableFileNumber = manifest.getLowestSSTableFileNumber();
-            FileName.deleteOutdatedFiles(baseDir, logFileNumber, lowestUsedSSTableFileNumber);
+            Set<Integer> remainMetasFileNumberSet = manifest.searchMetas(Long.MIN_VALUE, Long.MAX_VALUE)
+                    .stream()
+                    .map(SSTableFileMetaInfo::getFileNumber)
+                    .collect(Collectors.toSet());
+            for (Integer fileNumber : tableCache.getAllFileNumbers()){
+                if (!remainMetasFileNumberSet.contains(fileNumber)) {
+                    tableCache.evict(fileNumber);
+                }
+            }
+
+            FileName.deleteOutdatedFiles(baseDir, logFileNumber, tableCache);
 
             logger.debug("write mem table in background done with manifest record {}", record);
         } catch (Throwable t) {
@@ -412,19 +455,40 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     private SSTableFileMetaInfo writeMemTableToSSTable(Memtable mm) throws IOException {
+        return mergeMemTableAndSStable(null, mm);
+    }
+
+    private SSTableFileMetaInfo mergeMemTableAndSStable(SSTableFileMetaInfo sstable, Memtable mm) throws IOException {
         assert mm != null;
 
         SSTableFileMetaInfo meta = new SSTableFileMetaInfo();
 
         int fileNumber = manifest.getNextFileNumber();
         meta.setFileNumber(fileNumber);
-        meta.setFirstKey(mm.firstKey());
-        meta.setLastKey(mm.lastKey());
+        meta.setFirstKey(Math.min(mm.firstKey(), sstable != null ? sstable.getFirstKey() : Long.MAX_VALUE));
+        meta.setLastKey(Math.max(mm.lastKey(), sstable != null ? sstable.getLastKey() : -1));
 
         String tableFileName = FileName.getSSTableName(storageName, fileNumber);
         Path tableFile = Paths.get(baseDir, tableFileName);
         try (FileChannel ch = FileChannel.open(tableFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
             TableBuilder tableBuilder = new TableBuilder(ch);
+
+            Iterator<LogEntry> ssTableIterator = Collections.<LogEntry>emptyList().iterator();
+            if (sstable != null) {
+                ssTableIterator = tableCache.iterator(sstable.getFileNumber(), sstable.getFileSize());
+            }
+
+            long boundary = mm.firstKey();
+            while (ssTableIterator.hasNext()) {
+                LogEntry entry = ssTableIterator.next();
+                if (entry.getIndex() < boundary) {
+                    byte[] data = entry.toByteArray();
+                    tableBuilder.add(entry.getIndex(), data);
+                } else {
+                    break;
+                }
+            }
+
             for (LogEntry entry : mm) {
                 byte[] data = entry.toByteArray();
                 tableBuilder.add(entry.getIndex(), data);
