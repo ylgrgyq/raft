@@ -102,7 +102,7 @@ class FileName {
         return new FileNameMeta(fileName, storageName, fileNumber, type);
     }
 
-    private static List<Path> getOutdatedFiles(String baseDir, int logFileNumber, int lowestUsedSSTableFileNumber) {
+    private static List<Path> getOutdatedFiles(String baseDir, int logFileNumber, TableCache tableCache) {
         try {
             File dirFile = new File(baseDir);
             File[] files = dirFile.listFiles();
@@ -124,7 +124,7 @@ class FileName {
                                 case Log:
                                     return meta.getFileNumber() < logFileNumber;
                                 case SSTable:
-                                    return meta.getFileNumber() < lowestUsedSSTableFileNumber;
+                                    return ! tableCache.hasTable(meta.getFileNumber());
                                 default:
                                     return false;
                             }
@@ -140,8 +140,8 @@ class FileName {
         }
     }
 
-    static void deleteOutdatedFiles(String baseDir, int logFileNumber, int lowestUsedSSTableFileNumber) {
-        List<Path> outdatedFilePaths = getOutdatedFiles(baseDir, logFileNumber, lowestUsedSSTableFileNumber);
+    static void deleteOutdatedFiles(String baseDir, int logFileNumber, TableCache tableCache) {
+        List<Path> outdatedFilePaths = getOutdatedFiles(baseDir, logFileNumber, tableCache);
         try {
             for (Path path : outdatedFilePaths) {
                 Files.deleteIfExists(path);

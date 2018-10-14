@@ -3,8 +3,10 @@ package raft.server;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import raft.server.log.PersistentStorage;
+import raft.server.proto.RaftCommand;
 
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -25,6 +27,7 @@ public class Config {
     final StateMachine stateMachine;
     final RaftCommandBroker broker;
     final PersistentStorage storage;
+    final BlockingQueue<RaftCommand> outputQueue;
 
     private Config(ConfigBuilder builder) {
         this.tickIntervalMs = builder.tickIntervalMs;
@@ -39,6 +42,7 @@ public class Config {
         this.storage = builder.storage;
         this.appliedTo = builder.appliedTo;
         this.syncWriteStateFile = builder.syncWriteStateFile;
+        this.outputQueue = builder.outputQueue;
     }
 
     public static ConfigBuilder newBuilder() {
@@ -59,6 +63,7 @@ public class Config {
         private String persistentMetaFileDirPath;
         private String selfId;
         private PersistentStorage storage;
+        private BlockingQueue<RaftCommand> outputQueue;
 
         public ConfigBuilder withSelfID(String selfId) {
             this.selfId = selfId;
@@ -106,6 +111,11 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder withRaftCommandOutputQueue(BlockingQueue<RaftCommand> outputQueue) {
+            this.outputQueue = outputQueue;
+            return this;
+        }
+
         public ConfigBuilder withPersistentStorage(PersistentStorage storage) {
             this.storage = storage;
             return this;
@@ -127,6 +137,7 @@ public class Config {
                     "Must provide a non-empty directory path to save raft persistent state");
             Preconditions.checkNotNull(stateMachine, "Must provide a state machine implementation");
             Preconditions.checkNotNull(broker, "Must provide a broker to transfer raft command between raft nodes");
+//            Preconditions.checkNotNull(outputQueue, "Must provide a output queue to transfer raft command between raft nodes");
             Preconditions.checkNotNull(storage, "Must provide a storage to save persistent logs");
 
             if (peers.stream().noneMatch(p -> p.equals(selfId))) {

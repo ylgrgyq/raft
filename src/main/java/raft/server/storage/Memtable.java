@@ -19,8 +19,22 @@ class Memtable implements Iterable<LogEntry> {
     }
 
     void add(long k, LogEntry v) {
+//        assert k > 0;
+
+        if (! table.isEmpty() && k <= table.lastKey()){
+            long removeStartKeyNotInclusive = table.ceilingKey(k);
+            table = new ConcurrentSkipListMap<>(table.subMap(-1L, removeStartKeyNotInclusive));
+
+            memSize = recalculateCurrentMemoryUsedInBytes();
+        }
+
         table.put(k, v);
-        memSize += Integer.BYTES + v.getSerializedSize();
+        memSize += Long.BYTES + v.getSerializedSize();
+    }
+
+    private int recalculateCurrentMemoryUsedInBytes() {
+        int entrySize = table.values().stream().mapToInt(LogEntry::getSerializedSize).sum();
+        return table.size() * Long.BYTES + entrySize;
     }
 
     Long firstKey() {

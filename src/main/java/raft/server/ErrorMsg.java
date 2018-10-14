@@ -14,7 +14,8 @@ public enum ErrorMsg {
     LEADER_TRANSFERRING(6, "Transferring leadership to another node"),
     UNKNOWN_TRANSFEREEID(7, "Transfer leadership to a unknown node"),
     TRANSFER_ABORTED_BY_TRANSFEREE_REMOVED(8, "Transfer leadership is aborted due to transferee was removed"),
-    TIMEOUT(9, "Operation aborted due to timeout");
+    TIMEOUT(9, "Operation aborted due to timeout"),
+    TOO_MANY_PENDING_PROPOSALS(10, "Too many pending proposals");
 
     private int code;
     private String msg;

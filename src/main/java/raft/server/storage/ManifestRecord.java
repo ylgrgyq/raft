@@ -27,7 +27,7 @@ class ManifestRecord {
     }
 
     static ManifestRecord newReplaceAllExistedMetasRecord() {
-        return new ManifestRecord(Type.REPLEASE_METAS);
+        return new ManifestRecord(Type.REPLACE_METAS);
     }
 
     int getNextFileNumber() {
@@ -52,7 +52,6 @@ class ManifestRecord {
     }
 
     void setLogNumber(int logNumber) {
-        assert type == Type.PLAIN;
         this.logNumber = logNumber;
     }
 
@@ -134,6 +133,6 @@ class ManifestRecord {
 
     enum Type {
         PLAIN,
-        REPLEASE_METAS
+        REPLACE_METAS
     }
 }

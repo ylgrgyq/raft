@@ -44,10 +44,13 @@ class Manifest {
         this.metasLock = new ReentrantLock();
     }
 
-    private void registerMetas(List<SSTableFileMetaInfo> metas) {
+    private void registerMetas(ManifestRecord record) {
         metasLock.lock();
         try {
-            this.metas.addAll(metas);
+            if (record.getType() == ManifestRecord.Type.REPLACE_METAS) {
+                this.metas.clear();
+            }
+            this.metas.addAll(record.getMetas());
         } finally {
             metasLock.unlock();
         }
@@ -56,7 +59,7 @@ class Manifest {
     synchronized void logRecord(ManifestRecord record) throws IOException {
         assert record.getType() != ManifestRecord.Type.PLAIN || record.getLogNumber() >= logNumber;
 
-        registerMetas(record.getMetas());
+        registerMetas(record);
 
         String manifestFileName = null;
         if (manifestRecordWriter == null) {
@@ -103,13 +106,7 @@ class Manifest {
                     record.addMetas(remainMetas);
                     logRecord(record);
 
-                    metasLock.lock();
-                    try {
-                        metas.clear();
-                        metas.addAll(remainMetas);
-                    } finally {
-                        metasLock.unlock();
-                    }
+                    registerMetas(record);
                 } else {
                     assert remainMetas.size() == metas.size();
                 }

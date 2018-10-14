@@ -260,7 +260,7 @@ public class RaftLogImpl implements RaftLog {
                 "try applied log to %s but applied index in log is %s", appliedTo, appliedIndex);
 
         this.appliedIndex = appliedTo;
-        buffer.truncateBuffer(appliedTo);
+        buffer.truncateBuffer(Math.min(appliedTo, storage.getLastIndex()));
     }
 
     @Override
