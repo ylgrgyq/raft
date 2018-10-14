@@ -19,7 +19,7 @@ class Memtable implements Iterable<LogEntry> {
     }
 
     void add(long k, LogEntry v) {
-        assert k > 0;
+//        assert k > 0;
 
         if (! table.isEmpty() && k <= table.lastKey()){
             long removeStartKeyNotInclusive = table.ceilingKey(k);

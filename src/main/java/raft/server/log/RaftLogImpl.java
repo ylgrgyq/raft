@@ -166,11 +166,6 @@ public class RaftLogImpl implements RaftLog {
             // followers afterwards and don't need to wait them to persistent in storage
             buffer.append(preparedEntries);
             CompletableFuture.supplyAsync(() -> {
-                try {
-                    Thread.sleep(1000);
-                } catch (Exception ex) {
-                    System.out.println(ex);
-                }
                 storage.append(preparedEntries);
                 return getLastIndex();
             }, pool).whenComplete(callback);
