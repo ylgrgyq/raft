@@ -229,8 +229,6 @@ public class RaftImpl implements Raft {
         return doPropose(data, LogEntry.EntryType.LOG);
     }
 
-    // TODO 看上去需要一个单独的线程专门负责在处于 follower 状态时，将 log 写入 storage，再向 Broker 把消息写出。一定要保证 follower 是先存好 log 之后再向外写 command
-
     private CompletableFuture<ProposalResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
         List<LogEntry> logEntries = datas
                 .stream()
