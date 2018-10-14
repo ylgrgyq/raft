@@ -52,7 +52,6 @@ class ManifestRecord {
     }
 
     void setLogNumber(int logNumber) {
-        assert type == Type.PLAIN;
         this.logNumber = logNumber;
     }
 

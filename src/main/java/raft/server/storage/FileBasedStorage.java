@@ -326,7 +326,6 @@ public class FileBasedStorage implements PersistentStorage {
             firstIndexInStorage = first.getIndex();
         }
 
-        // todo support overwrite log
         try {
             long lastIndex = -1;
             for (LogEntry e : entries) {
@@ -405,7 +404,7 @@ public class FileBasedStorage implements PersistentStorage {
                     long firstKeyInImm = imm.firstKey();
                     List<SSTableFileMetaInfo> allMetas = manifest.searchMetas(Long.MIN_VALUE, Long.MAX_VALUE);
                     for (SSTableFileMetaInfo meta : allMetas) {
-                        if (firstKeyInImm >= meta.getFirstKey()) {
+                        if (firstKeyInImm < meta.getLastKey()) {
                             remainMetas.add(mergeMemTableAndSStable(meta, imm));
                             break;
                         } else {

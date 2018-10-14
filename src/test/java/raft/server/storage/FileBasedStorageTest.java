@@ -187,7 +187,7 @@ public class FileBasedStorageTest {
         }
     }
 
-    private LogEntry triggerCompaction(LogEntry lastE) throws InterruptedException {
+    private LogEntry triggerFlushLogToSSTable(LogEntry lastE) throws InterruptedException {
         List<LogEntry> newEntries = TestUtil.newLogEntryList(1,
                 Constant.kMaxMemtableSize + 1,
                 Constant.kMaxMemtableSize + 2,
@@ -198,6 +198,65 @@ public class FileBasedStorageTest {
         testingStorage.append(newEntries);
         testingStorage.waitWriteSstableFinish();
         return newEntries.get(0);
+    }
+
+    @Test
+    public void overWriteEntries() throws Exception {
+        int dataSize = 1024;
+        int expectSstableCount = 3;
+        int entryPerTable = Constant.kMaxMemtableSize / dataSize;
+        List<LogEntry> expectEntries = TestUtil.newLogEntryList(entryPerTable * expectSstableCount, dataSize);
+        long firstIndex = expectEntries.get(0).getIndex();
+
+        List<List<LogEntry>> batches = TestUtil.randomPartitionList(expectEntries);
+        for (List<LogEntry> batch : batches) {
+            testingStorage.append(batch);
+            assertEquals(firstIndex, testingStorage.getFirstIndex());
+            assertEquals(batch.get(batch.size() - 1).getIndex(), testingStorage.getLastIndex());
+        }
+
+        Set<Integer> sstableFileNumbers = getSstableFileNumbers();
+        assertEquals(expectSstableCount, sstableFileNumbers.size());
+
+        // overwrite entries in the middle of the second table
+        long overwriteStartIndex = firstIndex  + entryPerTable + entryPerTable / 2;
+        long overwriteStartTerm = expectEntries.get((int)(overwriteStartIndex - firstIndex)).getTerm();
+        List<LogEntry> overwriteEntries = TestUtil.newLogEntryList(entryPerTable, dataSize, dataSize + 1,
+                overwriteStartTerm, overwriteStartIndex, 1, 1);
+
+        batches = TestUtil.randomPartitionList(overwriteEntries);
+        for (List<LogEntry> batch : batches) {
+            testingStorage.append(batch);
+            assertEquals(firstIndex, testingStorage.getFirstIndex());
+            assertEquals(batch.get(batch.size() - 1).getIndex(), testingStorage.getLastIndex());
+        }
+
+        // trigger flush
+         triggerFlushLogToSSTable(overwriteEntries.get(overwriteEntries.size() - 1));
+        testingStorage.waitWriteSstableFinish();
+        sstableFileNumbers = getSstableFileNumbers();
+        assertEquals(2, sstableFileNumbers.size());
+
+        // check old entries
+        long cursor = firstIndex;
+        while (cursor < overwriteStartIndex) {
+            List<LogEntry> actual = testingStorage.getEntries(cursor, cursor + 1);
+            LogEntry expect = expectEntries.get((int)(cursor - firstIndex));
+            assertEquals(expect, actual.get(0));
+            assertEquals(expect.getTerm(), testingStorage.getTerm(expect.getIndex()));
+
+            ++cursor;
+        }
+
+        // check overwritten entries
+        while (cursor < overwriteStartIndex + overwriteEntries.size()) {
+            List<LogEntry> actual = testingStorage.getEntries(cursor, cursor + 1);
+            LogEntry expect = overwriteEntries.get((int)(cursor - overwriteStartIndex));
+            assertEquals(expect, actual.get(0));
+            assertEquals(expect.getTerm(), testingStorage.getTerm(expect.getIndex()));
+
+            ++cursor;
+        }
     }
 
     @Test
@@ -216,9 +275,9 @@ public class FileBasedStorageTest {
             assertEquals(batch.get(batch.size() - 1).getIndex(), testingStorage.getLastIndex());
         }
 
-        // trigger compaction
+        // trigger flush
         LogEntry lastE = expectEntries.get(expectEntries.size() - 1);
-        lastE = triggerCompaction(lastE);
+        lastE = triggerFlushLogToSSTable(lastE);
         testingStorage.waitWriteSstableFinish();
 
         Set<Integer> sstableFileNumbers = getSstableFileNumbers();
@@ -228,7 +287,7 @@ public class FileBasedStorageTest {
         long compactCursor = firstIndex  + entryPerTable / 2;
         while (compactCursor < lastIndex + 1) {
             Future<Long> future = testingStorage.compact(compactCursor);
-            lastE = triggerCompaction(lastE);
+            lastE = triggerFlushLogToSSTable(lastE);
             testingStorage.waitWriteSstableFinish();
             long actualToIndex = future.get();
             assertEquals(actualToIndex, testingStorage.getFirstIndex());
