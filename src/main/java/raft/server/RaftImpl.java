@@ -39,9 +39,9 @@ public class RaftImpl implements Raft {
     private final AtomicLong pingTickCounter = new AtomicLong();
     private final AtomicBoolean pingTickerTimeout = new AtomicBoolean();
     private final AtomicBoolean wakenUp = new AtomicBoolean();
+    private final AtomicBoolean pauseTick = new AtomicBoolean(false);
     private final BlockingQueue<Proposal> proposalQueue = new LinkedBlockingQueue<>(1000);
     private final BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>(1000);
-    private final BlockingQueue<RaftCommand> outputCmdQueue;
     private final PendingProposalFutures pendingProposal = new PendingProposalFutures();
 
     private final Config c;
@@ -73,7 +73,6 @@ public class RaftImpl implements Raft {
         this.meta = new RaftPersistentMeta(c.persistentMetaFileDirPath, c.selfId, c.syncWriteStateFile);
         this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
         this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
-        this.outputCmdQueue = c.outputQueue;
 
         for (String peerId : c.peers) {
             this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, c.maxEntriesPerAppend));
@@ -97,21 +96,23 @@ public class RaftImpl implements Raft {
         }
 
         tickGenerator.scheduleWithFixedDelay(() -> {
-            boolean wakeup = false;
-            if (electionTickCounter.incrementAndGet() >= electionTimeoutTicks) {
-                electionTickCounter.set(0L);
-                electionTickerTimeout.compareAndSet(false, true);
-                wakeup = true;
-            }
+            if (! pauseTick.get()) {
+                boolean wakeup = false;
+                if (electionTickCounter.incrementAndGet() >= electionTimeoutTicks) {
+                    electionTickCounter.set(0L);
+                    electionTickerTimeout.compareAndSet(false, true);
+                    wakeup = true;
+                }
 
-            if (pingTickCounter.incrementAndGet() >= c.pingIntervalTicks) {
-                pingTickCounter.set(0L);
-                pingTickerTimeout.compareAndSet(false, true);
-                wakeup = true;
-            }
+                if (pingTickCounter.incrementAndGet() >= c.pingIntervalTicks) {
+                    pingTickCounter.set(0L);
+                    pingTickerTimeout.compareAndSet(false, true);
+                    wakeup = true;
+                }
 
-            if (wakeup) {
-                wakeUpWorker();
+                if (wakeup) {
+                    wakeUpWorker();
+                }
             }
 
         }, c.tickIntervalMs, c.tickIntervalMs, TimeUnit.MILLISECONDS);
@@ -227,8 +228,6 @@ public class RaftImpl implements Raft {
 
         return doPropose(data, LogEntry.EntryType.LOG);
     }
-
-    // TODO 看上去需要一个单独的线程专门负责在处于 follower 状态时，将 log 写入 storage，再向 Broker 把消息写出。一定要保证 follower 是先存好 log 之后再向外写 command
 
     private CompletableFuture<ProposalResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
         List<LogEntry> logEntries = datas
@@ -748,8 +747,6 @@ public class RaftImpl implements Raft {
         if (cmd.getPrevLogIndex() < raftLog.getCommitIndex()) {
             resp = resp.setMatchIndex(raftLog.getCommitIndex()).setSuccess(true);
         } else {
-            // TODO consider async replicate logs on follower to prevent worker thread missing ping and transfer to
-            // candidate even leader is functional
             long matchIndex = RaftImpl.this.replicateLogsOnFollower(cmd);
             if (matchIndex != -1L) {
                 tryCommitTo(Math.min(cmd.getLeaderCommit(), matchIndex));
@@ -762,22 +759,29 @@ public class RaftImpl implements Raft {
     }
 
     private long replicateLogsOnFollower(RaftCommand cmd) {
-        long prevIndex = cmd.getPrevLogIndex();
-        long prevTerm = cmd.getPrevLogTerm();
-        String leaderId = cmd.getLeaderId();
-        List<raft.server.proto.LogEntry> entries = cmd.getEntriesList();
+        // pause ticker then replicate logs on follower synchronously to prevent worker thread missing ping
+        // then transfer to candidate even leader is functional
+        pauseTick.set(true);
+        try {
+            long prevIndex = cmd.getPrevLogIndex();
+            long prevTerm = cmd.getPrevLogTerm();
+            String leaderId = cmd.getLeaderId();
+            List<raft.server.proto.LogEntry> entries = cmd.getEntriesList();
 
-        State state = getState();
-        if (state == State.FOLLOWER) {
-            try {
-                this.leaderId = leaderId;
-                return raftLog.followerSyncAppend(prevIndex, prevTerm, entries);
-            } catch (Exception ex) {
-                logger.error("append entries failed on node {}, leaderId {}, entries {}",
-                        this, leaderId, entries, ex);
+            State state = getState();
+            if (state == State.FOLLOWER) {
+                try {
+                    this.leaderId = leaderId;
+                    return raftLog.followerSyncAppend(prevIndex, prevTerm, entries);
+                } catch (Exception ex) {
+                    logger.error("append entries failed on node {}, leaderId {}, entries {}",
+                            this, leaderId, entries, ex);
+                }
+            } else {
+                logger.error("append logs failed on node {} due to invalid state: {}", this, state);
             }
-        } else {
-            logger.error("append logs failed on node {} due to invalid state: {}", this, state);
+        } finally {
+            pauseTick.set(false);
         }
 
         return -1;
