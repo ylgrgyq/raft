@@ -215,6 +215,7 @@ public class FileBasedStorageTest {
             assertEquals(batch.get(batch.size() - 1).getIndex(), testingStorage.getLastIndex());
         }
 
+        testingStorage.waitWriteSstableFinish();
         Set<Integer> sstableFileNumbers = getSstableFileNumbers();
         assertEquals(expectSstableCount, sstableFileNumbers.size());
 
