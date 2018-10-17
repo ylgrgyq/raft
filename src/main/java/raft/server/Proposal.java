@@ -1,9 +1,11 @@
 package raft.server;
 
+import com.google.protobuf.ByteString;
 import raft.server.proto.LogEntry;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Author: ylgrgyq
@@ -12,18 +14,18 @@ import java.util.concurrent.CompletableFuture;
 class Proposal {
     public static final CompletableFuture<ProposalResponse> voidFuture = CompletableFuture.completedFuture(null);
 
-    private final List<LogEntry> entries;
+    private final List<ByteString> datas;
     private final LogEntry.EntryType type;
     private final CompletableFuture<ProposalResponse> future;
 
-    Proposal(List<LogEntry> entries, LogEntry.EntryType type) {
-        this.entries = entries;
+    Proposal(List<byte[]> entries, LogEntry.EntryType type) {
+        this.datas = entries.stream().map(ByteString::copyFrom).collect(Collectors.toList());
         this.type = type;
         this.future = new CompletableFuture<>();
     }
 
-    List<LogEntry> getEntries() {
-        return entries;
+    List<ByteString> getDatas() {
+        return datas;
     }
 
     LogEntry.EntryType getType() {
@@ -36,6 +38,6 @@ class Proposal {
 
     @Override
     public String toString() {
-        return type + " Proposal with " + entries.size() + " entries";
+        return type + " Proposal with " + datas.size() + " datas";
     }
 }

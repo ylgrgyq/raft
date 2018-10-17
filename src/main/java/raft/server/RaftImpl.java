@@ -229,14 +229,7 @@ public class RaftImpl implements Raft {
     }
 
     private CompletableFuture<ProposalResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
-        List<LogEntry> logEntries = datas
-                .stream()
-                .map(d -> LogEntry.newBuilder()
-                        .setData(ByteString.copyFrom(d))
-                        .setType(type)
-                        .build()).collect(Collectors.toList());
-
-        Proposal proposal = new Proposal(logEntries, type);
+        Proposal proposal = new Proposal(datas, type);
         CompletableFuture<ProposalResponse> future;
         if (getState() == State.LEADER) {
             future = proposal.getFuture();
@@ -458,10 +451,10 @@ public class RaftImpl implements Raft {
                             existsPendingConfigChange = true;
                             // fall through
                         case LOG:
-                            leaderAppendEntries(proposal.getEntries(), proposal.getFuture());
+                            leaderAppendEntries(proposal.getDatas(), proposal.getType(), proposal.getFuture());
                             return;
                         case TRANSFER_LEADER:
-                            String transereeId = new String(proposal.getEntries().get(0).getData().toByteArray(), StandardCharsets.UTF_8);
+                            String transereeId = new String(proposal.getDatas().get(0).toByteArray(), StandardCharsets.UTF_8);
 
                             if (transereeId.equals(selfId)) {
                                 error = ErrorMsg.ALLREADY_LEADER;
@@ -500,16 +493,18 @@ public class RaftImpl implements Raft {
         proposal.getFuture().complete(ProposalResponse.errorWithLeaderHint(leaderId, error));
     }
 
-    private void leaderAppendEntries(List<LogEntry> entries, CompletableFuture<ProposalResponse> responseFuture) {
+    private void leaderAppendEntries(List<ByteString> datas, LogEntry.EntryType type, CompletableFuture<ProposalResponse> responseFuture) {
         long term = meta.getTerm();
 
-        final ArrayList<LogEntry> preparedEntries = new ArrayList<>(entries.size());
+        final ArrayList<LogEntry> preparedEntries = new ArrayList<>(datas.size());
         long newLastIndex = raftLog.getLastIndex();
-        for (LogEntry entry : entries) {
+        for (ByteString data : datas) {
             ++newLastIndex;
-            LogEntry e = LogEntry.newBuilder(entry)
+            LogEntry e = LogEntry.newBuilder()
                     .setIndex(newLastIndex)
                     .setTerm(term)
+                    .setType(type)
+                    .setData(data)
                     .build();
             preparedEntries.add(e);
         }
@@ -923,8 +918,7 @@ public class RaftImpl implements Raft {
         public void start(Context cxt) {
             logger.debug("node {} start leader", RaftImpl.this);
             this.cxt = cxt;
-            LogEntry emptyEntry = LogEntry.newBuilder().build();
-            leaderAppendEntries(Collections.singletonList(emptyEntry), Proposal.voidFuture);
+            leaderAppendEntries(Collections.singletonList(ByteString.EMPTY), LogEntry.EntryType.LOG, Proposal.voidFuture);
             stateMachine.onLeaderStart(getStatus());
         }
 
