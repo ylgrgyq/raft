@@ -35,7 +35,6 @@ public class RaftImpl implements Raft {
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
     private final AtomicLong electionTickCounter = new AtomicLong();
     private final AtomicBoolean electionTickerTimeout = new AtomicBoolean();
-    private final AtomicBoolean pendingUpdateCommit = new AtomicBoolean();
     private final AtomicLong pingTickCounter = new AtomicLong();
     private final AtomicBoolean pingTickerTimeout = new AtomicBoolean();
     private final AtomicBoolean wakenUp = new AtomicBoolean();
@@ -286,8 +285,6 @@ public class RaftImpl implements Raft {
                 try {
                     processTickTimeout();
 
-                    processPendingUpdateCommit();
-
                     List<RaftCommand> cmds = pollReceivedCmd();
                     long start = System.nanoTime();
                     processCommands(cmds);
@@ -324,13 +321,6 @@ public class RaftImpl implements Raft {
 
         if (pingTickerTimeout.compareAndSet(true, false)) {
             state.onPingTimeout();
-        }
-    }
-
-
-    private void processPendingUpdateCommit() {
-        if (pendingUpdateCommit.compareAndSet(true, false)) {
-            updateCommit();
         }
     }
 
