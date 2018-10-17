@@ -13,10 +13,12 @@ class PendingProposalFutures {
     private final TreeMap<Long, CompletableFuture<ProposalResponse>> pendingProposal = new TreeMap<>();
 
     void addFuture(long lastIndex, CompletableFuture<ProposalResponse> responseFuture) {
-        assert lastIndex > 0;
-        assert responseFuture != null;
+        if (responseFuture != Proposal.voidFuture) {
+            assert lastIndex > 0;
+            assert responseFuture != null;
 
-        pendingProposal.put(lastIndex, responseFuture);
+            pendingProposal.put(lastIndex, responseFuture);
+        }
     }
 
     void completeFutures(long commitIndex) {

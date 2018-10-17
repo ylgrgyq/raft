@@ -10,6 +10,8 @@ import java.util.concurrent.CompletableFuture;
  * Date: 18/6/3
  */
 class Proposal {
+    public static final CompletableFuture<ProposalResponse> voidFuture = CompletableFuture.completedFuture(null);
+
     private final List<LogEntry> entries;
     private final LogEntry.EntryType type;
     private final CompletableFuture<ProposalResponse> future;

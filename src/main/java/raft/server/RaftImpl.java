@@ -467,28 +467,7 @@ public class RaftImpl implements Raft {
                             existsPendingConfigChange = true;
                             // fall through
                         case LOG:
-                            final long term = meta.getTerm();
-                            long newLastIndex = raftLog.leaderAsyncAppend(term, proposal.getEntries(), (lastIndex, err) -> {
-                                if (err != null) {
-                                    panic("async append logs failed", err);
-                                } else {
-                                    logger.debug("node {} try update index to {}", this, lastIndex);
-                                    // it's OK if this node has stepped-down and surrendered leadership before we
-                                    // updated index because we don't use RaftPeerNode on follower or candidate
-                                    RaftPeerNode leaderNode = peerNodes.get(selfId);
-                                    if (leaderNode != null) {
-                                        if (leaderNode.updateIndexes(lastIndex)) {
-                                            pendingUpdateCommit.compareAndSet(false, true);
-                                        }
-                                    } else {
-                                        logger.error("node {} was removed from remote peer set {}",
-                                                this, peerNodes.keySet());
-                                    }
-                                }
-                            });
-
-                            pendingProposal.addFuture(newLastIndex, proposal.getFuture());
-                            broadcastAppendEntries();
+                            leaderAppendEntries(proposal.getEntries(), proposal.getFuture());
                             return;
                         case TRANSFER_LEADER:
                             String transereeId = new String(proposal.getEntries().get(0).getData().toByteArray(), StandardCharsets.UTF_8);
@@ -528,6 +507,31 @@ public class RaftImpl implements Raft {
         }
 
         proposal.getFuture().complete(ProposalResponse.errorWithLeaderHint(leaderId, error));
+    }
+
+    private void leaderAppendEntries(List<LogEntry> entries, CompletableFuture<ProposalResponse> responseFuture) {
+        final long term = meta.getTerm();
+        long newLastIndex = raftLog.leaderAsyncAppend(term, entries, (lastIndex, err) -> {
+            if (err != null) {
+                panic("async append logs failed", err);
+            } else {
+                logger.debug("node {} try update index to {}", this, lastIndex);
+                // it's OK if this node has stepped-down and surrendered leadership before we
+                // updated index because we don't use RaftPeerNode on follower or candidate
+                RaftPeerNode leaderNode = peerNodes.get(selfId);
+                if (leaderNode != null) {
+                    if (leaderNode.updateIndexes(lastIndex)) {
+                        pendingUpdateCommit.compareAndSet(false, true);
+                    }
+                } else {
+                    logger.error("node {} was removed from remote peer set {}",
+                            this, peerNodes.keySet());
+                }
+            }
+        });
+
+        pendingProposal.addFuture(newLastIndex, responseFuture);
+        broadcastAppendEntries();
     }
 
     private void broadcastAppendEntries() {
@@ -925,7 +929,8 @@ public class RaftImpl implements Raft {
         public void start(Context cxt) {
             logger.debug("node {} start leader", RaftImpl.this);
             this.cxt = cxt;
-            RaftImpl.this.broadcastPing();
+            LogEntry emptyEntry = LogEntry.newBuilder().build();
+            leaderAppendEntries(Collections.singletonList(emptyEntry), Proposal.voidFuture);
             stateMachine.onLeaderStart(getStatus());
         }
 
