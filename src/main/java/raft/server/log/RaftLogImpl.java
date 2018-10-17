@@ -145,33 +145,14 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public long leaderAsyncAppend(long term, List<LogEntry> entries, BiConsumer<? super Long, ? super Throwable> callback) {
-        if (entries.size() == 0) {
+    public synchronized CompletableFuture<Long> leaderAsyncAppend(List<LogEntry> entries) {
+        // add logs to buffer first so we can read these new entries immediately during broadcasting logs to
+        // followers afterwards and don't need to wait them to persistent in storage
+        buffer.append(entries);
+        return CompletableFuture.supplyAsync(() -> {
+            storage.append(entries);
             return getLastIndex();
-        }
-
-        final ArrayList<LogEntry> preparedEntries = new ArrayList<>(entries.size());
-        long i = getLastIndex();
-        for (LogEntry entry : entries) {
-            ++i;
-            LogEntry e = LogEntry.newBuilder(entry)
-                    .setIndex(i)
-                    .setTerm(term)
-                    .build();
-            preparedEntries.add(e);
-        }
-
-        synchronized(this) {
-            // add logs to buffer first so we can read these new entries immediately during broadcasting logs to
-            // followers afterwards and don't need to wait them to persistent in storage
-            buffer.append(preparedEntries);
-            CompletableFuture.supplyAsync(() -> {
-                storage.append(preparedEntries);
-                return getLastIndex();
-            }, pool).whenComplete(callback);
-        }
-
-        return i;
+        }, pool);
     }
 
     @Override

@@ -219,14 +219,14 @@ public class RaftImpl implements Raft {
     }
 
     @Override
-    public CompletableFuture<ProposalResponse> propose(List<byte[]> data) {
-        checkNotNull(data);
-        checkArgument(!data.isEmpty());
+    public CompletableFuture<ProposalResponse> propose(List<byte[]> datas) {
+        checkNotNull(datas);
+        checkArgument(!datas.isEmpty());
         checkState(started.get(), "raft server not start or already shutdown");
 
-        logger.debug("node {} receives proposal with {} entries", this, data.size());
+        logger.debug("node {} receives proposal with {} entries", this, datas.size());
 
-        return doPropose(data, LogEntry.EntryType.LOG);
+        return doPropose(datas, LogEntry.EntryType.LOG);
     }
 
     private CompletableFuture<ProposalResponse> doPropose(final List<byte[]> datas, final LogEntry.EntryType type) {
@@ -326,6 +326,7 @@ public class RaftImpl implements Raft {
             state.onPingTimeout();
         }
     }
+
 
     private void processPendingUpdateCommit() {
         if (pendingUpdateCommit.compareAndSet(true, false)) {
@@ -510,26 +511,29 @@ public class RaftImpl implements Raft {
     }
 
     private void leaderAppendEntries(List<LogEntry> entries, CompletableFuture<ProposalResponse> responseFuture) {
-        final long term = meta.getTerm();
-        long newLastIndex = raftLog.leaderAsyncAppend(term, entries, (lastIndex, err) -> {
+        long term = meta.getTerm();
+
+        final ArrayList<LogEntry> preparedEntries = new ArrayList<>(entries.size());
+        long newLastIndex = raftLog.getLastIndex();
+        for (LogEntry entry : entries) {
+            ++newLastIndex;
+            LogEntry e = LogEntry.newBuilder(entry)
+                    .setIndex(newLastIndex)
+                    .setTerm(term)
+                    .build();
+            preparedEntries.add(e);
+        }
+
+        raftLog.leaderAsyncAppend(preparedEntries).whenComplete((lastIndex, err) -> {
             if (err != null) {
                 panic("async append logs failed", err);
-            } else {
-                logger.debug("node {} try update index to {}", this, lastIndex);
-                // it's OK if this node has stepped-down and surrendered leadership before we
-                // updated index because we don't use RaftPeerNode on follower or candidate
-                RaftPeerNode leaderNode = peerNodes.get(selfId);
-                if (leaderNode != null) {
-                    if (leaderNode.updateIndexes(lastIndex)) {
-                        pendingUpdateCommit.compareAndSet(false, true);
-                    }
-                } else {
-                    logger.error("node {} was removed from remote peer set {}",
-                            this, peerNodes.keySet());
-                }
             }
         });
 
+        RaftPeerNode leaderNode = peerNodes.get(selfId);
+        if (leaderNode.updateIndexes(newLastIndex)) {
+            updateCommit();
+        }
         pendingProposal.addFuture(newLastIndex, responseFuture);
         broadcastAppendEntries();
     }
