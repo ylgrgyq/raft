@@ -12,14 +12,17 @@ import java.util.stream.Collectors;
  * Date: 18/6/3
  */
 class Proposal {
-    public static final CompletableFuture<ProposalResponse> voidFuture = CompletableFuture.completedFuture(null);
+    static final CompletableFuture<ProposalResponse> voidFuture = CompletableFuture.completedFuture(null);
 
     private final List<ByteString> datas;
     private final LogEntry.EntryType type;
     private final CompletableFuture<ProposalResponse> future;
 
-    Proposal(List<byte[]> entries, LogEntry.EntryType type) {
-        this.datas = entries.stream().map(ByteString::copyFrom).collect(Collectors.toList());
+    Proposal(List<byte[]> datas, LogEntry.EntryType type) {
+        assert datas != null;
+        assert ! datas.isEmpty();
+
+        this.datas = datas.stream().map(ByteString::copyFrom).collect(Collectors.toList());
         this.type = type;
         this.future = new CompletableFuture<>();
     }

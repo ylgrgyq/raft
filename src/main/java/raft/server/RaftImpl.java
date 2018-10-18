@@ -454,26 +454,26 @@ public class RaftImpl implements Raft {
                             leaderAppendEntries(proposal.getDatas(), proposal.getType(), proposal.getFuture());
                             return;
                         case TRANSFER_LEADER:
-                            String transereeId = new String(proposal.getDatas().get(0).toByteArray(), StandardCharsets.UTF_8);
+                            String transfereeId = new String(proposal.getDatas().get(0).toByteArray(), StandardCharsets.UTF_8);
 
-                            if (transereeId.equals(selfId)) {
+                            if (transfereeId.equals(selfId)) {
                                 error = ErrorMsg.ALLREADY_LEADER;
                                 break;
                             }
 
-                            if (!peerNodes.containsKey(transereeId)) {
+                            if (!peerNodes.containsKey(transfereeId)) {
                                 error = ErrorMsg.UNKNOWN_TRANSFEREEID;
                                 break;
                             }
 
-                            logger.info("node {} start transfer leadership to {}", this, transereeId);
+                            logger.info("node {} start transfer leadership to {}", this, transfereeId);
 
                             electionTickCounter.set(0);
-                            transferLeaderFuture = new TransferLeaderFuture(transereeId, proposal.getFuture());
-                            RaftPeerNode n = peerNodes.get(transereeId);
+                            transferLeaderFuture = new TransferLeaderFuture(transfereeId, proposal.getFuture());
+                            RaftPeerNode n = peerNodes.get(transfereeId);
                             if (n.getMatchIndex() == raftLog.getLastIndex()) {
                                 logger.info("node {} send timeout immediately to {} because it already " +
-                                        "has up to date logs", this, transereeId);
+                                        "has up to date logs", this, transfereeId);
                                 n.sendTimeout(meta.getTerm());
                             } else {
                                 n.sendAppend(meta.getTerm());
