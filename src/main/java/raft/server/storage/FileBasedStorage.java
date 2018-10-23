@@ -311,14 +311,14 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized void append(List<LogEntry> entries) {
+    public synchronized long append(List<LogEntry> entries) {
         checkNotNull(entries);
         checkState(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
         if (entries.isEmpty()) {
             logger.warn("append with empty entries");
-            return;
+            return getLastIndex();
         }
 
         if (firstIndexInStorage < 0) {
@@ -341,6 +341,7 @@ public class FileBasedStorage implements PersistentStorage {
                     throw new StorageInternalError("make room on file based storage failed");
                 }
             }
+            return getLastIndex();
         } catch (IOException ex) {
             throw new StorageInternalError("append log on file based storage failed", ex);
         }

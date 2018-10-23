@@ -74,9 +74,9 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized void append(List<LogEntry> entries) {
+    public synchronized long append(List<LogEntry> entries) {
         if (entries.isEmpty()) {
-            return;
+            return getLastIndex();
         }
 
         long firstIndex = entries.get(0).getIndex();
@@ -93,6 +93,8 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
             logs.addAll(getEntries(offset, firstIndex));
             logs.addAll(entries);
         }
+
+        return getLastIndex();
     }
 
     public synchronized Future<Long> compact(long toIndex) {

@@ -43,7 +43,7 @@ public interface PersistentStorage {
 
     List<LogEntry> getEntries(long start, long end);
 
-    void append(List<LogEntry> entries);
+    long append(List<LogEntry> entries);
 
     /**
      * Try to discard logs in this storage with index from the lowest index to at most toIndex(exclusive).

@@ -35,6 +35,7 @@ public class RaftImpl implements Raft {
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
     private final AtomicLong electionTickCounter = new AtomicLong();
     private final AtomicBoolean electionTickerTimeout = new AtomicBoolean();
+    private final AtomicBoolean pendingUpdateCommit = new AtomicBoolean();
     private final AtomicLong pingTickCounter = new AtomicLong();
     private final AtomicBoolean pingTickerTimeout = new AtomicBoolean();
     private final AtomicBoolean wakenUp = new AtomicBoolean();
@@ -278,6 +279,8 @@ public class RaftImpl implements Raft {
                 try {
                     processTickTimeout();
 
+                    processPendingUpdateCommit();
+
                     List<RaftCommand> cmds = pollReceivedCmd();
                     long start = System.nanoTime();
                     processCommands(cmds);
@@ -314,6 +317,12 @@ public class RaftImpl implements Raft {
 
         if (pingTickerTimeout.compareAndSet(true, false)) {
             state.onPingTimeout();
+        }
+    }
+
+    private void processPendingUpdateCommit() {
+        if (pendingUpdateCommit.compareAndSet(true, false)) {
+            updateCommit();
         }
     }
 
@@ -512,26 +521,31 @@ public class RaftImpl implements Raft {
         raftLog.leaderAsyncAppend(preparedEntries).whenComplete((lastIndex, err) -> {
             if (err != null) {
                 panic("async append logs failed", err);
+            } else {
+                logger.debug("node {} try update index to {}", this, lastIndex);
+                // it's OK if this node has stepped-down and surrendered leadership before we
+                // updated index because we don't use RaftPeerNode on follower or candidate
+                RaftPeerNode leaderNode = peerNodes.get(selfId);
+                if (leaderNode != null) {
+                    if (leaderNode.updateIndexes(lastIndex)) {
+                        pendingUpdateCommit.compareAndSet(false, true);
+                    }
+                } else {
+                    logger.error("node {} was removed from remote peer set {}",
+                            this, peerNodes.keySet());
+                }
             }
         });
 
-        RaftPeerNode leaderNode = peerNodes.get(selfId);
-        if (leaderNode.updateIndexes(newLastIndex)) {
-            updateCommit();
-        }
         pendingProposal.addFuture(newLastIndex, responseFuture);
         broadcastAppendEntries();
     }
 
     private void broadcastAppendEntries() {
-        if (peerNodes.size() == 1) {
-            tryCommitTo(raftLog.getLastIndex());
-        } else {
-            final long selfTerm = meta.getTerm();
-            for (final RaftPeerNode peer : peerNodes.values()) {
-                if (!peer.getPeerId().equals(selfId)) {
-                    peer.sendAppend(selfTerm);
-                }
+        final long selfTerm = meta.getTerm();
+        for (final RaftPeerNode peer : peerNodes.values()) {
+            if (!peer.getPeerId().equals(selfId)) {
+                peer.sendAppend(selfTerm);
             }
         }
     }
@@ -637,7 +651,6 @@ public class RaftImpl implements Raft {
     }
 
     private void broadcastPing() {
-        System.out.println("broadcast ping to " + peerNodes);
         final long selfTerm = meta.getTerm();
         if (peerNodes.size() == 1) {
             tryCommitTo(raftLog.getLastIndex());
@@ -916,7 +929,6 @@ public class RaftImpl implements Raft {
         }
 
         public void start(Context cxt) {
-            logger.debug("node {} start leader", RaftImpl.this);
             this.cxt = cxt;
             leaderAppendEntries(Collections.singletonList(ByteString.EMPTY), LogEntry.EntryType.LOG, Proposal.voidFuture);
             stateMachine.onLeaderStart(getStatus());
