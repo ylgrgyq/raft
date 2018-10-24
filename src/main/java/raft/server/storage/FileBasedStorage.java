@@ -569,7 +569,7 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized void shutdown() {
+    public synchronized void shutdownNow() {
         awaitShutdown(0, TimeUnit.MILLISECONDS);
     }
 

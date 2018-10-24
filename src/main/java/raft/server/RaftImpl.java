@@ -175,7 +175,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> addNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(!newNode.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdown");
+        checkState(started.get(), "raft server not start or already shutdownNow");
 
         return proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.ADD_NODE);
     }
@@ -184,7 +184,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> removeNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(!newNode.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdown");
+        checkState(started.get(), "raft server not start or already shutdownNow");
 
         if (newNode.equals(getLeaderId())) {
             return CompletableFuture.completedFuture(
@@ -210,7 +210,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> transferLeader(String transfereeId) {
         checkNotNull(transfereeId);
         checkArgument(!transfereeId.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdown");
+        checkState(started.get(), "raft server not start or already shutdownNow");
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(transfereeId.getBytes(StandardCharsets.UTF_8));
@@ -222,7 +222,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> propose(List<byte[]> datas) {
         checkNotNull(datas);
         checkArgument(!datas.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdown");
+        checkState(started.get(), "raft server not start or already shutdownNow");
 
         logger.debug("node {} receives proposal with {} entries", this, datas.size());
 
@@ -878,7 +878,7 @@ public class RaftImpl implements Raft {
     }
 
     private void panic(String reason, Throwable err) {
-        logger.error("node {} panic due to {}, shutdown immediately", this, reason, err);
+        logger.error("node {} panic due to {}, shutdownNow immediately", this, reason, err);
         shutdown();
     }
 
@@ -895,15 +895,15 @@ public class RaftImpl implements Raft {
         try {
             workerThread.join();
         } catch (InterruptedException ex) {
-            // ignore then continue shutdown
+            // ignore then continue shutdownNow
         }
         broker.shutdown();
-        // we can call onShutdown and shutdown on stateMachine successively
-        // shutdown will wait onShutdown to finish
+        // we can call onShutdown and shutdownNow on stateMachine successively
+        // shutdownNow will wait onShutdown to finish
         stateMachine.onShutdown();
         stateMachine.shutdown();
-        raftLog.shutdown();
-        logger.info("node {} shutdown", this);
+        raftLog.shutdownNow();
+        logger.info("node {} shutdownNow", this);
     }
 
     @Override

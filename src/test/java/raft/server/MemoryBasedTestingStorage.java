@@ -119,7 +119,7 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
     }
 
     @Override
-    public void shutdown() {
+    public void shutdownNow() {
 
     }
 

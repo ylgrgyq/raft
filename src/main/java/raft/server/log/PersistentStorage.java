@@ -55,7 +55,7 @@ public interface PersistentStorage {
      */
     Future<Long> compact(long toIndex);
 
-    void shutdown();
+    void shutdownNow();
 
     void awaitShutdown(long timeout, TimeUnit unit);
 }

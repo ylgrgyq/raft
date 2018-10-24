@@ -45,5 +45,5 @@ public interface RaftLog {
 
     void snapshotApplied(long snapshotIndex);
 
-    void shutdown();
+    void shutdownNow();
 }

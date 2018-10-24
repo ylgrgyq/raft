@@ -15,7 +15,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-import java.util.function.BiConsumer;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -264,9 +263,9 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public void shutdown() {
-        pool.shutdown();
-        storage.shutdown();
+    public void shutdownNow() {
+        pool.shutdownNow();
+        storage.shutdownNow();
     }
 
     @Override

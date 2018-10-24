@@ -61,7 +61,9 @@ class TestingRaftStateMachine implements StateMachine {
     public void onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs) {
         assert msgs != null && !msgs.isEmpty() : "msgs is null:" + (msgs == null);
         lastStatus = status;
-        applied.addAll(msgs.stream().filter(e -> !e.equals(PersistentStorage.sentinel)).collect(Collectors.toList()));
+        applied.addAll(msgs.stream()
+                .filter(e -> !e.equals(PersistentStorage.sentinel) && !e.getData().isEmpty())
+                .collect(Collectors.toList()));
     }
 
     @Override
@@ -151,7 +153,7 @@ class TestingRaftStateMachine implements StateMachine {
 
     @Override
     public void onShutdown() {
-        logger.info("state machine shutdown");
+        logger.info("state machine shutdownNow");
     }
 
     boolean waitNodeAdded(String expectPeerId) {
