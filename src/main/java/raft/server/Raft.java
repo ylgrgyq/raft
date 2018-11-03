@@ -4,6 +4,7 @@ import raft.server.proto.RaftCommand;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Author: ylgrgyq Date: 18/3/30
@@ -25,4 +26,6 @@ public interface Raft {
 	Raft start();
 
 	void shutdown();
+
+	void shudownGracefully(long timeout, TimeUnit unit);
 }
