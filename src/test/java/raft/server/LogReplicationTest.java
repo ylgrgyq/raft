@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
 
@@ -31,7 +32,7 @@ public class LogReplicationTest {
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
         cluster.shutdownCluster();
     }
 
@@ -50,12 +51,12 @@ public class LogReplicationTest {
         // check raft status after logs have been processed
         RaftStatusSnapshot status = leaderStateMachine.getLastStatus();
         assertEquals(State.LEADER, status.getState());
-        assertEquals(dataList.size(), status.getCommitIndex());
+        assertEquals(dataList.size() + 1, status.getCommitIndex());
         assertEquals(1L, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
 
-        compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(),
-                leaderStateMachine.waitApplied(150), dataList);
+        List<LogEntry> appliedEntries = leaderStateMachine.waitApplied(151);
+        compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), appliedEntries, dataList);
     }
 
     @Test
@@ -71,7 +72,7 @@ public class LogReplicationTest {
 
         List<byte[]> dataList = proposeSomeLogs(leader, 100);
 
-        List<LogEntry> logsOnLeader = leaderStateMachine.waitApplied(100);
+        List<LogEntry> logsOnLeader = leaderStateMachine.waitApplied(101);
         compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
         compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
     }
@@ -109,7 +110,8 @@ public class LogReplicationTest {
         TestingRaftStateMachine follower = cluster.getStateMachineById(rebootNodeId);
         Future f = follower.becomeFollowerFuture();
         f.get();
-        compareLogsWithinCluster(logsOnLeader, Collections.singletonList(follower));
+        compareLogsWithinCluster(logsOnLeader,  Collections.singletonList(follower));
+        checkCommitedIndex(leaderStateMachine);
     }
 
     @Test
@@ -124,7 +126,13 @@ public class LogReplicationTest {
         Raft oldLeader = cluster.getNodeById(oldLeaderStateMachine.getId());
 
         List<TestingRaftStateMachine> followerStateMachines = cluster.getFollowers();
-        followerStateMachines.forEach(s -> cluster.shutdownPeer(s.getId()));
+        followerStateMachines.forEach(s -> {
+                    try {
+                        cluster.shutdownPeer(s.getId());
+                    } catch (Exception ex){
+                        throw new RuntimeException(ex);
+                    }
+        });
 
         // all followers in cluster is removed. proposals on leader will write to it's local storage
         // but will never be committed
@@ -150,17 +158,12 @@ public class LogReplicationTest {
         cluster.startCluster(peerIdSet);
 
         newLeaderStateMachine = cluster.waitGetLeader();
-        newLeader = cluster.getNodeById(newLeaderStateMachine.getId());
-        // propose one more log on new leader to ensure all logs on previous term are committed
-        // remember that new leader can not commit logs with previous term by counting replicas
-        dataList.addAll(proposeSomeLogs(newLeader, 1));
-        logsOnLeader.addAll(newLeaderStateMachine.waitApplied(1));
-
         // logs on old leader's local storage will be overwritten by those logs synced from new leader
         TestingRaftStateMachine follower = cluster.getStateMachineById(oldLeader.getId());
         Future f = follower.becomeFollowerFuture();
         f.get();
         compareLogsWithinCluster(logsOnLeader, Collections.singletonList(follower));
+        checkCommitedIndex(newLeaderStateMachine);
     }
 
     @Test
@@ -190,11 +193,10 @@ public class LogReplicationTest {
         // trigger compaction actual happen
         leaderStateMachine.flushMemtable();
 
-        assertEquals(200, leaderStateMachine.getLastStatus().getCommitIndex());
-        assertEquals(dataList.size(), logsOnLeader.size());
         compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
 
         compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
+        checkCommitedIndex(leaderStateMachine);
 
         CompletableFuture<LogSnapshot> expectSnapshot = leaderStateMachine.waitGetSnapshot();
         expectSnapshot.get();
@@ -211,7 +213,8 @@ public class LogReplicationTest {
         CompletableFuture<LogSnapshot> waitSnapshot = follower.waitGetSnapshot();
         CompletableFuture.allOf(becomeFollower, waitSnapshot).get();
         assertEquals(expectSnapshot.get(), waitSnapshot.get());
-        compareLogsWithinCluster(logsOnLeader.subList(101, logsOnLeader.size()), Collections.singletonList(follower));
+        compareLogsWithinCluster(logsOnLeader.subList(101, logsOnLeader.size()),
+                Collections.singletonList(follower));
     }
 
     private List<byte[]> proposeSomeLogs(Raft leader, int count) throws InterruptedException, ExecutionException {
@@ -230,6 +233,7 @@ public class LogReplicationTest {
     }
 
     private void compareLogsWithSource(long expectTerm, List<LogEntry> logs, List<byte[]> sourceList) {
+        logs = logs.stream().filter(e -> !e.getData().isEmpty()).collect(Collectors.toList());
         for (int i = 0; i < logs.size(); i++) {
             LogEntry e = logs.get(i);
             assertEquals(expectTerm, e.getTerm());
@@ -238,18 +242,21 @@ public class LogReplicationTest {
     }
 
     private void compareLogsWithinCluster(List<LogEntry> logsOnLeader, List<TestingRaftStateMachine> stateMachines) {
-        long expectCommitIndex = logsOnLeader.get(logsOnLeader.size() - 1).getIndex();
         for (TestingRaftStateMachine stateMachine : stateMachines) {
             List<LogEntry> applied = stateMachine.waitApplied(logsOnLeader.size());
-
+            applied = applied.stream().filter(e -> !e.getData().isEmpty()).collect(Collectors.toList());
             // check node status after logs proposed
-            RaftStatusSnapshot status = stateMachine.getLastStatus();
-            assertEquals(expectCommitIndex, status.getCommitIndex());
             assertEquals(logsOnLeader.size(), applied.size());
 
             for (int i = 0; i < logsOnLeader.size(); i++) {
                 assertEquals(logsOnLeader.get(i), applied.get(i));
             }
+        }
+    }
+
+    private void checkCommitedIndex(TestingRaftStateMachine leaderStateMachine){
+        for (TestingRaftStateMachine sm : cluster.getAllStateMachines()){
+            assertTrue(sm.getLastStatus().getCommitIndex() <= leaderStateMachine.getLastStatus().getCommitIndex());
         }
     }
 }

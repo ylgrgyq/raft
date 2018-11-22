@@ -41,7 +41,7 @@ public class FileBasedStorageTest {
 
     @After
     public void tearDown() throws Exception {
-        testingStorage.awaitShutdown(5, TimeUnit.SECONDS);
+        testingStorage.shutdownGracefully(10, TimeUnit.SECONDS);
     }
 
     @Test
@@ -113,7 +113,7 @@ public class FileBasedStorageTest {
 
         expectEntries.addAll(newEntries);
         testingStorage.append(newEntries);
-        testingStorage.shutdown();
+        testingStorage.shutdownGracefully(5, TimeUnit.SECONDS);
 
         reOpen();
 
@@ -121,7 +121,7 @@ public class FileBasedStorageTest {
     }
 
     private void reOpen() throws IOException {
-        testingStorage.awaitShutdown(0, TimeUnit.SECONDS);
+        testingStorage.shutdownGracefully(0, TimeUnit.SECONDS);
 
         testingStorage = new FileBasedStorage(testingDirectory, storageName);
         testingStorage.init();

@@ -5,10 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.ThreadFactoryImpl;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.*;
 
 /**
  * Author: ylgrgyq
@@ -17,6 +14,8 @@ import java.util.concurrent.ThreadFactory;
 abstract class AsyncProxy {
     private static final Logger logger = LoggerFactory.getLogger(AsyncProxy.class.getName());
     private static final ThreadFactory defaultThreadFactory = new ThreadFactoryImpl("RaftAsyncProxy-");
+
+    private static final long DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MILLIS = 10_000;
 
     private final ExecutorService pool;
     private volatile boolean unexpectedException = false;
@@ -46,8 +45,17 @@ abstract class AsyncProxy {
         }
     }
 
-    void shutdown() {
+    void shutdownNow() {
         pool.shutdown();
+    }
+
+    void shutdownGracefully() throws InterruptedException {
+        shutdownGracefully(DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+    }
+
+    void shutdownGracefully(long timeout, TimeUnit unit) throws InterruptedException{
+        pool.shutdown();
+        pool.awaitTermination(timeout, unit);
     }
 
 }

@@ -32,7 +32,7 @@ public class ConfigChangeTest {
     }
 
     @After
-    public void after() {
+    public void after() throws Exception {
         cluster.shutdownCluster();
     }
 
@@ -78,41 +78,7 @@ public class ConfigChangeTest {
             assertTrue(newPeerIds.containsAll(peerIds));
         });
     }
-
-    @Test
-    public void testAddNodeSuccessively() throws Exception {
-        TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
-        Raft leader = cluster.getNodeById(leaderStateMachine.getId());
-
-        String successNewNode = "success new node 004";
-        String failedNewNode = "failed new node 005";
-
-        // add a new node
-        cluster.addTestingNode(successNewNode, cluster.getAllPeerIds()).start();
-        cluster.addTestingNode(failedNewNode, cluster.getAllPeerIds()).start();
-
-        CompletableFuture<ProposalResponse> f1 = leader.addNode(successNewNode);
-        CompletableFuture<ProposalResponse> f2 = leader.addNode(failedNewNode);
-        ProposalResponse resp = f1.get();
-        assertTrue(resp.isSuccess());
-        resp = f2.get();
-        assertFalse(resp.isSuccess());
-        assertEquals(ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION, resp.getError());
-
-        peerIdSet.add(successNewNode);
-        peerIdSet.stream().map(cluster::getStateMachineById).forEach(stateMachine -> {
-            assertNotNull(stateMachine);
-
-            System.out.println(stateMachine.getId() + " start to wait node added");
-            stateMachine.waitNodeAdded(successNewNode);
-
-            RaftStatusSnapshot status = stateMachine.getLastStatus();
-            List<String> peerIds = status.getPeerNodeIds();
-            assertEquals(peerIdSet.size(), peerIds.size());
-            assertTrue(peerIdSet.containsAll(peerIds));
-        });
-    }
-
+    
     @Test
     public void testRemoveNotExistsNode() throws Exception {
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();

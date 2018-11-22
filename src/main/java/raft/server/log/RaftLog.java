@@ -5,6 +5,8 @@ import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 /**
@@ -26,7 +28,7 @@ public interface RaftLog {
 
     boolean match(long term, long index);
 
-    long leaderAsyncAppend(long term, List<LogEntry> entries, BiConsumer<? super Long, ? super Throwable> action);
+    CompletableFuture<Long> leaderAsyncAppend(List<LogEntry> entries);
 
     long followerSyncAppend(long prevIndex, long prevTerm, List<LogEntry> entries);
 
@@ -44,5 +46,7 @@ public interface RaftLog {
 
     void snapshotApplied(long snapshotIndex);
 
-    void shutdown();
+    void shutdownNow();
+
+    void shutdownGracefully(long timeout, TimeUnit unit) throws InterruptedException;
 }

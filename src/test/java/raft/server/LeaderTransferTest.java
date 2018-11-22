@@ -34,7 +34,7 @@ public class LeaderTransferTest {
     }
 
     @After
-    public void after() {
+    public void after() throws Exception {
         cluster.shutdownCluster();
     }
 

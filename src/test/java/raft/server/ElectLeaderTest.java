@@ -28,7 +28,7 @@ public class ElectLeaderTest {
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception{
         cluster.shutdownCluster();
     }
 
@@ -44,7 +44,7 @@ public class ElectLeaderTest {
         assertEquals(selfId, leader.getId());
         RaftStatusSnapshot status =  leader.getLastStatus();
         assertEquals(State.LEADER, status.getState());
-        assertEquals(0, status.getCommitIndex());
+        assertEquals(-1, status.getCommitIndex());
         assertEquals(1, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
     }
@@ -66,10 +66,6 @@ public class ElectLeaderTest {
         RaftStatusSnapshot leaderStatus = leader.getLastStatus();
         assertEquals(leaderId, leader.getId());
         assertEquals(State.LEADER, leaderStatus.getState());
-        // index of dummy log is 0, term is 0. but new leader can not commit logs from previous term by counting replicas
-        // so commit index remains -1
-        assertEquals(-1, leaderStatus.getCommitIndex());
-        assertEquals(-1, leaderStatus.getAppliedIndex());
         assertTrue(leaderStatus.getTerm() > 0);
         assertEquals(leaderId, leaderStatus.getLeaderId());
 
@@ -84,8 +80,6 @@ public class ElectLeaderTest {
             f.get();
             RaftStatusSnapshot status = follower.getLastStatus();
             assertEquals(State.FOLLOWER, status.getState());
-            assertEquals(-1, status.getCommitIndex());
-            assertEquals(-1, status.getAppliedIndex());
             assertEquals(leaderStatus.getTerm(), status.getTerm());
             assertEquals(leaderId, status.getLeaderId());
         }
@@ -108,8 +102,6 @@ public class ElectLeaderTest {
         String newLeaderId = leader.getId();
         RaftStatusSnapshot leaderStatus = leader.getLastStatus();
         assertEquals(State.LEADER, leaderStatus.getState());
-        assertEquals(-1, leaderStatus.getCommitIndex());
-        assertEquals(-1, leaderStatus.getAppliedIndex());
         assertTrue(leaderStatus.getTerm() > 0);
         assertEquals(newLeaderId, leaderStatus.getLeaderId());
 
@@ -128,8 +120,6 @@ public class ElectLeaderTest {
             f.get();
             RaftStatusSnapshot status = follower.getLastStatus();
             assertEquals(State.FOLLOWER, status.getState());
-            assertEquals(-1, status.getCommitIndex());
-            assertEquals(-1, status.getAppliedIndex());
             assertEquals(leaderStatus.getTerm(), status.getTerm());
             assertEquals(newLeaderId, status.getLeaderId());
         }
@@ -152,8 +142,6 @@ public class ElectLeaderTest {
         String newLeaderId = leader.getId();
         RaftStatusSnapshot leaderStatus = leader.getLastStatus();
         assertEquals(State.LEADER, leaderStatus.getState());
-        assertEquals(-1, leaderStatus.getCommitIndex());
-        assertEquals(-1, leaderStatus.getAppliedIndex());
         assertTrue(leaderStatus.getTerm() > 0);
         assertEquals(newLeaderId, leaderStatus.getLeaderId());
 
@@ -175,8 +163,6 @@ public class ElectLeaderTest {
             f.get();
             RaftStatusSnapshot status = follower.getLastStatus();
             assertEquals(State.FOLLOWER, status.getState());
-            assertEquals(-1, status.getCommitIndex());
-            assertEquals(-1, status.getAppliedIndex());
             assertEquals(leaderStatus.getTerm(), status.getTerm());
             assertEquals(newLeaderId, status.getLeaderId());
         }
