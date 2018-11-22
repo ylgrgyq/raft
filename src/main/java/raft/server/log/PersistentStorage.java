@@ -57,5 +57,5 @@ public interface PersistentStorage {
 
     void shutdownNow();
 
-    void awaitShutdown(long timeout, TimeUnit unit);
+    void shutdownGracefully(long timeout, TimeUnit unit);
 }

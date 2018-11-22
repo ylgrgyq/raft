@@ -139,18 +139,18 @@ class TestingRaftCluster {
         throw new RuntimeException("no state machine for " + peerId);
     }
 
-    void shutdownCluster() {
+    void shutdownCluster() throws InterruptedException{
         for (Raft n : nodes.values()) {
-            n.shutdown();
+            n.shudownGracefully();
         }
         nodes.clear();
         stateMachines.clear();
     }
 
-    void shutdownPeer(String peerId) {
+    void shutdownPeer(String peerId) throws InterruptedException{
         stateMachines.remove(peerId);
         Raft n = nodes.remove(peerId);
-        n.shutdown();
+        n.shudownGracefully();
     }
 
     void clearPersistentState() {

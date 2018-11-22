@@ -124,7 +124,7 @@ public class MemoryBasedTestingStorage implements PersistentStorage {
     }
 
     @Override
-    public void awaitShutdown(long timeout, TimeUnit unit) {
+    public void shutdownGracefully(long timeout, TimeUnit unit) {
 
     }
 }

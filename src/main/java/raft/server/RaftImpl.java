@@ -28,6 +28,7 @@ import static com.google.common.base.Preconditions.*;
  */
 public class RaftImpl implements Raft {
     private static final Logger logger = LoggerFactory.getLogger(RaftImpl.class.getName());
+    private static final long DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MILLIS = 10_000;
 
     private final RaftState leader = new Leader();
     private final RaftState candidate = new Candidate();
@@ -175,7 +176,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> addNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(!newNode.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdownNow");
+        checkState(started.get(), "raft server not start or already shutdown");
 
         return proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.ADD_NODE);
     }
@@ -184,7 +185,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> removeNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(!newNode.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdownNow");
+        checkState(started.get(), "raft server not start or already shutdown");
 
         if (newNode.equals(getLeaderId())) {
             return CompletableFuture.completedFuture(
@@ -210,7 +211,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> transferLeader(String transfereeId) {
         checkNotNull(transfereeId);
         checkArgument(!transfereeId.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdownNow");
+        checkState(started.get(), "raft server not start or already shutdown");
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(transfereeId.getBytes(StandardCharsets.UTF_8));
@@ -222,7 +223,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> propose(List<byte[]> datas) {
         checkNotNull(datas);
         checkArgument(!datas.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdownNow");
+        checkState(started.get(), "raft server not start or already shutdown");
 
         logger.debug("node {} receives proposal with {} entries", this, datas.size());
 
@@ -878,12 +879,13 @@ public class RaftImpl implements Raft {
     }
 
     private void panic(String reason, Throwable err) {
-        logger.error("node {} panic due to {}, shutdownNow immediately", this, reason, err);
-        shutdown();
+        logger.error("node {} panic due to {}, shutdown immediately", this, reason, err);
+
+        shutdownNow();
     }
 
     @Override
-    public void shutdown() {
+    public void shutdownNow() {
         if (!started.compareAndSet(true, false)) {
             return;
         }
@@ -892,18 +894,53 @@ public class RaftImpl implements Raft {
         tickGenerator.shutdown();
         workerRun = false;
         wakeUpWorker();
+
         try {
             workerThread.join();
         } catch (InterruptedException ex) {
-            // ignore then continue shutdownNow
+            // ignore
         }
-        broker.shutdown();
-        // we can call onShutdown and shutdownNow on stateMachine successively
+
+        broker.shutdownNow();
+        // we can call onShutdown and shutdown on stateMachine successively
         // shutdownNow will wait onShutdown to finish
         stateMachine.onShutdown();
-        stateMachine.shutdown();
+
+        stateMachine.shutdownNow();
+
         raftLog.shutdownNow();
-        logger.info("node {} shutdownNow", this);
+        logger.info("node {} shutdown", this);
+    }
+
+    @Override
+    public void shudownGracefully() throws InterruptedException{
+        shudownGracefully(DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void shudownGracefully(long timeout, TimeUnit unit) throws InterruptedException{
+        if (!started.compareAndSet(true, false)) {
+            return;
+        }
+
+        logger.info("shutting down node {} ...", this);
+        timeout = unit.toNanos(timeout);
+        long now = System.nanoTime();
+
+        tickGenerator.shutdown();
+        workerRun = false;
+        wakeUpWorker();
+
+        workerThread.join();
+        broker.shutdownGracefully(timeout - (System.nanoTime() - now), TimeUnit.NANOSECONDS);
+
+        // we can call onShutdown and shutdown on stateMachine successively
+        // shutdownGracefully will wait onShutdown to finish
+        stateMachine.onShutdown();
+        stateMachine.shutdownGracefully(timeout - (System.nanoTime() - now), TimeUnit.NANOSECONDS);
+
+        raftLog.shutdownGracefully(timeout - (System.nanoTime() - now), TimeUnit.NANOSECONDS);
+        logger.info("node {} shutdown", this);
     }
 
     @Override

@@ -524,7 +524,7 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized void awaitShutdown(long timeout, TimeUnit unit) {
+    public synchronized void shutdownGracefully(long timeout, TimeUnit unit) {
         checkArgument(timeout >= 0);
         if (status == StorageStatus.SHUTTING_DOWN) {
             return;
@@ -570,7 +570,7 @@ public class FileBasedStorage implements PersistentStorage {
 
     @Override
     public synchronized void shutdownNow() {
-        awaitShutdown(0, TimeUnit.MILLISECONDS);
+        shutdownGracefully(0, TimeUnit.MILLISECONDS);
     }
 
     private Itr internalIterator(long start, long end) {

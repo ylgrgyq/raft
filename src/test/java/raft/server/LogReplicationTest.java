@@ -32,7 +32,7 @@ public class LogReplicationTest {
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
         cluster.shutdownCluster();
     }
 
@@ -126,7 +126,13 @@ public class LogReplicationTest {
         Raft oldLeader = cluster.getNodeById(oldLeaderStateMachine.getId());
 
         List<TestingRaftStateMachine> followerStateMachines = cluster.getFollowers();
-        followerStateMachines.forEach(s -> cluster.shutdownPeer(s.getId()));
+        followerStateMachines.forEach(s -> {
+                    try {
+                        cluster.shutdownPeer(s.getId());
+                    } catch (Exception ex){
+                        throw new RuntimeException(ex);
+                    }
+        });
 
         // all followers in cluster is removed. proposals on leader will write to it's local storage
         // but will never be committed

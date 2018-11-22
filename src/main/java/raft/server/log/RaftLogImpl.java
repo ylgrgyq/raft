@@ -11,10 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.*;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -148,9 +145,7 @@ public class RaftLogImpl implements RaftLog {
         // add logs to buffer first so we can read these new entries immediately during broadcasting logs to
         // followers afterwards and don't need to wait them to persistent in storage
         buffer.append(entries);
-        return CompletableFuture.supplyAsync(() -> {
-            return storage.append(entries);
-        }, pool);
+        return CompletableFuture.supplyAsync(() -> storage.append(entries), pool);
     }
 
     @Override
@@ -266,6 +261,15 @@ public class RaftLogImpl implements RaftLog {
     public void shutdownNow() {
         pool.shutdownNow();
         storage.shutdownNow();
+    }
+
+    public void shutdownGracefully(long timeout, TimeUnit unit) throws InterruptedException{
+        pool.shutdown();
+
+        long timeoutInNano = unit.toNanos(timeout);
+        long now = System.nanoTime();
+        storage.shutdownGracefully(timeoutInNano, unit);
+        pool.awaitTermination(timeoutInNano - (System.nanoTime() - now), TimeUnit.NANOSECONDS);
     }
 
     @Override
