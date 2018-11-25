@@ -24,7 +24,6 @@ class RaftPeerNode {
     private final String peerId;
     private final RaftImpl raft;
     private final RaftLog raftLog;
-    private final PeerNodeInflights inflights;
     private final int maxEntriesPerAppend;
 
     // index of the next log entry to send to that raft (initialized to leader last log index + 1)
@@ -32,7 +31,11 @@ class RaftPeerNode {
     // index of highest log entry known to be replicated on raft (initialized to 0, increases monotonically)
     private long matchIndex;
     private PeerNodeState state;
-    private boolean pause;
+
+    final PeerNodeInflights inflights;
+
+    long pendingSnapshotIndex;
+    boolean pause;
 
     RaftPeerNode(String peerId, RaftImpl raft, RaftLog log, long nextIndex, int maxEntriesPerAppend) {
         this.peerId = peerId;
@@ -69,12 +72,13 @@ class RaftPeerNode {
         }
 
         if (compacted) {
-            Optional<LogSnapshot> snapshot = raft.getRecentSnapshot(nextIndex - 1);
-            if (snapshot.isPresent()) {
-                LogSnapshot s = snapshot.get();
-                logger.info("prepare to send snapshot with index: {} term: {} to {}", s.getIndex(), s.getTerm(), this);
+            Optional<LogSnapshot> snapshotOpt = raft.getRecentSnapshot(nextIndex - 1);
+            if (snapshotOpt.isPresent()) {
+                LogSnapshot snapshot = snapshotOpt.get();
+                logger.info("prepare to send snapshot with index: {} term: {} to {}", snapshot.getIndex(), snapshot.getTerm(), this);
                 msgBuilder.setType(RaftCommand.CmdType.SNAPSHOT)
-                        .setSnapshot(snapshot.get());
+                        .setSnapshot(snapshot);
+                pendingSnapshotIndex = snapshot.getIndex();
                 transferToSnapshot();
             } else {
                 logger.info("snapshot on {} is not ready, skip append to {}", raft.getId(), this);
@@ -220,6 +224,10 @@ class RaftPeerNode {
         return nextIndex;
     }
 
+    void setNextIndex(long nextIndex) {
+        this.nextIndex = nextIndex;
+    }
+
     String getPeerId() {
         return peerId;
     }
@@ -235,107 +243,23 @@ class RaftPeerNode {
                 '}';
     }
 
-    private void transferToReplicate(long matchIndex) {
+    void transferToReplicate(long matchIndex) {
         state = replicateState;
         pause = false;
         inflights.reset();
         nextIndex = matchIndex + 1;
     }
 
-    private void transferToProbe() {
+    void transferToProbe() {
         state= probeState;
         pause = false;
         inflights.reset();
         nextIndex = matchIndex + 1;
     }
 
-    private void transferToSnapshot() {
+    void transferToSnapshot() {
         pause = false;
         inflights.reset();
         state= snapshotState;
-    }
-
-    interface PeerNodeState {
-        String stateName();
-        void onSendAppend(RaftPeerNode node, List<LogEntry> entriesToSend);
-        void onReceiveAppendSuccess(RaftPeerNode node, long successIndex);
-        default void onPongReceived(RaftPeerNode node) {}
-        boolean nodeIsPaused(RaftPeerNode node);
-    }
-
-    static class ProbeState implements  PeerNodeState {
-        @Override
-        public String stateName() {
-            return "Probe";
-        }
-
-        @Override
-        public void onSendAppend(RaftPeerNode node, List<LogEntry> entriesToSend) {
-            node.pause();
-        }
-
-        @Override
-        public void onReceiveAppendSuccess(RaftPeerNode node, long successIndex) {
-            node.transferToReplicate(successIndex);
-        }
-
-        @Override
-        public boolean nodeIsPaused(RaftPeerNode node) {
-            return node.pause;
-        }
-    }
-
-    static class ReplicateState implements PeerNodeState {
-        @Override
-        public String stateName() {
-            return "Replicate";
-        }
-
-        @Override
-        public void onSendAppend(RaftPeerNode node, List<LogEntry> entriesToSend) {
-            long lastEntryIndex = entriesToSend.get(entriesToSend.size() - 1).getIndex();
-            node.inflights.addInflightIndex(lastEntryIndex);
-            node.nextIndex = lastEntryIndex + 1;
-        }
-
-        @Override
-        public void onReceiveAppendSuccess(RaftPeerNode node, long successIndex) {
-            node.inflights.freeTo(successIndex);
-        }
-
-        @Override
-        public void onPongReceived(RaftPeerNode node) {
-            if (node.inflights.isFull()) {
-                node.inflights.forceFreeFirstOne();
-            }
-        }
-
-        @Override
-        public boolean nodeIsPaused(RaftPeerNode node) {
-            return node.inflights.isFull();
-        }
-    }
-
-    static class SnapshotState implements PeerNodeState {
-        @Override
-        public String stateName() {
-            return "Snapshot";
-        }
-
-        @Override
-        public void onSendAppend(RaftPeerNode node, List<LogEntry> entriesToSend) {
-            assert false;
-            logger.error("send append msg to peer: {} on snapshot state", node);
-        }
-
-        @Override
-        public void onReceiveAppendSuccess(RaftPeerNode node, long successIndex) {
-            node.transferToProbe();
-        }
-
-        @Override
-        public boolean nodeIsPaused(RaftPeerNode node) {
-            return true;
-        }
     }
 }
