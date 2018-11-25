@@ -73,4 +73,5 @@ message RaftCommand {
     string leader_hint = 15;
     bool force_election = 16;
     LogSnapshot snapshot = 17;
+    int64 reject_index = 18;
 }

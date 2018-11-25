@@ -142,4 +142,9 @@ public interface RaftCommandOrBuilder extends
    * <code>optional .raft.server.proto.LogSnapshot snapshot = 17;</code>
    */
   raft.server.proto.LogSnapshotOrBuilder getSnapshotOrBuilder();
+
+  /**
+   * <code>optional int64 reject_index = 18;</code>
+   */
+  long getRejectIndex();
 }
