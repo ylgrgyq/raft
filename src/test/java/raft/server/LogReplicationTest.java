@@ -55,7 +55,7 @@ public class LogReplicationTest {
         assertEquals(1L, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
 
-        List<LogEntry> appliedEntries = leaderStateMachine.waitApplied(151);
+        List<LogEntry> appliedEntries = leaderStateMachine.waitApplied(150);
         compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), appliedEntries, dataList);
     }
 
@@ -72,7 +72,7 @@ public class LogReplicationTest {
 
         List<byte[]> dataList = proposeSomeLogs(leader, 100);
 
-        List<LogEntry> logsOnLeader = leaderStateMachine.waitApplied(101);
+        List<LogEntry> logsOnLeader = leaderStateMachine.waitApplied(100);
         compareLogsWithSource(leaderStateMachine.getLastStatus().getTerm(), logsOnLeader, dataList);
         compareLogsWithinCluster(logsOnLeader, cluster.getFollowers());
     }

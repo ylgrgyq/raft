@@ -486,7 +486,7 @@ public class RaftImpl implements Raft {
                                         "has up to date logs", this, transfereeId);
                                 n.sendTimeout(meta.getTerm());
                             } else {
-                                n.sendAppend(meta.getTerm());
+                                n.sendAppend(meta.getTerm(), true);
                             }
 
                             return;
@@ -546,7 +546,7 @@ public class RaftImpl implements Raft {
         final long selfTerm = meta.getTerm();
         for (final RaftPeerNode peer : peerNodes.values()) {
             if (!peer.getPeerId().equals(selfId)) {
-                peer.sendAppend(selfTerm);
+                peer.sendAppend(selfTerm, true);
             }
         }
     }
@@ -1008,19 +1008,28 @@ public class RaftImpl implements Raft {
                         tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
                     } else if (cmd.getTerm() == selfTerm) {
                         RaftPeerNode node = peerNodes.get(cmd.getFrom());
-
                         assert node != null;
 
                         if (cmd.getSuccess()) {
-                            if (node.updateIndexes(cmd.getMatchIndex()) && updateCommit()) {
-                                broadcastAppendEntries();
-                            }
+                            if (node.updateIndexes(cmd.getMatchIndex())) {
+                                node.onReceiveAppendSuccess(cmd.getMatchIndex());
 
-                            if (transferLeaderFuture != null
-                                    && transferLeaderFuture.getTransfereeId().equals(cmd.getFrom())
-                                    && node.getMatchIndex() == raftLog.getLastIndex()) {
-                                logger.info("node {} send timeout to {} after it has up to date logs", RaftImpl.this, cmd.getFrom());
-                                node.sendTimeout(selfTerm);
+                                if (updateCommit()){
+                                    broadcastAppendEntries();
+                                }
+
+                                while (true){
+                                    if (!node.sendAppend(selfTerm, false)) {
+                                        break;
+                                    }
+                                }
+
+                                if (transferLeaderFuture != null
+                                        && transferLeaderFuture.getTransfereeId().equals(cmd.getFrom())
+                                        && node.getMatchIndex() == raftLog.getLastIndex()) {
+                                    logger.info("node {} send timeout to {} after it has up to date logs", RaftImpl.this, cmd.getFrom());
+                                    node.sendTimeout(selfTerm);
+                                }
                             }
                         } else {
                             node.decreaseIndexAndResendAppend(selfTerm);
@@ -1030,8 +1039,12 @@ public class RaftImpl implements Raft {
                 case PONG:
                     // resend pending append entries
                     RaftPeerNode node = peerNodes.get(cmd.getFrom());
+                    // only allow sending a single probing append to follower during a ping interval to
+                    // reduce the cost in probing state. If we probe on every APPEND_ENTRIES_RESP, we may send
+                    // a lot of probing append in a short time
+                    node.resume();
                     if (node.getMatchIndex() < RaftImpl.this.raftLog.getLastIndex()) {
-                        node.sendAppend(selfTerm);
+                        node.sendAppend(selfTerm, false);
                     }
                     break;
                 case REQUEST_VOTE_RESP:

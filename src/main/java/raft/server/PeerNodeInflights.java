@@ -36,4 +36,8 @@ class PeerNodeInflights {
     boolean isFull() {
         return inflights.size() == size;
     }
+
+    int size() {
+        return inflights.size();
+    }
 }

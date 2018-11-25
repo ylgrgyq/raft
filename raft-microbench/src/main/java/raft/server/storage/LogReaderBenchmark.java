@@ -27,14 +27,12 @@ public class LogReaderBenchmark {
         FileChannel ch = FileChannel.open(p, StandardOpenOption.READ);
         reader = new LogReader(ch);
         Arrays.fill(original, (byte)2);
-        System.out.println("set up called");
     }
 
     @TearDown
     public void clean() throws Exception{
 
         reader.close();
-        System.out.println("clean called");
     }
 
     @Benchmark
