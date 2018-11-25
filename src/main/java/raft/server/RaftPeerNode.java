@@ -31,6 +31,7 @@ class RaftPeerNode {
     // index of highest log entry known to be replicated on raft (initialized to 0, increases monotonically)
     private long matchIndex;
     private PeerNodeState state;
+    private int pendingSnapshotTimeoutCount;
 
     final PeerNodeInflights inflights;
 
@@ -129,6 +130,45 @@ class RaftPeerNode {
         raft.writeOutCommand(msg);
     }
 
+    boolean isInProbeState() {
+        return state == probeState;
+    }
+
+    boolean isInReplicateState() {
+        return state == replicateState;
+    }
+
+    boolean isInSnapshotState() {
+        return state == snapshotState;
+    }
+
+    void transferToReplicate(long matchIndex) {
+        resetState(replicateState);
+        nextIndex = matchIndex + 1;
+    }
+
+    void transferToProbe() {
+        long snapshotIndex = -1;
+        if (isInSnapshotState()) {
+            snapshotIndex = pendingSnapshotIndex;
+        }
+        resetState(probeState);
+        nextIndex = Math.max(matchIndex + 1, snapshotIndex + 1);
+    }
+
+    void transferToSnapshot() {
+        resetState(snapshotState);
+        state= snapshotState;
+        pendingSnapshotTimeoutCount = 0;
+    }
+
+    private void resetState(PeerNodeState nextState) {
+        state = nextState;
+        pause = false;
+        inflights.reset();
+        pendingSnapshotIndex = 0;
+    }
+
     boolean isPaused() {
         return state.nodeIsPaused(this);
     }
@@ -141,7 +181,10 @@ class RaftPeerNode {
         this.pause = false;
     }
 
-
+    int increaseSnapshotTimeout() {
+        ++pendingSnapshotTimeoutCount;
+        return pendingSnapshotTimeoutCount;
+    }
 
     void onReceiveAppendSuccess(long successIndex) {
         state.onReceiveAppendSuccess(this, successIndex);
@@ -180,7 +223,7 @@ class RaftPeerNode {
      * raft main worker thread and leader async append log thread
      */
     synchronized void decreaseIndexAndResendAppend(long term) {
-        if (state == replicateState) {
+        if (isInReplicateState()) {
             transferToProbe();
         } else {
             nextIndex--;
@@ -241,25 +284,5 @@ class RaftPeerNode {
                 ", state=" + state.stateName() +
                 ", inflights=" + inflights.size() +
                 '}';
-    }
-
-    void transferToReplicate(long matchIndex) {
-        state = replicateState;
-        pause = false;
-        inflights.reset();
-        nextIndex = matchIndex + 1;
-    }
-
-    void transferToProbe() {
-        state= probeState;
-        pause = false;
-        inflights.reset();
-        nextIndex = matchIndex + 1;
-    }
-
-    void transferToSnapshot() {
-        pause = false;
-        inflights.reset();
-        state= snapshotState;
     }
 }
