@@ -89,12 +89,12 @@ public class RaftImpl implements Raft {
         }
 
         meta.init();
-        reset(meta.getTerm());
-
         raftLog.init(meta);
         if (c.appliedTo > -1) {
             raftLog.appliedTo(c.appliedTo);
         }
+
+        reset(meta.getTerm());
 
         tickGenerator.scheduleWithFixedDelay(() -> {
             if (! pauseTick.get()) {
@@ -643,8 +643,7 @@ public class RaftImpl implements Raft {
                 // from the current term has been committed in this way, then all prior entries are committed
                 // indirectly because of the Log Matching Property
                 if (e.getTerm() == meta.getTerm()) {
-                    tryCommitTo(kthMatchedIndexes);
-                    return true;
+                    return tryCommitTo(kthMatchedIndexes);
                 }
             }
         }
@@ -680,13 +679,16 @@ public class RaftImpl implements Raft {
         assert Thread.currentThread() == workerThread;
 
         if (getState() == State.CANDIDATE) {
-            transitState(leader, meta.getTerm(), selfId);
-
             // reinitialize nextIndex for every peer node
-            // then send them initial ping on start leader state
+            long lastIndex = raftLog.getLastIndex();
             for (RaftPeerNode node : peerNodes.values()) {
-                node.reset(raftLog.getLastIndex() + 1);
+                node.reset( lastIndex + 1);
+                if (node.getPeerId().equals(selfId)) {
+                    node.setMatchIndex(lastIndex);
+                }
             }
+
+            transitState(leader, meta.getTerm(), selfId);
         } else {
             logger.error("node {} transient state to {} failed", this, State.LEADER);
         }
@@ -804,7 +806,7 @@ public class RaftImpl implements Raft {
         writeOutCommand(pong);
     }
 
-    private void tryCommitTo(long commitTo) {
+    private boolean tryCommitTo(long commitTo) {
         if (logger.isDebugEnabled()) {
             logger.debug("node {} try commit to {} with current commitIndex: {} and lastIndex: {}",
                     this, commitTo, raftLog.getCommitIndex(), raftLog.getLastIndex());
@@ -819,7 +821,9 @@ public class RaftImpl implements Raft {
                     .whenComplete((ret, t) ->
                             pendingProposal.completeFutures(last.getIndex())
                     );
+            return true;
         }
+        return false;
     }
 
     private void processSnapshot(RaftCommand cmd) {

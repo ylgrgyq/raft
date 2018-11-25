@@ -37,12 +37,12 @@ class RaftPeerNode {
     RaftPeerNode(String peerId, RaftImpl raft, RaftLog log, long nextIndex, int maxEntriesPerAppend) {
         this.peerId = peerId;
         this.nextIndex = nextIndex;
-        this.matchIndex = -1L;
+        this.matchIndex = 0L;
         this.raft = raft;
         this.raftLog = log;
         this.inflights = new PeerNodeInflights(maxEntriesPerAppend);
         this.maxEntriesPerAppend = maxEntriesPerAppend;
-        this.state = new ReplicateState();
+        this.state = replicateState;
     }
 
     boolean sendAppend(long term, boolean allowEmpty) {
@@ -187,7 +187,8 @@ class RaftPeerNode {
      */
     synchronized void reset(long nextIndex) {
         this.nextIndex = nextIndex;
-        this.matchIndex = -1L;
+        this.matchIndex = 0L;
+        this.inflights.reset();
     }
 
     /**
@@ -196,6 +197,10 @@ class RaftPeerNode {
      */
     synchronized long getMatchIndex() {
         return matchIndex;
+    }
+
+    void setMatchIndex(long index) {
+        this.matchIndex = index;
     }
 
     /**
@@ -221,15 +226,23 @@ class RaftPeerNode {
                 '}';
     }
 
-    private void transferToReplicate() {
+    private void transferToReplicate(long matchIndex) {
         state = replicateState;
+        pause = false;
+        inflights.reset();
+        nextIndex = matchIndex + 1;
     }
 
     private void transferToProbe() {
         state= probeState;
+        pause = false;
+        inflights.reset();
+        nextIndex = matchIndex + 1;
     }
 
     private void transferToSnapshot() {
+        pause = false;
+        inflights.reset();
         state= snapshotState;
     }
 
@@ -253,7 +266,7 @@ class RaftPeerNode {
 
         @Override
         public void onReceiveAppendSuccess(RaftPeerNode node, long successIndex) {
-            node.transferToReplicate();
+            node.transferToReplicate(successIndex);
         }
 
         @Override

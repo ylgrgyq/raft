@@ -40,4 +40,8 @@ class PeerNodeInflights {
     int size() {
         return inflights.size();
     }
+
+    void reset() {
+        inflights.clear();
+    }
 }
