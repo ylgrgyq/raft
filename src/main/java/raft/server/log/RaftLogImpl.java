@@ -232,7 +232,6 @@ public class RaftLogImpl implements RaftLog {
                 "try applied log to %s but commit index in log is %s", appliedTo, commitIndex);
         checkArgument(appliedTo >= appliedIndex,
                 "try applied log to %s but applied index in log is %s", appliedTo, appliedIndex);
-
         this.appliedIndex = appliedTo;
         buffer.truncateBuffer(Math.min(appliedTo, storage.getLastIndex()));
     }

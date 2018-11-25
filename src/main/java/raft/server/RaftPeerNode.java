@@ -17,28 +17,44 @@ import java.util.Optional;
  */
 class RaftPeerNode {
     private static final Logger logger = LoggerFactory.getLogger(RaftPeerNode.class.getName());
+    private static final ReplicateState replicateState = new ReplicateState();
+    private static final ProbeState probeState = new ProbeState();
+    private static final SnapshotState snapshotState = new SnapshotState();
 
     private final String peerId;
     private final RaftImpl raft;
     private final RaftLog raftLog;
+    private final int maxEntriesPerAppend;
 
     // index of the next log entry to send to that raft (initialized to leader last log index + 1)
     private long nextIndex;
     // index of highest log entry known to be replicated on raft (initialized to 0, increases monotonically)
     private long matchIndex;
-    private int maxEntriesPerAppend;
+    private PeerNodeState state;
+    private int pendingSnapshotTimeoutCount;
+
+    final PeerNodeInflights inflights;
+
+    long pendingSnapshotIndex;
+    boolean pause;
 
     RaftPeerNode(String peerId, RaftImpl raft, RaftLog log, long nextIndex, int maxEntriesPerAppend) {
         this.peerId = peerId;
         this.nextIndex = nextIndex;
-        this.matchIndex = -1L;
+        this.matchIndex = 0L;
         this.raft = raft;
         this.raftLog = log;
+        this.inflights = new PeerNodeInflights(maxEntriesPerAppend);
         this.maxEntriesPerAppend = maxEntriesPerAppend;
+        this.state = replicateState;
     }
 
-    void sendAppend(long term) {
-        final long startIndex = getNextIndex();
+    boolean sendAppend(long term, boolean allowEmpty) {
+        if (isPaused()) {
+            return false;
+        }
+
+        final long nextIndex = getNextIndex();
         boolean compacted = false;
         Optional<Long> prevTerm;
         RaftCommand.Builder msgBuilder = RaftCommand.newBuilder()
@@ -47,39 +63,51 @@ class RaftPeerNode {
                 .setTerm(term)
                 .setTo(peerId);
 
-        logger.debug("node {} send append to {} with logs start from {}", raft, this, startIndex);
+        logger.debug("node {} send append to {} with logs start from {}", raft, this, nextIndex);
 
         try {
-            prevTerm = raftLog.getTerm(startIndex - 1);
+            prevTerm = raftLog.getTerm(nextIndex - 1);
         } catch (LogsCompactedException ex) {
             compacted = true;
             prevTerm = Optional.empty();
         }
 
         if (compacted) {
-            Optional<LogSnapshot> snapshot = raft.getRecentSnapshot(startIndex - 1);
-            if (snapshot.isPresent()) {
-                LogSnapshot s = snapshot.get();
-                logger.info("prepare to send snapshot with index: {} term: {} to {}", s.getIndex(), s.getTerm(), this);
-                msgBuilder.setType(RaftCommand.CmdType.SNAPSHOT).setSnapshot(snapshot.get());
+            Optional<LogSnapshot> snapshotOpt = raft.getRecentSnapshot(nextIndex - 1);
+            if (snapshotOpt.isPresent()) {
+                LogSnapshot snapshot = snapshotOpt.get();
+                logger.info("prepare to send snapshot with index: {} term: {} to {}", snapshot.getIndex(), snapshot.getTerm(), this);
+                msgBuilder.setType(RaftCommand.CmdType.SNAPSHOT)
+                        .setSnapshot(snapshot);
+                pendingSnapshotIndex = snapshot.getIndex();
+                transferToSnapshot();
             } else {
                 logger.info("snapshot on {} is not ready, skip append to {}", raft.getId(), this);
-                return;
+                return false;
             }
         } else {
             if (!prevTerm.isPresent()) {
-                String m = String.format("get term for index: %s from log: %s failed", startIndex - 1, raftLog);
+                String m = String.format("get term for index: %s from log: %s failed", nextIndex - 1, raftLog);
                 throw new IllegalStateException(m);
             }
 
-            List<LogEntry> entries = raftLog.getEntries(startIndex, startIndex + this.maxEntriesPerAppend);
             msgBuilder.setType(RaftCommand.CmdType.APPEND_ENTRIES)
-                    .setPrevLogIndex(startIndex - 1)
-                    .setPrevLogTerm(prevTerm.get())
-                    .addAllEntries(entries);
+                    .setPrevLogIndex(nextIndex - 1)
+                    .setPrevLogTerm(prevTerm.get());
+
+            List<LogEntry> entries = raftLog.getEntries(nextIndex, nextIndex + maxEntriesPerAppend);
+            if (entries.isEmpty()) {
+                if (!allowEmpty) {
+                    return false;
+                }
+            } else {
+                state.onSendAppend(this, entries);
+                msgBuilder.addAllEntries(entries);
+            }
         }
 
         raft.writeOutCommand(msgBuilder);
+        return true;
     }
 
     void sendPing(long term) {
@@ -89,6 +117,7 @@ class RaftPeerNode {
                 .setLeaderId(raft.getLeaderId())
                 .setLeaderCommit(Math.min(getMatchIndex(), raftLog.getCommitIndex()))
                 .setTo(peerId);
+
         raft.writeOutCommand(msg);
     }
 
@@ -99,6 +128,74 @@ class RaftPeerNode {
                 .setLeaderId(raft.getLeaderId())
                 .setTo(peerId);
         raft.writeOutCommand(msg);
+    }
+
+    boolean isInProbeState() {
+        return state == probeState;
+    }
+
+    boolean isInReplicateState() {
+        return state == replicateState;
+    }
+
+    boolean isInSnapshotState() {
+        return state == snapshotState;
+    }
+
+    void transferToReplicate(long matchIndex) {
+        resetState(replicateState);
+        nextIndex = matchIndex + 1;
+    }
+
+    void transferToProbe() {
+        long snapshotIndex = -1;
+        if (isInSnapshotState()) {
+            snapshotIndex = pendingSnapshotIndex;
+        }
+        resetState(probeState);
+        nextIndex = Math.max(matchIndex + 1, snapshotIndex + 1);
+    }
+
+    void transferToSnapshot() {
+        resetState(snapshotState);
+        state= snapshotState;
+        pendingSnapshotTimeoutCount = 0;
+    }
+
+    private void resetState(PeerNodeState nextState) {
+        state = nextState;
+        pause = false;
+        inflights.reset();
+        pendingSnapshotIndex = 0;
+    }
+
+    boolean isPaused() {
+        return state.nodeIsPaused(this);
+    }
+
+    void pause() {
+        this.pause = true;
+    }
+
+    void resume() {
+        this.pause = false;
+    }
+
+    int increaseSnapshotTimeout() {
+        ++pendingSnapshotTimeoutCount;
+        return pendingSnapshotTimeoutCount;
+    }
+
+    void onReceiveAppendSuccess(long successIndex) {
+        state.onReceiveAppendSuccess(this, successIndex);
+    }
+
+    void onPongRecieved() {
+        // only allow sending a single probing append to follower during a ping interval to
+        // reduce the cost in probing state. If we probe on every APPEND_ENTRIES_RESP, we may send
+        // a lot of probing append in a short time
+        resume();
+        state.onPongReceived(this);
     }
 
     // raft main worker thread and leader async append log thread may contend lock to update matchIndex and nextIndex
@@ -126,13 +223,18 @@ class RaftPeerNode {
      * raft main worker thread and leader async append log thread
      */
     synchronized void decreaseIndexAndResendAppend(long term) {
-        nextIndex--;
-        if (nextIndex < 1L) {
-            logger.warn("nextIndex for {} decreased to 1", this.toString());
-            nextIndex = 1L;
+        if (isInReplicateState()) {
+            transferToProbe();
+        } else {
+            nextIndex--;
+            if (nextIndex < 1L) {
+                logger.warn("nextIndex for {} decreased to 1", this.toString());
+                nextIndex = 1L;
+            }
+            assert nextIndex > matchIndex : "nextIndex: " + nextIndex + " is not greater than matchIndex: " + matchIndex;
         }
-        assert nextIndex > matchIndex : "nextIndex: " + nextIndex + " is not greater than matchIndex: " + matchIndex;
-        sendAppend(term);
+
+        sendAppend(term, false);
     }
 
     /**
@@ -141,7 +243,8 @@ class RaftPeerNode {
      */
     synchronized void reset(long nextIndex) {
         this.nextIndex = nextIndex;
-        this.matchIndex = -1L;
+        this.matchIndex = 0L;
+        this.inflights.reset();
     }
 
     /**
@@ -152,12 +255,20 @@ class RaftPeerNode {
         return matchIndex;
     }
 
+    void setMatchIndex(long index) {
+        this.matchIndex = index;
+    }
+
     /**
      * synchronized mark is used to protect matchIndex and nextIndex which may be contended between
      * raft main worker thread and leader async append log thread
      */
     private synchronized long getNextIndex() {
         return nextIndex;
+    }
+
+    void setNextIndex(long nextIndex) {
+        this.nextIndex = nextIndex;
     }
 
     String getPeerId() {
@@ -170,6 +281,8 @@ class RaftPeerNode {
                 "peerId='" + peerId + '\'' +
                 ", nextIndex=" + nextIndex +
                 ", matchIndex=" + matchIndex +
+                ", state=" + state.stateName() +
+                ", inflights=" + inflights.size() +
                 '}';
     }
 }

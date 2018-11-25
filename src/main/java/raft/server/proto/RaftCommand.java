@@ -31,6 +31,7 @@ public  final class RaftCommand extends
     voteGranted_ = false;
     leaderHint_ = "";
     forceElection_ = false;
+    rejectIndex_ = 0L;
   }
 
   @java.lang.Override
@@ -158,6 +159,11 @@ public  final class RaftCommand extends
               snapshot_ = subBuilder.buildPartial();
             }
 
+            break;
+          }
+          case 144: {
+
+            rejectIndex_ = input.readInt64();
             break;
           }
         }
@@ -691,6 +697,15 @@ public  final class RaftCommand extends
     return getSnapshot();
   }
 
+  public static final int REJECT_INDEX_FIELD_NUMBER = 18;
+  private long rejectIndex_;
+  /**
+   * <code>optional int64 reject_index = 18;</code>
+   */
+  public long getRejectIndex() {
+    return rejectIndex_;
+  }
+
   private byte memoizedIsInitialized = -1;
   public final boolean isInitialized() {
     byte isInitialized = memoizedIsInitialized;
@@ -753,6 +768,9 @@ public  final class RaftCommand extends
     }
     if (snapshot_ != null) {
       output.writeMessage(17, getSnapshot());
+    }
+    if (rejectIndex_ != 0L) {
+      output.writeInt64(18, rejectIndex_);
     }
   }
 
@@ -825,6 +843,10 @@ public  final class RaftCommand extends
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(17, getSnapshot());
     }
+    if (rejectIndex_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(18, rejectIndex_);
+    }
     memoizedSize = size;
     return size;
   }
@@ -877,6 +899,8 @@ public  final class RaftCommand extends
       result = result && getSnapshot()
           .equals(other.getSnapshot());
     }
+    result = result && (getRejectIndex()
+        == other.getRejectIndex());
     return result;
   }
 
@@ -935,6 +959,9 @@ public  final class RaftCommand extends
       hash = (37 * hash) + SNAPSHOT_FIELD_NUMBER;
       hash = (53 * hash) + getSnapshot().hashCode();
     }
+    hash = (37 * hash) + REJECT_INDEX_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getRejectIndex());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1096,6 +1123,8 @@ public  final class RaftCommand extends
         snapshot_ = null;
         snapshotBuilder_ = null;
       }
+      rejectIndex_ = 0L;
+
       return this;
     }
 
@@ -1149,6 +1178,7 @@ public  final class RaftCommand extends
       } else {
         result.snapshot_ = snapshotBuilder_.build();
       }
+      result.rejectIndex_ = rejectIndex_;
       result.bitField0_ = to_bitField0_;
       onBuilt();
       return result;
@@ -1268,6 +1298,9 @@ public  final class RaftCommand extends
       }
       if (other.hasSnapshot()) {
         mergeSnapshot(other.getSnapshot());
+      }
+      if (other.getRejectIndex() != 0L) {
+        setRejectIndex(other.getRejectIndex());
       }
       onChanged();
       return this;
@@ -2231,6 +2264,32 @@ public  final class RaftCommand extends
         snapshot_ = null;
       }
       return snapshotBuilder_;
+    }
+
+    private long rejectIndex_ ;
+    /**
+     * <code>optional int64 reject_index = 18;</code>
+     */
+    public long getRejectIndex() {
+      return rejectIndex_;
+    }
+    /**
+     * <code>optional int64 reject_index = 18;</code>
+     */
+    public Builder setRejectIndex(long value) {
+      
+      rejectIndex_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>optional int64 reject_index = 18;</code>
+     */
+    public Builder clearRejectIndex() {
+      
+      rejectIndex_ = 0L;
+      onChanged();
+      return this;
     }
     public final Builder setUnknownFields(
         final com.google.protobuf.UnknownFieldSet unknownFields) {

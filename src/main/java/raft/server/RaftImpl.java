@@ -89,12 +89,12 @@ public class RaftImpl implements Raft {
         }
 
         meta.init();
-        reset(meta.getTerm());
-
         raftLog.init(meta);
         if (c.appliedTo > -1) {
             raftLog.appliedTo(c.appliedTo);
         }
+
+        reset(meta.getTerm());
 
         tickGenerator.scheduleWithFixedDelay(() -> {
             if (! pauseTick.get()) {
@@ -486,7 +486,7 @@ public class RaftImpl implements Raft {
                                         "has up to date logs", this, transfereeId);
                                 n.sendTimeout(meta.getTerm());
                             } else {
-                                n.sendAppend(meta.getTerm());
+                                n.sendAppend(meta.getTerm(), true);
                             }
 
                             return;
@@ -546,7 +546,7 @@ public class RaftImpl implements Raft {
         final long selfTerm = meta.getTerm();
         for (final RaftPeerNode peer : peerNodes.values()) {
             if (!peer.getPeerId().equals(selfId)) {
-                peer.sendAppend(selfTerm);
+                peer.sendAppend(selfTerm, true);
             }
         }
     }
@@ -643,8 +643,7 @@ public class RaftImpl implements Raft {
                 // from the current term has been committed in this way, then all prior entries are committed
                 // indirectly because of the Log Matching Property
                 if (e.getTerm() == meta.getTerm()) {
-                    tryCommitTo(kthMatchedIndexes);
-                    return true;
+                    return tryCommitTo(kthMatchedIndexes);
                 }
             }
         }
@@ -680,13 +679,16 @@ public class RaftImpl implements Raft {
         assert Thread.currentThread() == workerThread;
 
         if (getState() == State.CANDIDATE) {
-            transitState(leader, meta.getTerm(), selfId);
-
             // reinitialize nextIndex for every peer node
-            // then send them initial ping on start leader state
+            long lastIndex = raftLog.getLastIndex();
             for (RaftPeerNode node : peerNodes.values()) {
-                node.reset(raftLog.getLastIndex() + 1);
+                node.reset( lastIndex + 1);
+                if (node.getPeerId().equals(selfId)) {
+                    node.setMatchIndex(lastIndex);
+                }
             }
+
+            transitState(leader, meta.getTerm(), selfId);
         } else {
             logger.error("node {} transient state to {} failed", this, State.LEADER);
         }
@@ -760,6 +762,10 @@ public class RaftImpl implements Raft {
 
                 resp.setSuccess(true);
                 resp.setMatchIndex(matchIndex);
+            } else {
+                List<LogEntry> entries = cmd.getEntriesList();
+
+                resp.setLastLogIndex(raftLog.getLastIndex());
             }
         }
         writeOutCommand(resp);
@@ -804,7 +810,7 @@ public class RaftImpl implements Raft {
         writeOutCommand(pong);
     }
 
-    private void tryCommitTo(long commitTo) {
+    private boolean tryCommitTo(long commitTo) {
         if (logger.isDebugEnabled()) {
             logger.debug("node {} try commit to {} with current commitIndex: {} and lastIndex: {}",
                     this, commitTo, raftLog.getCommitIndex(), raftLog.getLastIndex());
@@ -819,7 +825,9 @@ public class RaftImpl implements Raft {
                     .whenComplete((ret, t) ->
                             pendingProposal.completeFutures(last.getIndex())
                     );
+            return true;
         }
+        return false;
     }
 
     private void processSnapshot(RaftCommand cmd) {
@@ -1008,19 +1016,28 @@ public class RaftImpl implements Raft {
                         tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
                     } else if (cmd.getTerm() == selfTerm) {
                         RaftPeerNode node = peerNodes.get(cmd.getFrom());
-
                         assert node != null;
 
                         if (cmd.getSuccess()) {
-                            if (node.updateIndexes(cmd.getMatchIndex()) && updateCommit()) {
-                                broadcastAppendEntries();
-                            }
+                            if (node.updateIndexes(cmd.getMatchIndex())) {
+                                node.onReceiveAppendSuccess(cmd.getMatchIndex());
 
-                            if (transferLeaderFuture != null
-                                    && transferLeaderFuture.getTransfereeId().equals(cmd.getFrom())
-                                    && node.getMatchIndex() == raftLog.getLastIndex()) {
-                                logger.info("node {} send timeout to {} after it has up to date logs", RaftImpl.this, cmd.getFrom());
-                                node.sendTimeout(selfTerm);
+                                if (updateCommit()){
+                                    broadcastAppendEntries();
+                                }
+
+                                while (true){
+                                    if (!node.sendAppend(selfTerm, false)) {
+                                        break;
+                                    }
+                                }
+
+                                if (transferLeaderFuture != null
+                                        && transferLeaderFuture.getTransfereeId().equals(cmd.getFrom())
+                                        && node.getMatchIndex() == raftLog.getLastIndex()) {
+                                    logger.info("node {} send timeout to {} after it has up to date logs", RaftImpl.this, cmd.getFrom());
+                                    node.sendTimeout(selfTerm);
+                                }
                             }
                         } else {
                             node.decreaseIndexAndResendAppend(selfTerm);
@@ -1030,8 +1047,9 @@ public class RaftImpl implements Raft {
                 case PONG:
                     // resend pending append entries
                     RaftPeerNode node = peerNodes.get(cmd.getFrom());
+                    node.onPongRecieved();
                     if (node.getMatchIndex() < RaftImpl.this.raftLog.getLastIndex()) {
-                        node.sendAppend(selfTerm);
+                        node.sendAppend(selfTerm, true);
                     }
                     break;
                 case REQUEST_VOTE_RESP:
