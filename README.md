@@ -9,6 +9,7 @@ Supported raft features:
 - Log replication/compaction
 - Membership changes
 - Leadership transfer
+- Pipeline
 - Snapshot
 
 ## Testing coverage report
