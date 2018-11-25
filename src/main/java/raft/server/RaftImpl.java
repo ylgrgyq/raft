@@ -762,6 +762,10 @@ public class RaftImpl implements Raft {
 
                 resp.setSuccess(true);
                 resp.setMatchIndex(matchIndex);
+            } else {
+                List<LogEntry> entries = cmd.getEntriesList();
+
+                resp.setLastLogIndex(raftLog.getLastIndex());
             }
         }
         writeOutCommand(resp);
@@ -1043,12 +1047,9 @@ public class RaftImpl implements Raft {
                 case PONG:
                     // resend pending append entries
                     RaftPeerNode node = peerNodes.get(cmd.getFrom());
-                    // only allow sending a single probing append to follower during a ping interval to
-                    // reduce the cost in probing state. If we probe on every APPEND_ENTRIES_RESP, we may send
-                    // a lot of probing append in a short time
-                    node.resume();
+                    node.onPongRecieved();
                     if (node.getMatchIndex() < RaftImpl.this.raftLog.getLastIndex()) {
-                        node.sendAppend(selfTerm, false);
+                        node.sendAppend(selfTerm, true);
                     }
                     break;
                 case REQUEST_VOTE_RESP:

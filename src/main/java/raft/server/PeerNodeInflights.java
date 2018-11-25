@@ -29,6 +29,10 @@ class PeerNodeInflights {
         }
     }
 
+    void forceFreeFirstOne() {
+        inflights.poll();
+    }
+
     int getSurplus(){
         return size - inflights.size();
     }

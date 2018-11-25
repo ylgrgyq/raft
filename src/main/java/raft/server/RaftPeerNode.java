@@ -143,6 +143,14 @@ class RaftPeerNode {
         state.onReceiveAppendSuccess(this, successIndex);
     }
 
+    void onPongRecieved() {
+        // only allow sending a single probing append to follower during a ping interval to
+        // reduce the cost in probing state. If we probe on every APPEND_ENTRIES_RESP, we may send
+        // a lot of probing append in a short time
+        resume();
+        state.onPongReceived(this);
+    }
+
     // raft main worker thread and leader async append log thread may contend lock to update matchIndex and nextIndex
 
     /**
@@ -168,16 +176,17 @@ class RaftPeerNode {
      * raft main worker thread and leader async append log thread
      */
     synchronized void decreaseIndexAndResendAppend(long term) {
-        nextIndex--;
-        if (nextIndex < 1L) {
-            logger.warn("nextIndex for {} decreased to 1", this.toString());
-            nextIndex = 1L;
-        }
-        assert nextIndex > matchIndex : "nextIndex: " + nextIndex + " is not greater than matchIndex: " + matchIndex;
-
         if (state == replicateState) {
             transferToProbe();
+        } else {
+            nextIndex--;
+            if (nextIndex < 1L) {
+                logger.warn("nextIndex for {} decreased to 1", this.toString());
+                nextIndex = 1L;
+            }
+            assert nextIndex > matchIndex : "nextIndex: " + nextIndex + " is not greater than matchIndex: " + matchIndex;
         }
+
         sendAppend(term, false);
     }
 
@@ -250,6 +259,7 @@ class RaftPeerNode {
         String stateName();
         void onSendAppend(RaftPeerNode node, List<LogEntry> entriesToSend);
         void onReceiveAppendSuccess(RaftPeerNode node, long successIndex);
+        default void onPongReceived(RaftPeerNode node) {}
         boolean nodeIsPaused(RaftPeerNode node);
     }
 
@@ -291,6 +301,13 @@ class RaftPeerNode {
         @Override
         public void onReceiveAppendSuccess(RaftPeerNode node, long successIndex) {
             node.inflights.freeTo(successIndex);
+        }
+
+        @Override
+        public void onPongReceived(RaftPeerNode node) {
+            if (node.inflights.isFull()) {
+                node.inflights.forceFreeFirstOne();
+            }
         }
 
         @Override
