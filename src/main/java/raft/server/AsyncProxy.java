@@ -1,9 +1,9 @@
 package raft.server;
 
-import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.ThreadFactoryImpl;
+import raft.server.util.Preconditions;
+import raft.server.util.ThreadFactoryImpl;
 
 import java.util.concurrent.*;
 

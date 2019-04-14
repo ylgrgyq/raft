@@ -1,17 +1,16 @@
 package raft.server;
 
-import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
 import raft.server.log.RaftLogImpl;
 import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
 import raft.server.proto.RaftCommand;
+import raft.server.util.ThreadFactoryImpl;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -20,7 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.Preconditions.*;
+import static raft.server.util.Preconditions.checkArgument;
+import static raft.server.util.Preconditions.checkNotNull;
 
 /**
  * Author: ylgrgyq
@@ -63,7 +63,7 @@ public class RaftImpl implements Raft {
     private TransferLeaderFuture transferLeaderFuture = null;
 
     public RaftImpl(Config c) {
-        Preconditions.checkNotNull(c);
+        checkNotNull(c);
 
         this.c = c;
         this.workerThread = new Thread(new Worker());
@@ -176,7 +176,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> addNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(!newNode.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdown");
+        checkArgument(started.get(), "raft server not start or already shutdown");
 
         return proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.ADD_NODE);
     }
@@ -185,7 +185,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> removeNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(!newNode.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdown");
+        checkArgument(started.get(), "raft server not start or already shutdown");
 
         if (newNode.equals(getLeaderId())) {
             return CompletableFuture.completedFuture(
@@ -211,7 +211,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> transferLeader(String transfereeId) {
         checkNotNull(transfereeId);
         checkArgument(!transfereeId.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdown");
+        checkArgument(started.get(), "raft server not start or already shutdown");
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(transfereeId.getBytes(StandardCharsets.UTF_8));
@@ -223,7 +223,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> propose(List<byte[]> datas) {
         checkNotNull(datas);
         checkArgument(!datas.isEmpty());
-        checkState(started.get(), "raft server not start or already shutdown");
+        checkArgument(started.get(), "raft server not start or already shutdown");
 
         logger.debug("node {} receives proposal with {} entries", this, datas.size());
 

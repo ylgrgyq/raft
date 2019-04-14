@@ -1,7 +1,7 @@
 package raft.server;
 
-import com.google.common.base.Strings;
 import raft.server.proto.PBRaftPersistentMeta;
+import raft.server.util.Strings;
 
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
@@ -9,8 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.*;
 import java.util.zip.CRC32;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
+import static raft.server.util.Preconditions.checkArgument;
 
 /**
  * Author: ylgrgyq
@@ -123,13 +122,13 @@ public class RaftPersistentMeta {
     }
 
     public String getVotedFor() {
-        checkState(initialized, "should initialize RaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize RaftPersistentMeta before using it");
 
         return votedFor;
     }
 
     public void setVotedFor(String votedFor) {
-        checkState(initialized, "should initialize RaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize RaftPersistentMeta before using it");
         checkArgument(votedFor == null || !votedFor.isEmpty(), "votedFor should not be empty string");
 
         this.votedFor = votedFor;
@@ -137,20 +136,20 @@ public class RaftPersistentMeta {
     }
 
     public long getTerm() {
-        checkState(initialized, "should initialize RaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize RaftPersistentMeta before using it");
 
         return term;
     }
 
     public void setTerm(long term) {
-        checkState(initialized, "should initialize RaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize RaftPersistentMeta before using it");
 
         this.term = term;
         this.persistent();
     }
 
     public void setTermAndVotedFor(long term, String votedFor) {
-        checkState(initialized, "should initialize RaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize RaftPersistentMeta before using it");
 
         this.term = term;
         this.votedFor = votedFor;
@@ -158,13 +157,13 @@ public class RaftPersistentMeta {
     }
 
     public long getCommitIndex() {
-        checkState(initialized, "should initialize RaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize RaftPersistentMeta before using it");
 
         return commitIndex;
     }
 
     public void setCommitIndex(long commitIndex) {
-        checkState(initialized, "should initialize RaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize RaftPersistentMeta before using it");
 
         this.commitIndex = commitIndex;
         persistent();

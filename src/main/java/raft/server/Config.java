@@ -1,9 +1,9 @@
 package raft.server;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import raft.server.log.PersistentStorage;
 import raft.server.proto.RaftCommand;
+import raft.server.util.Preconditions;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;

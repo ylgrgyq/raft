@@ -1,9 +1,9 @@
 package raft.server.storage;
 
-import com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.ThreadFactoryImpl;
+import raft.server.util.Strings;
+import raft.server.util.ThreadFactoryImpl;
 import raft.server.log.LogsCompactedException;
 import raft.server.log.PersistentStorage;
 import raft.server.log.StorageInternalError;
@@ -22,7 +22,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.Preconditions.*;
+import static raft.server.util.Preconditions.checkArgument;
+import static raft.server.util.Preconditions.checkNotNull;
 
 /**
  * Author: ylgrgyq
@@ -72,7 +73,7 @@ public class FileBasedStorage implements PersistentStorage {
 
     @Override
     public synchronized void init() {
-        checkState(status == StorageStatus.NEED_INIT,
+        checkArgument(status == StorageStatus.NEED_INIT,
                 "storage don't need initialization. current status: %s", status);
         try {
             createStorageDir();
@@ -80,7 +81,7 @@ public class FileBasedStorage implements PersistentStorage {
             Path lockFilePath = Paths.get(baseDir, FileName.getLockFileName(storageName));
             storageLockChannel = FileChannel.open(lockFilePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             storageLock = storageLockChannel.tryLock();
-            checkState(storageLock != null,
+            checkArgument(storageLock != null,
                     "file storage: \"%s\" is occupied by other process", baseDir);
 
             logger.debug("start init storage {} under {}", storageName, baseDir);
@@ -170,7 +171,7 @@ public class FileBasedStorage implements PersistentStorage {
 
     private void recoverMmFromLogFiles(int fileNumber, ManifestRecord record, boolean lastLogFile) throws IOException {
         Path logFilePath = Paths.get(baseDir, FileName.getLogFileName(storageName, fileNumber));
-        checkState(Files.exists(logFilePath), "log file \"%s\" was deleted during recovery", logFilePath);
+        checkArgument(Files.exists(logFilePath), "log file \"%s\" was deleted during recovery", logFilePath);
 
         long readEndPosition;
         boolean noNewSSTable = true;
@@ -221,7 +222,7 @@ public class FileBasedStorage implements PersistentStorage {
 
     @Override
     public synchronized long getTerm(long index) {
-        checkState(status == StorageStatus.OK,
+        checkArgument(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
         if (index < getFirstIndex()) {
@@ -256,7 +257,7 @@ public class FileBasedStorage implements PersistentStorage {
 
     @Override
     public synchronized long getLastIndex() {
-        checkState(status == StorageStatus.OK,
+        checkArgument(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
         assert mm.isEmpty() || mm.lastKey() == lastIndexInStorage :
@@ -266,14 +267,14 @@ public class FileBasedStorage implements PersistentStorage {
 
     @Override
     public synchronized long getFirstIndex() {
-        checkState(status == StorageStatus.OK,
+        checkArgument(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
         return firstIndexInStorage;
     }
 
     @Override
     public synchronized List<LogEntry> getEntries(long start, long end) {
-        checkState(status == StorageStatus.OK,
+        checkArgument(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
         checkArgument(start < end, "end:%s should greater than start:%s", end, start);
 
@@ -313,7 +314,7 @@ public class FileBasedStorage implements PersistentStorage {
     @Override
     public synchronized long append(List<LogEntry> entries) {
         checkNotNull(entries);
-        checkState(status == StorageStatus.OK,
+        checkArgument(status == StorageStatus.OK,
                 "FileBasedStorage's status is not normal, currently: %s", status);
 
         if (entries.isEmpty()) {

@@ -1,4 +1,4 @@
-package raft;
+package raft.server.util;
 
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicLong;
@@ -12,7 +12,11 @@ public class ThreadFactoryImpl implements ThreadFactory {
     private final String threadNamePrefix;
 
     public ThreadFactoryImpl(final String threadNamePrefix) {
-        this.threadNamePrefix = threadNamePrefix;
+        if (threadNamePrefix.endsWith("-")){
+            this.threadNamePrefix = threadNamePrefix;
+        } else {
+            this.threadNamePrefix  = threadNamePrefix + "-";
+        }
     }
 
     @Override

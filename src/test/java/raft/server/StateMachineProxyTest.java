@@ -2,7 +2,7 @@ package raft.server;
 
 import com.google.protobuf.ByteString;
 import org.junit.Test;
-import raft.ThreadFactoryImpl;
+import raft.server.util.ThreadFactoryImpl;
 import raft.server.log.RaftLog;
 import raft.server.log.RaftLogImpl;
 import raft.server.proto.LogEntry;

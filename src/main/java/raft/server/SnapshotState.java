@@ -30,9 +30,11 @@ class SnapshotState implements PeerNodeState {
     public void onPongReceived(RaftPeerNode node) {
         // The implementation of pipeline is referenced a lot from https://github.com/etcd-io/etcd/blob/master/raft/design.md
         // but in etcd user need to call ReportSnapshot: https://github.com/etcd-io/etcd/blob/v3.3.10/raft/node.go#L165
-        // after the snapshot is sent to follower. If user failed to do that, follower will remain in a
-        // limbo state, never getting any updates from leader.
-        // So here we just add a timeout to handle this situation without add a extra API.
+        // after the snapshot is sent to follower no matter failed or successful. If user failed to do that,
+        // follower will remain in a limbo state, never getting any updates from leader.
+        // We do not want to add an extra API like etcd and let user remember to call it, so here we just add a
+        // timeout to handle this situation. If after timeout the peer node is still in snapshot state, it will transfer
+        // to probe state automatically
         if (node.increaseSnapshotTimeout() > 10) {
             node.pendingSnapshotIndex = 0;
             node.transferToProbe();

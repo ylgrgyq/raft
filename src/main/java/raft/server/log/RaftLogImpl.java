@@ -2,7 +2,7 @@ package raft.server.log;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.ThreadFactoryImpl;
+import raft.server.util.ThreadFactoryImpl;
 import raft.server.RaftPersistentMeta;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.*;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static raft.server.util.Preconditions.checkArgument;
 
 /**
  * Author: ylgrgyq

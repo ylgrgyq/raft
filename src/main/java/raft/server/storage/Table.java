@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.CRC32;
 
-import static com.google.common.base.Preconditions.checkState;
+import static raft.server.util.Preconditions.checkArgument;
 
 /**
  * Author: ylgrgyq
@@ -61,7 +61,7 @@ class Table implements Iterable<LogEntry> {
         long expectChecksum = trailer.getLong();
         CRC32 actualChecksum = new CRC32();
         actualChecksum.update(content.array());
-        checkState(expectChecksum != actualChecksum.getValue(), "block checksum mismatch");
+        checkArgument(expectChecksum != actualChecksum.getValue(), "block checksum mismatch");
 
         return new Block(content);
     }

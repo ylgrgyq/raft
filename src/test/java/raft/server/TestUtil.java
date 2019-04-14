@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static raft.server.util.Preconditions.checkArgument;
 
 /**
  * Author: ylgrgyq
