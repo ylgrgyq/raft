@@ -14,7 +14,7 @@ import static org.junit.Assert.*;
  * Author: ylgrgyq
  * Date: 18/4/25
  */
-public class RaftPersistentMetaTest {
+public class LocalFileRaftPersistentMetaTest {
     private static final String testingDirectory = "./target/deep/deep/deep/persistent";
     private static final Path testingDirectoryPath = Paths.get(testingDirectory);
     private static final String raftId = "raft 001";
@@ -26,7 +26,7 @@ public class RaftPersistentMetaTest {
 
         assertTrue(! Files.exists(testingDirectoryPath));
 
-        RaftPersistentMeta pState = new RaftPersistentMeta(testingDirectory, raftId, false);
+        LocalFileRaftPersistentMeta pState = new LocalFileRaftPersistentMeta(testingDirectory, raftId, false);
         pState.init();
         assertTrue(Files.exists(testingDirectoryPath));
         assertEquals(0, pState.getTerm());
@@ -46,7 +46,7 @@ public class RaftPersistentMetaTest {
 
         assertTrue(Files.exists(testingDirectoryPath));
 
-        RaftPersistentMeta pState = new RaftPersistentMeta(testingDirectory, raftId, false);
+        LocalFileRaftPersistentMeta pState = new LocalFileRaftPersistentMeta(testingDirectory, raftId, false);
         pState.init();
         assertTrue(Files.exists(testingDirectoryPath));
         assertEquals(0, pState.getTerm());
@@ -56,7 +56,7 @@ public class RaftPersistentMetaTest {
 
     @Test
     public void persistent() throws Exception {
-        RaftPersistentMeta initState = new RaftPersistentMeta(testingDirectory, raftId, false);
+        LocalFileRaftPersistentMeta initState = new LocalFileRaftPersistentMeta(testingDirectory, raftId, false);
         TestUtil.cleanDirectory(testingDirectoryPath);
         initState.init();
 
@@ -66,7 +66,7 @@ public class RaftPersistentMetaTest {
         initState.setVotedFor(voteFor);
         initState.setCommitIndex(ThreadLocalRandom.current().nextInt(1000, 10000));
 
-        RaftPersistentMeta loadedState = new RaftPersistentMeta(testingDirectory, raftId, false);
+        LocalFileRaftPersistentMeta loadedState = new LocalFileRaftPersistentMeta(testingDirectory, raftId, false);
         loadedState.init();
 
         assertEquals(initState.getTerm(), loadedState.getTerm());
@@ -78,7 +78,7 @@ public class RaftPersistentMetaTest {
         loadedState.setTermAndVotedFor(term2, voteFor2);
         loadedState.setCommitIndex(ThreadLocalRandom.current().nextInt(10000, 20000));
 
-        RaftPersistentMeta loadedState2 = new RaftPersistentMeta(testingDirectory, raftId, false);
+        LocalFileRaftPersistentMeta loadedState2 = new LocalFileRaftPersistentMeta(testingDirectory, raftId, false);
         loadedState2.init();
 
         assertEquals(loadedState.getTerm(), loadedState2.getTerm());

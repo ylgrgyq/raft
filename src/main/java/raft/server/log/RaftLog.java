@@ -1,20 +1,19 @@
 package raft.server.log;
 
-import raft.server.RaftPersistentMeta;
+import raft.server.LocalFileRaftPersistentMeta;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 /**
  * Author: ylgrgyq
  * Date: 18/5/16
  */
 public interface RaftLog {
-    void init(RaftPersistentMeta meta);
+    void init(LocalFileRaftPersistentMeta meta);
 
     long getLastIndex();
 

@@ -14,7 +14,7 @@ import static org.junit.Assert.*;
  * Author: ylgrgyq
  * Date: 18/5/7
  */
-public class ConfigChangeTest {
+public class RaftConfigurationsChangeTest {
     private HashSet<String> peerIdSet;
     private TestingRaftCluster cluster;
 
@@ -25,7 +25,7 @@ public class ConfigChangeTest {
         peerIdSet.add("config change 002");
         peerIdSet.add("config change 003");
 
-        cluster = new TestingRaftCluster(ConfigChangeTest.class.getSimpleName());
+        cluster = new TestingRaftCluster(RaftConfigurationsChangeTest.class.getSimpleName());
         cluster.clearLogStorage();
         cluster.clearPersistentState();
         cluster.startCluster(peerIdSet);
