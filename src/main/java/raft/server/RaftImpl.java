@@ -36,13 +36,11 @@ public class RaftImpl implements Raft {
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
     private final AtomicLong electionTickCounter = new AtomicLong();
     private final AtomicBoolean electionTickerTimeout = new AtomicBoolean();
-    private final AtomicBoolean pendingUpdateCommit = new AtomicBoolean();
     private final AtomicLong pingTickCounter = new AtomicLong();
     private final AtomicBoolean pingTickerTimeout = new AtomicBoolean();
     private final AtomicBoolean wakenUp = new AtomicBoolean();
     private final AtomicBoolean pauseTick = new AtomicBoolean(false);
-    private final BlockingQueue<Proposal> proposalQueue = new LinkedBlockingQueue<>(1000);
-    private final BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>(1000);
+    private final BlockingQueue<RaftJob> jobQueue = new LinkedBlockingQueue<>(1000);
     private final PendingProposalFutures pendingProposal = new PendingProposalFutures();
 
     private final RaftConfigurations config;
@@ -112,7 +110,7 @@ public class RaftImpl implements Raft {
                 }
 
                 if (wakeup) {
-                    wakeUpWorker();
+                    jobQueue.add(RaftJob.tick());
                 }
             }
 
@@ -235,9 +233,8 @@ public class RaftImpl implements Raft {
         CompletableFuture<ProposalResponse> future;
         if (getState() == State.LEADER) {
             future = proposal.getFuture();
-            if (proposalQueue.add(proposal)) {
-                wakeUpWorker();
-            } else {
+            RaftJob j = new RaftJob(proposal);
+            if (! jobQueue.add(j)) {
                 future = CompletableFuture.completedFuture(
                         ProposalResponse.errorWithLeaderHint(leaderId, ErrorMsg.TOO_MANY_PENDING_PROPOSALS));
             }
@@ -267,7 +264,8 @@ public class RaftImpl implements Raft {
             return;
         }
 
-        receivedCmdQueue.add(cmd);
+        RaftJob j = new RaftJob(cmd);
+        jobQueue.add(j);
     }
 
     private class Worker implements Runnable {
@@ -278,31 +276,20 @@ public class RaftImpl implements Raft {
 
             while (workerRun) {
                 try {
-                    processTickTimeout();
-
-                    processPendingUpdateCommit();
-
-                    List<RaftCommand> cmds = pollReceivedCmd();
-                    long start = System.nanoTime();
-                    processCommands(cmds);
-
-                    long now = System.nanoTime();
-                    long processCmdTime = now - start;
-
-                    long deadline = now + processCmdTime;
-                    long processedProposals = 0;
-                    Proposal p;
-                    while ((p = RaftImpl.this.proposalQueue.poll()) != null) {
-                        processProposal(p);
-                        processedProposals++;
-                        // check weather we have passed the deadline every 64 proposals
-                        // so we can reduce the calling times of System.nanoTime and
-                        // avoid the impact of narrow deadline
-                        if ((processedProposals & 0x3F) == 0) {
-                            if (System.nanoTime() >= deadline) {
-                                break;
-                            }
-                        }
+                    RaftJob j = jobQueue.take();
+                    switch (j.getType()) {
+                        case TICK:
+                            processTickTimeout();
+                            break;
+                        case PROPOSAL:
+                            processProposal(j.getProposal());
+                            break;
+                        case RAFT_COMMAND:
+                            processCommand(j.getCommand());
+                            break;
+                        case UPDATE_COMMIT:
+                            processPendingUpdateCommit();
+                            break;
                     }
                 } catch (Throwable t) {
                     panic("unexpected exception", t);
@@ -322,57 +309,15 @@ public class RaftImpl implements Raft {
     }
 
     private void processPendingUpdateCommit() {
-        if (pendingUpdateCommit.compareAndSet(true, false)) {
-            updateCommit();
-        }
+        updateCommit();
     }
 
-    private List<RaftCommand> pollReceivedCmd() {
-        // TODO maybe we can reuse this List on every run
-        List<RaftCommand> cmds = Collections.emptyList();
-        boolean initialed = false;
-        RaftCommand cmd;
+    private void processCommand(RaftCommand cmd) {
         try {
-            wakenUp.getAndSet(false);
-            // if wakenUp is set to true here between set wakenUp to false and poll the queue,
-            // the poll will throw InterruptedException
-            cmd = RaftImpl.this.receivedCmdQueue.poll(1, TimeUnit.SECONDS);
-            if (cmd != null) {
-                cmds = new ArrayList<>();
-                cmds.add(cmd);
-                initialed = true;
-            }
-        } catch (InterruptedException ex) {
-            processTickTimeout();
-        }
-
-        // we must set wake up mark to prevent receiving interrupt during block writing persistent state to file
-        // because if that happens we will get an unexpected java.nio.channels.ClosedByInterruptException
-        wakenUp.getAndSet(true);
-        // clear interrupt mark in case of it has set
-        Thread.interrupted();
-
-        int i = 0;
-        while (i < 1000 && (cmd = RaftImpl.this.receivedCmdQueue.poll()) != null) {
-            if (!initialed) {
-                cmds = new ArrayList<>();
-            }
-
-            cmds.add(cmd);
-            ++i;
-        }
-
-        return cmds;
-    }
-
-    private void processCommands(List<RaftCommand> cmds) {
-        for (RaftCommand cmd : cmds) {
-            try {
-                processReceivedCommand(cmd);
-            } catch (Throwable t) {
-                logger.error("process received command {} on node {} failed", cmd, this, t);
-                //TODO panic when process received command failed?
-            }
+            processReceivedCommand(cmd);
+        } catch (Throwable t) {
+            logger.error("process received command {} on node {} failed", cmd, this, t);
+            //TODO panic when process received command failed?
         }
     }
 
@@ -529,7 +474,7 @@ public class RaftImpl implements Raft {
                 RaftPeerNode leaderNode = peerNodes.get(selfId);
                 if (leaderNode != null) {
                     if (leaderNode.updateIndexes(lastIndex)) {
-                        pendingUpdateCommit.compareAndSet(false, true);
+                        jobQueue.add(RaftJob.updateCommit());
                     }
                 } else {
                     logger.error("node {} was removed from remote peer set {}",
