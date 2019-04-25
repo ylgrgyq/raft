@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
  * Author: ylgrgyq
  * Date: 18/3/30
  */
-public class Config {
+public class RaftConfigurations {
     final long tickIntervalMs;
     final long pingIntervalTicks;
     final long suggestElectionTimeoutTicks;
@@ -29,7 +29,7 @@ public class Config {
     final PersistentStorage storage;
     final BlockingQueue<RaftCommand> outputQueue;
 
-    private Config(ConfigBuilder builder) {
+    private RaftConfigurations(ConfigBuilder builder) {
         this.tickIntervalMs = builder.tickIntervalMs;
         this.pingIntervalTicks = builder.pingIntervalTicks;
         this.suggestElectionTimeoutTicks = builder.suggestElectionTimeoutTicks;
@@ -131,7 +131,7 @@ public class Config {
             return this;
         }
 
-        public Config build() {
+        public RaftConfigurations build() {
             Preconditions.checkArgument(! Strings.isNullOrEmpty(selfId), "Must provide non-empty self Id");
             Preconditions.checkArgument(! Strings.isNullOrEmpty(persistentMetaFileDirPath),
                     "Must provide a non-empty directory path to save raft persistent state");
@@ -144,7 +144,7 @@ public class Config {
                 peers.add(selfId);
             }
 
-            return new Config(this);
+            return new RaftConfigurations(this);
         }
     }
 

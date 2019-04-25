@@ -45,11 +45,11 @@ public class RaftImpl implements Raft {
     private final BlockingQueue<RaftCommand> receivedCmdQueue = new LinkedBlockingQueue<>(1000);
     private final PendingProposalFutures pendingProposal = new PendingProposalFutures();
 
-    private final Config c;
+    private final RaftConfigurations config;
     private final ScheduledExecutorService tickGenerator;
     private final String selfId;
     private final RaftLog raftLog;
-    private final RaftPersistentMeta meta;
+    private final LocalFileRaftPersistentMeta meta;
     private final StateMachineProxy stateMachine;
     private final AsyncRaftCommandBrokerProxy broker;
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -62,16 +62,16 @@ public class RaftImpl implements Raft {
     private boolean existsPendingConfigChange = false;
     private TransferLeaderFuture transferLeaderFuture = null;
 
-    public RaftImpl(Config c) {
+    public RaftImpl(RaftConfigurations c) {
         checkNotNull(c);
 
-        this.c = c;
+        this.config = c;
         this.workerThread = new Thread(new Worker());
         this.raftLog = new RaftLogImpl(c.storage);
         this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
 
         this.selfId = c.selfId;
-        this.meta = new RaftPersistentMeta(c.persistentMetaFileDirPath, c.selfId, c.syncWriteStateFile);
+        this.meta = new LocalFileRaftPersistentMeta(c.persistentMetaFileDirPath, c.selfId, c.syncWriteStateFile);
         this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
         this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
 
@@ -90,8 +90,8 @@ public class RaftImpl implements Raft {
 
         meta.init();
         raftLog.init(meta);
-        if (c.appliedTo > -1) {
-            raftLog.appliedTo(c.appliedTo);
+        if (config.appliedTo > -1) {
+            raftLog.appliedTo(config.appliedTo);
         }
 
         reset(meta.getTerm());
@@ -105,7 +105,7 @@ public class RaftImpl implements Raft {
                     wakeup = true;
                 }
 
-                if (pingTickCounter.incrementAndGet() >= c.pingIntervalTicks) {
+                if (pingTickCounter.incrementAndGet() >= config.pingIntervalTicks) {
                     pingTickCounter.set(0L);
                     pingTickerTimeout.compareAndSet(false, true);
                     wakeup = true;
@@ -116,7 +116,7 @@ public class RaftImpl implements Raft {
                 }
             }
 
-        }, c.tickIntervalMs, c.tickIntervalMs, TimeUnit.MILLISECONDS);
+        }, config.tickIntervalMs, config.tickIntervalMs, TimeUnit.MILLISECONDS);
 
         workerThread.start();
 
@@ -128,8 +128,8 @@ public class RaftImpl implements Raft {
                         "pingIntervalTicks={}\n" +
                         "suggectElectionTimeoutTicks={}\n" +
                         "raftLog={}\n",
-                this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, c.tickIntervalMs, c.pingIntervalTicks,
-                c.suggestElectionTimeoutTicks, raftLog);
+                this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, config.tickIntervalMs, config.pingIntervalTicks,
+                config.suggestElectionTimeoutTicks, raftLog);
         return this;
     }
 
@@ -593,7 +593,7 @@ public class RaftImpl implements Raft {
                         this,
                         raftLog,
                         raftLog.getLastIndex() + 1,
-                        c.maxEntriesPerAppend));
+                        config.maxEntriesPerAppend));
 
         logger.info("node {} add peerId \"{}\" to cluster. currentPeers: {}", this, peerId, peerNodes.keySet());
         stateMachine.onNodeAdded(getStatus(), peerId);
@@ -721,7 +721,7 @@ public class RaftImpl implements Raft {
 
         // we need to reset election timeout on every time state changed and every
         // reelection in candidate state to avoid split vote
-        electionTimeoutTicks = RaftImpl.generateElectionTimeoutTicks(c.suggestElectionTimeoutTicks);
+        electionTimeoutTicks = RaftImpl.generateElectionTimeoutTicks(config.suggestElectionTimeoutTicks);
     }
 
     private void clearTickCounters() {
@@ -871,7 +871,7 @@ public class RaftImpl implements Raft {
 
         for (String peerId : snapshot.getPeerIdsList()) {
             RaftPeerNode node = new RaftPeerNode(peerId, this, raftLog, lastIndex + 1,
-                    c.maxEntriesPerAppend);
+                    config.maxEntriesPerAppend);
             if (peerId.equals(selfId)) {
                 node.updateIndexes(lastIndex - 1);
             }

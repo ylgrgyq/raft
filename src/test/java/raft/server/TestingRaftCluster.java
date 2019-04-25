@@ -2,7 +2,6 @@ package raft.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.log.PersistentStorage;
 import raft.server.storage.FileBasedStorage;
 
 import java.nio.file.Paths;
@@ -20,7 +19,7 @@ import java.util.stream.Collectors;
 class TestingRaftCluster {
     private static final Logger logger = LoggerFactory.getLogger("TestingRaftCluster");
 
-    private final Config.ConfigBuilder configBuilder;
+    private final RaftConfigurations.ConfigBuilder configBuilder;
     private final Map<String, Raft> nodes;
     private final Map<String, TestingRaftStateMachine> stateMachines;
     private final TestingBroker broker;
@@ -35,7 +34,7 @@ class TestingRaftCluster {
         this.persistentStateDir = Paths.get(TestingConfigs.persistentStateDir, testingName).toString();
         this.storageDir = Paths.get(TestingConfigs.testingStorageDirectory, testingName).toString();
         this.storageName = testingName + "_" + "LogStorage";
-        this.configBuilder = Config.newBuilder()
+        this.configBuilder = RaftConfigurations.newBuilder()
                 .withPersistentMetaFileDirPath(this.persistentStateDir);
     }
 
@@ -48,7 +47,7 @@ class TestingRaftCluster {
         TestingRaftStateMachine stateMachine = new TestingRaftStateMachine(logger, peerId, peers, storage);
         stateMachines.put(peerId, stateMachine);
 
-        Config c = configBuilder
+        RaftConfigurations c = configBuilder
                 .withPeers(peers)
                 .withSelfID(peerId)
                 .withRaftCommandBroker(broker)
@@ -158,7 +157,7 @@ class TestingRaftCluster {
     }
 
     void clearPersistentStateFor(String peerId) {
-        RaftPersistentMeta state = new RaftPersistentMeta(persistentStateDir, peerId, false);
+        LocalFileRaftPersistentMeta state = new LocalFileRaftPersistentMeta(persistentStateDir, peerId, false);
         state.setTermAndVotedFor(0, null);
     }
 
