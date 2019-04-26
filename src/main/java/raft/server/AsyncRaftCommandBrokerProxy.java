@@ -2,6 +2,7 @@ package raft.server;
 
 import raft.server.proto.RaftCommand;
 
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
@@ -24,5 +25,10 @@ class AsyncRaftCommandBrokerProxy extends AsyncProxy implements RaftCommandBroke
     @Override
     public void onWriteCommand(RaftCommand cmd) {
         notify(() -> broker.onWriteCommand(cmd));
+    }
+
+    @Override
+    public void onFlushCommand() {
+        notify(broker::onFlushCommand);
     }
 }

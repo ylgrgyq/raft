@@ -44,7 +44,6 @@ public class ElectLeaderTest {
         assertEquals(selfId, leader.getId());
         RaftStatusSnapshot status =  leader.getLastStatus();
         assertEquals(State.LEADER, status.getState());
-        assertEquals(-1, status.getCommitIndex());
         assertEquals(1, status.getTerm());
         assertEquals(selfId, status.getLeaderId());
     }

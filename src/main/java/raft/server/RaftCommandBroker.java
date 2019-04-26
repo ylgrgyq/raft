@@ -8,4 +8,10 @@ import raft.server.proto.RaftCommand;
  */
 public interface RaftCommandBroker {
     void onWriteCommand(RaftCommand cmd);
+    void onFlushCommand();
+
+    default void onWriteAndFlushCommand(RaftCommand cmd) {
+        onWriteCommand(cmd);
+        onFlushCommand();
+    }
 }

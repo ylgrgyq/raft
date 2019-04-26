@@ -22,7 +22,6 @@ class TestingRaftCluster {
     private final RaftConfigurations.ConfigBuilder configBuilder;
     private final Map<String, Raft> nodes;
     private final Map<String, TestingRaftStateMachine> stateMachines;
-    private final TestingBroker broker;
     private final String storageName;
     private final String persistentStateDir;
     private final String storageDir;
@@ -30,7 +29,6 @@ class TestingRaftCluster {
     public TestingRaftCluster(String testingName) {
         this.nodes = new ConcurrentHashMap<>();
         this.stateMachines = new ConcurrentHashMap<>();
-        this.broker = new TestingBroker(nodes, logger);
         this.persistentStateDir = Paths.get(TestingConfigs.persistentStateDir, testingName).toString();
         this.storageDir = Paths.get(TestingConfigs.testingStorageDirectory, testingName).toString();
         this.storageName = testingName + "_" + "LogStorage";
@@ -50,7 +48,7 @@ class TestingRaftCluster {
         RaftConfigurations c = configBuilder
                 .withPeers(peers)
                 .withSelfID(peerId)
-                .withRaftCommandBroker(broker)
+                .withRaftCommandBroker(new TestingBroker(nodes, logger))
                 .withStateMachine(stateMachine)
                 .withPersistentMetaFileDirPath(persistentStateDir)
                 .withPersistentStorage(storage)
