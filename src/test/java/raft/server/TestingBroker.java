@@ -38,4 +38,9 @@ class TestingBroker implements RaftCommandBroker {
         }
         buffer.clear();
     }
+
+    @Override
+    public void shutdown() {
+        // todo wait buffer clear then return
+    }
 }

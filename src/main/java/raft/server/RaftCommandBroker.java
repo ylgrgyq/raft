@@ -9,6 +9,7 @@ import raft.server.proto.RaftCommand;
 public interface RaftCommandBroker {
     void onWriteCommand(RaftCommand cmd);
     void onFlushCommand();
+    void shutdown();
 
     default void onWriteAndFlushCommand(RaftCommand cmd) {
         onWriteCommand(cmd);

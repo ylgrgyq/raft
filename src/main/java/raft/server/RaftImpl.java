@@ -48,7 +48,7 @@ public class RaftImpl implements Raft {
     private final RaftLog raftLog;
     private final LocalFileRaftPersistentMeta meta;
     private final StateMachineProxy stateMachine;
-    private final AsyncRaftCommandBrokerProxy broker;
+    private final RaftCommandBroker broker;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     private volatile String leaderId;
@@ -71,7 +71,7 @@ public class RaftImpl implements Raft {
         this.selfId = c.selfId;
         this.meta = new LocalFileRaftPersistentMeta(c.persistentMetaFileDirPath, c.selfId, c.syncWriteStateFile);
         this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
-        this.broker = new AsyncRaftCommandBrokerProxy(c.broker);
+        this.broker = c.broker;
 
         for (String peerId : c.peers) {
             this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, c.maxEntriesPerAppend));
@@ -867,7 +867,7 @@ public class RaftImpl implements Raft {
             // ignore
         }
 
-        broker.shutdownNow();
+        broker.shutdown();
         // we can call onShutdown and shutdown on stateMachine successively
         // shutdownNow will wait onShutdown to finish
         stateMachine.onShutdown();
@@ -898,7 +898,7 @@ public class RaftImpl implements Raft {
         wakeUpWorker();
 
         workerThread.join();
-        broker.shutdownGracefully(timeout - (System.nanoTime() - now), TimeUnit.NANOSECONDS);
+        broker.shutdown();
 
         // we can call onShutdown and shutdown on stateMachine successively
         // shutdownGracefully will wait onShutdown to finish
