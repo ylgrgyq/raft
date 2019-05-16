@@ -10,13 +10,11 @@ import raft.server.proto.ConfigChange;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
 import raft.server.proto.RaftCommand;
-import raft.server.util.ThreadFactoryImpl;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static raft.server.util.Preconditions.checkArgument;
@@ -34,16 +32,11 @@ public class RaftImpl implements Raft {
     private final RaftState candidate = new Candidate();
     private final RaftState follower = new Follower();
     private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
-    private final AtomicLong electionTickCounter = new AtomicLong();
-    private final AtomicBoolean electionTickerTimeout = new AtomicBoolean();
-    private final AtomicLong pingTickCounter = new AtomicLong();
-    private final AtomicBoolean pingTickerTimeout = new AtomicBoolean();
     private final AtomicBoolean wakenUp = new AtomicBoolean();
     private final BlockingQueue<RaftJob> jobQueue = new LinkedBlockingQueue<>(1000);
     private final PendingProposalFutures pendingProposal = new PendingProposalFutures();
 
     private final RaftConfigurations config;
-    private final ScheduledExecutorService tickGenerator;
     private final String selfId;
     private final RaftLog raftLog;
     private final LocalFileRaftPersistentMeta meta;
@@ -53,12 +46,12 @@ public class RaftImpl implements Raft {
 
     private volatile String leaderId;
     private volatile RaftState state;
-    private long electionTimeoutTicks;
     private Thread workerThread;
     private volatile boolean workerRun = true;
     private boolean existsPendingConfigChange = false;
     private TransferLeaderFuture transferLeaderFuture;
     private boolean autoFlush = true;
+    private TimeoutManager timeoutManager;
 
     public RaftImpl(RaftConfigurations c) {
         checkNotNull(c);
@@ -66,7 +59,10 @@ public class RaftImpl implements Raft {
         this.config = c;
         this.workerThread = new Thread(new Worker());
         this.raftLog = new RaftLogImpl(c.storage);
-        this.tickGenerator = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("tick-generator-"));
+
+        this.timeoutManager = new DefaultTimeoutManager(config, (electionTImeout, pingTimeout) ->
+            jobQueue.add(new TimeoutJob(electionTImeout, pingTimeout))
+        );
 
         this.selfId = c.selfId;
         this.meta = new LocalFileRaftPersistentMeta(c.persistentMetaFileDirPath, c.selfId, c.syncWriteStateFile);
@@ -93,27 +89,7 @@ public class RaftImpl implements Raft {
         }
 
         reset(meta.getTerm());
-
-        TickTimeoutJob tickTimeoutJob = new TickTimeoutJob();
-        tickGenerator.scheduleWithFixedDelay(() -> {
-            boolean wakeup = false;
-            if (electionTickCounter.incrementAndGet() >= electionTimeoutTicks) {
-                electionTickCounter.set(0L);
-                electionTickerTimeout.compareAndSet(false, true);
-                wakeup = true;
-            }
-
-            if (pingTickCounter.incrementAndGet() >= config.pingIntervalTicks) {
-                pingTickCounter.set(0L);
-                pingTickerTimeout.compareAndSet(false, true);
-                wakeup = true;
-            }
-
-            if (wakeup) {
-                jobQueue.add(tickTimeoutJob);
-            }
-
-        }, config.tickIntervalMs, config.tickIntervalMs, TimeUnit.MILLISECONDS);
+        timeoutManager.start(null);
 
         workerThread.start();
 
@@ -125,21 +101,32 @@ public class RaftImpl implements Raft {
                         "pingIntervalTicks={}\n" +
                         "suggectElectionTimeoutTicks={}\n" +
                         "raftLog={}\n",
-                this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, config.tickIntervalMs, config.pingIntervalTicks,
+                this, meta.getTerm(), meta.getVotedFor(), timeoutManager.getElectionTimeoutTicks(),
+                config.tickIntervalMs, config.pingIntervalTicks,
                 config.suggestElectionTimeoutTicks, raftLog);
         return this;
     }
 
-    private final class TickTimeoutJob implements RaftJob {
+    private final class TimeoutJob implements RaftJob {
+        private final boolean electionTimeout;
+        private final boolean pingTimeout;
+
+        TimeoutJob(boolean electionTimeout, boolean pingTimeout) {
+            this.electionTimeout = electionTimeout;
+            this.pingTimeout = pingTimeout;
+        }
+
         @Override
         public void processJob() {
-            if (electionTickerTimeout.compareAndSet(true, false)) {
+            if (electionTimeout) {
                 state.onElectionTimeout();
             }
 
-            if (pingTickerTimeout.compareAndSet(true, false)) {
+            if (pingTimeout) {
                 state.onPingTimeout();
             }
+
+            timeoutManager.clearAllTimeoutMark();
         }
     }
 
@@ -322,13 +309,13 @@ public class RaftImpl implements Raft {
     private void processReceivedCommand(RaftCommand cmd) {
         final long selfTerm = meta.getTerm();
         if (cmd.getType() == RaftCommand.CmdType.REQUEST_VOTE) {
-            if (!cmd.getForceElection() && leaderId != null && electionTickCounter.get() < electionTimeoutTicks) {
+            if (!cmd.getForceElection() && leaderId != null && timeoutManager.isElectionTimeout()) {
                 // if a server receives a RequestVote request within the minimum election timeout of hearing
                 // from a current leader, it does not update its term or grant its vote except the force election mark
                 // is set which indicate that this REQUEST_VOTE command is from a legitimate server during leader
                 // transfer operation
-                logger.info("node {} ignore request vote cmd: {} because it's leader still valid. ticks remain: {}",
-                        this, cmd, electionTimeoutTicks - electionTickCounter.get());
+                logger.info("node {} ignore request vote cmd: {} because it's leader still valid.}",
+                        this, cmd);
                 return;
             }
 
@@ -429,7 +416,7 @@ public class RaftImpl implements Raft {
 
                                 logger.info("node {} start transfer leadership to {}", this, transfereeId);
 
-                                electionTickCounter.set(0);
+                                timeoutManager.clearElectionTickCounter();
                                 transferLeaderFuture = new TransferLeaderFuture(transfereeId, proposal.getFuture());
                                 RaftPeerNode n = peerNodes.get(transfereeId);
                                 if (n.getMatchIndex() == raftLog.getLastIndex()) {
@@ -674,22 +661,11 @@ public class RaftImpl implements Raft {
         assert transferLeaderFuture == null;
         transferLeaderFuture = null;
 
-        clearTickCounters();
-        electionTickerTimeout.getAndSet(false);
-        pingTickerTimeout.getAndSet(false);
-
+        timeoutManager.clearAllTickCounters();
         // we need to reset election timeout on every time state changed and every
         // reelection in candidate state to avoid split vote
-        electionTimeoutTicks = RaftImpl.generateElectionTimeoutTicks(config.suggestElectionTimeoutTicks);
-    }
-
-    private void clearTickCounters() {
-        electionTickCounter.set(0);
-        pingTickCounter.set(0);
-    }
-
-    private static long generateElectionTimeoutTicks(long suggestElectionTimeoutTicks) {
-        return suggestElectionTimeoutTicks + ThreadLocalRandom.current().nextLong(suggestElectionTimeoutTicks);
+        timeoutManager.resetElectionTimeoutTicks();
+        timeoutManager.clearAllTimeoutMark();
     }
 
     private void transitState(RaftState nextState, long newTerm, String newLeaderId) {
@@ -879,7 +855,7 @@ public class RaftImpl implements Raft {
         }
 
         logger.info("shutting down node {} ...", this);
-        tickGenerator.shutdown();
+        timeoutManager.finish();
         workerRun = false;
         wakeUpWorker();
 
@@ -915,7 +891,7 @@ public class RaftImpl implements Raft {
         timeout = unit.toNanos(timeout);
         long now = System.nanoTime();
 
-        tickGenerator.shutdown();
+        timeoutManager.finish();
         workerRun = false;
         wakeUpWorker();
 
@@ -1070,17 +1046,17 @@ public class RaftImpl implements Raft {
         void process(RaftCommand cmd) {
             switch (cmd.getType()) {
                 case APPEND_ENTRIES:
-                    RaftImpl.this.clearTickCounters();
+                    timeoutManager.clearAllTickCounters();
                     RaftImpl.this.leaderId = cmd.getLeaderId();
                     RaftImpl.this.processAppendEntries(cmd);
                     break;
                 case PING:
-                    RaftImpl.this.clearTickCounters();
+                    timeoutManager.clearAllTickCounters();
                     RaftImpl.this.leaderId = cmd.getFrom();
                     RaftImpl.this.processHeartbeat(cmd);
                     break;
                 case SNAPSHOT:
-                    RaftImpl.this.clearTickCounters();
+                    timeoutManager.clearAllTickCounters();
                     RaftImpl.this.leaderId = cmd.getFrom();
                     RaftImpl.this.processSnapshot(cmd);
                     break;
