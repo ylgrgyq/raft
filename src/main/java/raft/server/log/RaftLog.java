@@ -29,7 +29,7 @@ public interface RaftLog {
 
     CompletableFuture<Long> leaderAsyncAppend(List<LogEntry> entries);
 
-    long followerSyncAppend(long prevIndex, long prevTerm, List<LogEntry> entries);
+    CompletableFuture<Long> followerAsyncAppend(long prevIndex, long prevTerm, List<LogEntry> entries);
 
     boolean isUpToDate(long term, long index);
 

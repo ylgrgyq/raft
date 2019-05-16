@@ -6,7 +6,7 @@ import raft.server.proto.RaftCommand;
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-abstract class RaftState implements LifeCycle {
+abstract class RaftState implements LifeCycle<RaftImpl.Context, RaftImpl.Context> {
     private final State state;
 
     RaftState(State state){
