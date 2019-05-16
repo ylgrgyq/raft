@@ -94,7 +94,7 @@ public class RaftImpl implements Raft {
 
         reset(meta.getTerm());
 
-        TickTimeoutProcessor tickTimeoutProcessor = new TickTimeoutProcessor();
+        TickTimeoutJob tickTimeoutJob = new TickTimeoutJob();
         tickGenerator.scheduleWithFixedDelay(() -> {
             boolean wakeup = false;
             if (electionTickCounter.incrementAndGet() >= electionTimeoutTicks) {
@@ -110,7 +110,7 @@ public class RaftImpl implements Raft {
             }
 
             if (wakeup) {
-                jobQueue.add(tickTimeoutProcessor);
+                jobQueue.add(tickTimeoutJob);
             }
 
         }, config.tickIntervalMs, config.tickIntervalMs, TimeUnit.MILLISECONDS);
@@ -128,6 +128,19 @@ public class RaftImpl implements Raft {
                 this, meta.getTerm(), meta.getVotedFor(), electionTimeoutTicks, config.tickIntervalMs, config.pingIntervalTicks,
                 config.suggestElectionTimeoutTicks, raftLog);
         return this;
+    }
+
+    private final class TickTimeoutJob implements RaftJob {
+        @Override
+        public void processJob() {
+            if (electionTickerTimeout.compareAndSet(true, false)) {
+                state.onElectionTimeout();
+            }
+
+            if (pingTickerTimeout.compareAndSet(true, false)) {
+                state.onPingTimeout();
+            }
+        }
     }
 
     @Override
@@ -232,7 +245,7 @@ public class RaftImpl implements Raft {
         CompletableFuture<ProposalResponse> future;
         if (getState() == State.LEADER) {
             future = proposal.getFuture();
-            if (!jobQueue.add(new ProposalProcessor(proposal))) {
+            if (!jobQueue.add(new ProposalJob(proposal))) {
                 future = CompletableFuture.completedFuture(
                         ProposalResponse.errorWithLeaderHint(leaderId, ErrorMsg.TOO_MANY_PENDING_PROPOSALS));
             }
@@ -266,7 +279,25 @@ public class RaftImpl implements Raft {
             return;
         }
 
-        jobQueue.add(new RaftCommandProcessor(cmd));
+        jobQueue.add(new RaftCommandJob(cmd));
+    }
+
+    private final class RaftCommandJob implements RaftJob {
+        private RaftCommand cmd;
+
+        private RaftCommandJob(RaftCommand cmd) {
+            this.cmd = cmd;
+        }
+
+        @Override
+        public void processJob() {
+            try {
+                processReceivedCommand(cmd);
+            } catch (Throwable t) {
+                logger.error("process received command {} on node {} failed", cmd, this, t);
+                //TODO panic when process received command failed?
+            }
+        }
     }
 
     private class Worker implements Runnable {
@@ -355,10 +386,10 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private class ProposalProcessor implements RaftJob {
+    private final class ProposalJob implements RaftJob {
         private Proposal proposal;
 
-        public ProposalProcessor(Proposal proposal) {
+        private ProposalJob(Proposal proposal) {
             this.proposal = proposal;
         }
 
@@ -424,40 +455,10 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private class RaftCommandProcessor implements RaftJob {
-        private RaftCommand cmd;
-
-        public RaftCommandProcessor(RaftCommand cmd) {
-            this.cmd = cmd;
-        }
-
-        @Override
-        public void processJob() {
-            try {
-                processReceivedCommand(cmd);
-            } catch (Throwable t) {
-                logger.error("process received command {} on node {} failed", cmd, this, t);
-                //TODO panic when process received command failed?
-            }
-        }
-    }
-    private class UpdateCommitProcessor implements RaftJob {
+    private class LeaderUpdateCommitJob implements RaftJob {
         @Override
         public void processJob() {
             updateCommit();
-        }
-    }
-
-    private class TickTimeoutProcessor implements RaftJob {
-        @Override
-        public void processJob() {
-            if (electionTickerTimeout.compareAndSet(true, false)) {
-                state.onElectionTimeout();
-            }
-
-            if (pingTickerTimeout.compareAndSet(true, false)) {
-                state.onPingTimeout();
-            }
         }
     }
 
@@ -487,7 +488,7 @@ public class RaftImpl implements Raft {
                 RaftPeerNode leaderNode = peerNodes.get(selfId);
                 if (leaderNode != null) {
                     if (leaderNode.updateIndexes(lastIndex)) {
-                        jobQueue.add(new UpdateCommitProcessor());
+                        jobQueue.add(new LeaderUpdateCommitJob());
                     }
                 } else {
                     logger.error("node {} was removed from remote peer set {}",
@@ -706,56 +707,77 @@ public class RaftImpl implements Raft {
     }
 
     private void processAppendEntries(RaftCommand cmd) {
-        RaftCommand.Builder resp = RaftCommand.newBuilder()
+        final RaftCommand.Builder resp = RaftCommand.newBuilder()
                 .setType(RaftCommand.CmdType.APPEND_ENTRIES_RESP)
                 .setTo(cmd.getFrom())
                 .setTerm(meta.getTerm())
                 .setSuccess(false);
+        State state = getState();
+
         if (cmd.getPrevLogIndex() < raftLog.getCommitIndex()) {
-            resp = resp.setMatchIndex(raftLog.getCommitIndex()).setSuccess(true);
+            resp.setMatchIndex(raftLog.getCommitIndex()).setSuccess(true);
+            writeOutCommand(resp);
+        } else if (state != State.FOLLOWER) {
+            logger.debug("append logs failed on node {} due to invalid state: {}", this, state);
+            resp.setLastLogIndex(raftLog.getLastIndex());
+            writeOutCommand(resp);
         } else {
-            long matchIndex = RaftImpl.this.replicateLogsOnFollower(cmd);
+            replicateLogsOnFollower(cmd);
+        }
+    }
+
+    private final class ReplicateLogsFinishedJob implements RaftJob {
+        private final RaftCommand receivedCmd;
+        private final long matchIndex;
+
+        private ReplicateLogsFinishedJob(RaftCommand receivedReplicateLogsCmd, long matchIndex) {
+            this.receivedCmd = receivedReplicateLogsCmd;
+            this.matchIndex = matchIndex;
+        }
+
+        @Override
+        public void processJob() {
+            autoFlush = true;
+            broker.onFlushCommand();
+
+            RaftCommand.Builder resp = RaftCommand.newBuilder()
+                    .setType(RaftCommand.CmdType.APPEND_ENTRIES_RESP)
+                    .setTo(receivedCmd.getFrom())
+                    .setTerm(meta.getTerm())
+                    .setSuccess(false);
             if (matchIndex != -1L) {
-                tryCommitTo(Math.min(cmd.getLeaderCommit(), matchIndex));
+                tryCommitTo(Math.min(receivedCmd.getLeaderCommit(), matchIndex));
 
                 resp.setSuccess(true);
                 resp.setMatchIndex(matchIndex);
             } else {
-                List<LogEntry> entries = cmd.getEntriesList();
-
                 resp.setLastLogIndex(raftLog.getLastIndex());
             }
+            writeOutCommand(resp);
         }
-        writeOutCommand(resp);
     }
 
-    private long replicateLogsOnFollower(RaftCommand cmd) {
+    private void replicateLogsOnFollower(RaftCommand cmd) {
         // do not flush any command out before logs written
         autoFlush = false;
-        try {
-            long prevIndex = cmd.getPrevLogIndex();
-            long prevTerm = cmd.getPrevLogTerm();
-            String leaderId = cmd.getLeaderId();
-            List<raft.server.proto.LogEntry> entries = cmd.getEntriesList();
 
-            State state = getState();
-            if (state == State.FOLLOWER) {
-                try {
-                    this.leaderId = leaderId;
-                    return raftLog.followerSyncAppend(prevIndex, prevTerm, entries);
-                } catch (Exception ex) {
-                    logger.error("append entries failed on node {}, leaderId {}, entries {}",
-                            this, leaderId, entries, ex);
-                }
-            } else {
-                logger.error("append logs failed on node {} due to invalid state: {}", this, state);
-            }
-        } finally {
-            autoFlush = true;
-            broker.onFlushCommand();
-        }
+        long prevIndex = cmd.getPrevLogIndex();
+        long prevTerm = cmd.getPrevLogTerm();
+        String leaderId = cmd.getLeaderId();
+        List<raft.server.proto.LogEntry> entries = cmd.getEntriesList();
 
-        return -1;
+        this.leaderId = leaderId;
+        raftLog.followerAsyncAppend(prevIndex, prevTerm, entries)
+                .whenComplete((matchIndex, ex) -> {
+                    if (ex != null) {
+                        // TODO halt this node?
+                        logger.error("append entries failed on node {}, leaderId {}, entries {}",
+                                this, leaderId, entries, ex);
+                        matchIndex = -1L;
+                    }
+                    jobQueue.add(new ReplicateLogsFinishedJob(cmd, matchIndex));
+                });
+
     }
 
     private void processHeartbeat(RaftCommand cmd) {

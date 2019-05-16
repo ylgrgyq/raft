@@ -21,13 +21,11 @@ class TestingBroker implements RaftCommandBroker {
 
     @Override
     public void onWriteCommand(RaftCommand cmd) {
-        logger.warn("write commend");
         buffer.add(cmd);
     }
 
     @Override
     public void onFlushCommand() {
-        logger.warn("flush commend");
         for (RaftCommand cmd : buffer) {
             logger.debug("node {} write command {}", cmd.getFrom(), cmd.toString());
             String to = cmd.getTo();

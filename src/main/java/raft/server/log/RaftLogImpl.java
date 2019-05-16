@@ -149,7 +149,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public synchronized long followerSyncAppend(long prevIndex, long prevTerm, List<LogEntry> entries) {
+    public synchronized CompletableFuture<Long> followerAsyncAppend(long prevIndex, long prevTerm, List<LogEntry> entries) {
         if (match(prevTerm, prevIndex)) {
             long conflictIndex = searchConflict(entries);
             long lastIndex = prevIndex + entries.size();
@@ -166,12 +166,13 @@ public class RaftLogImpl implements RaftLog {
 
                 List<LogEntry> entriesNeedToStore = entries.subList((int)(conflictIndex - prevIndex - 1), entries.size());
                 buffer.append(entriesNeedToStore);
-                storage.append(entriesNeedToStore);
+                return CompletableFuture.supplyAsync(() -> storage.append(entriesNeedToStore), pool);
             }
-            return lastIndex;
+
+            return CompletableFuture.completedFuture(lastIndex);
         }
 
-        return -1;
+        return CompletableFuture.completedFuture(-1L);
     }
 
     private long searchConflict(List<LogEntry> entries) {
