@@ -31,44 +31,51 @@ public class RaftImpl implements Raft {
     private final RaftState leader = new Leader();
     private final RaftState candidate = new Candidate();
     private final RaftState follower = new Follower();
-    private final ConcurrentHashMap<String, RaftPeerNode> peerNodes = new ConcurrentHashMap<>();
-    private final AtomicBoolean wakenUp = new AtomicBoolean();
-    private final BlockingQueue<RaftJob> jobQueue = new LinkedBlockingQueue<>(1000);
-    private final PendingProposalFutures pendingProposal = new PendingProposalFutures();
 
+    private final Map<String, RaftPeerNode> peerNodes;
+    private final BlockingQueue<RaftJob> jobQueue;
+    private final PendingProposalFutures pendingProposal;
     private final RaftConfigurations config;
+    private final Thread workerThread;
     private final String selfId;
     private final RaftLog raftLog;
-    private final LocalFileRaftPersistentMeta meta;
+    private final LocalFilePersistentMeta meta;
     private final StateMachineProxy stateMachine;
     private final RaftCommandBroker broker;
-    private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicBoolean started;
+    private final TimeoutManager timeoutManager;
 
     private volatile String leaderId;
     private volatile RaftState state;
-    private Thread workerThread;
-    private volatile boolean workerRun = true;
-    private boolean existsPendingConfigChange = false;
+    private volatile boolean workerRun;
+
+    private boolean existsPendingConfigChange;
     private TransferLeaderFuture transferLeaderFuture;
-    private boolean autoFlush = true;
-    private TimeoutManager timeoutManager;
+    private boolean autoFlush;
 
     public RaftImpl(RaftConfigurations c) {
         checkNotNull(c);
 
         this.config = c;
+        // TODO configurable job queue size
+        this.jobQueue = new LinkedBlockingQueue<>(1000);
+        this.pendingProposal = new PendingProposalFutures();
+        this.workerRun = true;
         this.workerThread = new Thread(new Worker());
         this.raftLog = new RaftLogImpl(c.storage);
+        this.started = new AtomicBoolean(false);
 
-        this.timeoutManager = new DefaultTimeoutManager(config, (electionTImeout, pingTimeout) ->
-            jobQueue.add(new TimeoutJob(electionTImeout, pingTimeout))
+        this.timeoutManager = new DefaultTimeoutManager(config, (electionTimeout, pingTimeout) ->
+            jobQueue.add(new TimeoutJob(electionTimeout, pingTimeout))
         );
 
         this.selfId = c.selfId;
-        this.meta = new LocalFileRaftPersistentMeta(c.persistentMetaFileDirPath, c.selfId, c.syncWriteStateFile);
+        this.meta = new LocalFilePersistentMeta(c.persistentMetaFileDirPath, c.selfId, c.syncWriteStateFile);
         this.stateMachine = new StateMachineProxy(c.stateMachine, this.raftLog);
+        this.autoFlush = true;
         this.broker = c.broker;
 
+        this.peerNodes = new HashMap<>();
         for (String peerId : c.peers) {
             this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, c.maxEntriesPerAppend));
         }
@@ -89,7 +96,7 @@ public class RaftImpl implements Raft {
         }
 
         reset(meta.getTerm());
-        timeoutManager.start(null);
+        timeoutManager.start();
 
         workerThread.start();
 
@@ -153,7 +160,7 @@ public class RaftImpl implements Raft {
         return status;
     }
 
-    private ConcurrentHashMap<String, RaftPeerNode> getPeerNodes() {
+    private Map<String, RaftPeerNode> getPeerNodes() {
         return peerNodes;
     }
 
@@ -242,12 +249,6 @@ public class RaftImpl implements Raft {
         return future;
     }
 
-    private void wakeUpWorker() {
-        if (wakenUp.compareAndSet(false, true)) {
-            workerThread.interrupt();
-        }
-    }
-
     void writeOutCommand(RaftCommand.Builder builder) {
         builder.setFrom(selfId);
         if (autoFlush) {
@@ -260,11 +261,6 @@ public class RaftImpl implements Raft {
     @Override
     public void receiveCommand(RaftCommand cmd) {
         checkNotNull(cmd);
-
-        if (!peerNodes.containsKey(cmd.getFrom())) {
-            logger.warn("node {} received cmd {} from unknown peer", this, cmd);
-            return;
-        }
 
         jobQueue.add(new RaftCommandJob(cmd));
     }
@@ -279,6 +275,11 @@ public class RaftImpl implements Raft {
         @Override
         public void processJob() {
             try {
+                if (!peerNodes.containsKey(cmd.getFrom())) {
+                    logger.warn("node {} received cmd {} from unknown peer", this, cmd);
+                    return;
+                }
+
                 processReceivedCommand(cmd);
             } catch (Throwable t) {
                 logger.error("process received command {} on node {} failed", cmd, this, t);
@@ -442,13 +443,6 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private class LeaderUpdateCommitJob implements RaftJob {
-        @Override
-        public void processJob() {
-            updateCommit();
-        }
-    }
-
     private void leaderAppendEntries(List<ByteString> datas, LogEntry.EntryType type, CompletableFuture<ProposalResponse> responseFuture) {
         long term = meta.getTerm();
 
@@ -469,23 +463,38 @@ public class RaftImpl implements Raft {
             if (err != null) {
                 panic("async append logs failed", err);
             } else {
-                logger.debug("node {} try update index to {}", this, lastIndex);
-                // it's OK if this node has stepped-down and surrendered leadership before we
-                // updated index because we don't use RaftPeerNode on follower or candidate
-                RaftPeerNode leaderNode = peerNodes.get(selfId);
-                if (leaderNode != null) {
-                    if (leaderNode.updateIndexes(lastIndex)) {
-                        jobQueue.add(new LeaderUpdateCommitJob());
-                    }
-                } else {
-                    logger.error("node {} was removed from remote peer set {}",
-                            this, peerNodes.keySet());
-                }
+                jobQueue.add(new LeaderUpdateCommitJob(lastIndex));
             }
         });
 
         pendingProposal.addFuture(newLastIndex, responseFuture);
         broadcastAppendEntries();
+    }
+
+    private class LeaderUpdateCommitJob implements RaftJob {
+        private final long lastIndex;
+
+        private LeaderUpdateCommitJob(long lastIndex) {
+            this.lastIndex = lastIndex;
+        }
+
+        @Override
+        public void processJob() {
+            logger.debug("node {} try update index to {}", this, lastIndex);
+            // it's OK if this node has stepped-down and surrendered leadership before we
+            // updated index because we don't use RaftPeerNode on follower or candidate
+            RaftPeerNode leaderNode = peerNodes.get(selfId);
+            if (leaderNode != null) {
+                if (leaderNode.updateIndexes(lastIndex)) {
+                    updateCommit();
+                }
+            } else {
+                logger.error("node {} was removed from remote peer set {}",
+                        this, peerNodes.keySet());
+            }
+
+            logger.debug("node {} try update index to {}", this, lastIndex);
+        }
     }
 
     private void broadcastAppendEntries() {
@@ -855,9 +864,9 @@ public class RaftImpl implements Raft {
         }
 
         logger.info("shutting down node {} ...", this);
-        timeoutManager.finish();
+        timeoutManager.shutdown();
         workerRun = false;
-        wakeUpWorker();
+        workerThread.interrupt();
 
         try {
             workerThread.join();
@@ -891,9 +900,9 @@ public class RaftImpl implements Raft {
         timeout = unit.toNanos(timeout);
         long now = System.nanoTime();
 
-        timeoutManager.finish();
+        timeoutManager.shutdown();
         workerRun = false;
-        wakeUpWorker();
+        workerThread.interrupt();
 
         workerThread.join();
         broker.shutdown();

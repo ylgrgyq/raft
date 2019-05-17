@@ -155,7 +155,7 @@ class TestingRaftCluster {
     }
 
     void clearPersistentStateFor(String peerId) {
-        LocalFileRaftPersistentMeta state = new LocalFileRaftPersistentMeta(persistentStateDir, peerId, false);
+        LocalFilePersistentMeta state = new LocalFilePersistentMeta(persistentStateDir, peerId, false);
         state.setTermAndVotedFor(0, null);
     }
 

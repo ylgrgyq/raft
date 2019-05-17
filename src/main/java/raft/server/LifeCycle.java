@@ -4,8 +4,8 @@ package raft.server;
  * Author: ylgrgyq
  * Date: 17/12/14
  */
-interface LifeCycle<S, F> {
-    void start(S ctx);
+interface LifeCycle {
+    void start();
 
-    F finish();
+    void shutdown();
 }

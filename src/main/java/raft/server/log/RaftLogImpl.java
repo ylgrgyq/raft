@@ -2,7 +2,7 @@ package raft.server.log;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.LocalFileRaftPersistentMeta;
+import raft.server.LocalFilePersistentMeta;
 import raft.server.util.ThreadFactoryImpl;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
@@ -40,7 +40,7 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public void init(LocalFileRaftPersistentMeta meta) {
+    public void init(LocalFilePersistentMeta meta) {
         storage.init();
 
         long lastIndex = storage.getLastIndex();

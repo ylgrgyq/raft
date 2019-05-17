@@ -6,7 +6,7 @@ import raft.server.proto.RaftCommand;
  * Author: ylgrgyq
  * Date: 17/11/21
  */
-abstract class RaftState implements LifeCycle<RaftImpl.Context, RaftImpl.Context> {
+abstract class RaftState {
     private final State state;
 
     RaftState(State state){
@@ -17,9 +17,13 @@ abstract class RaftState implements LifeCycle<RaftImpl.Context, RaftImpl.Context
         return state;
     }
 
+    abstract void start(RaftImpl.Context ctx);
+
     abstract void process(RaftCommand cmd);
 
     public void onElectionTimeout() {}
 
     public void onPingTimeout() {}
+
+    abstract RaftImpl.Context finish();
 }
