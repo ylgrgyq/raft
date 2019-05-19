@@ -14,11 +14,12 @@ import raft.server.proto.RaftCommand;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.stream.Collectors;
 
 import static raft.server.util.Preconditions.checkArgument;
 import static raft.server.util.Preconditions.checkNotNull;
+import static raft.server.util.Preconditions.checkState;
 
 /**
  * Author: ylgrgyq
@@ -26,10 +27,12 @@ import static raft.server.util.Preconditions.checkNotNull;
  */
 public class RaftImpl implements Raft {
     private static final Logger logger = LoggerFactory.getLogger(RaftImpl.class.getSimpleName());
+    private static final AtomicReferenceFieldUpdater<RaftImpl, State> STATE_UPDATER =
+            AtomicReferenceFieldUpdater.newUpdater(RaftImpl.class, State.class, "state");
 
-    private final RaftState leader = new Leader();
-    private final RaftState candidate = new Candidate();
-    private final RaftState follower = new Follower();
+    private final RaftPattern leader = new Leader();
+    private final RaftPattern candidate = new Candidate();
+    private final RaftPattern follower = new Follower();
 
     private final Map<String, RaftPeerNode> peerNodes;
     private final BlockingQueue<RaftJob> jobQueue;
@@ -41,11 +44,11 @@ public class RaftImpl implements Raft {
     private final LocalFilePersistentMeta meta;
     private final StateMachineProxy stateMachine;
     private final RaftCommandBroker broker;
-    private final AtomicBoolean started;
     private final TimeoutManager timeoutManager;
 
     private volatile String leaderId;
-    private volatile RaftState state;
+    private volatile RaftPattern statePattern;
+    private volatile State state;
     private volatile boolean workerRun;
     private volatile CountDownLatch shutdownLatch;
 
@@ -64,7 +67,6 @@ public class RaftImpl implements Raft {
         this.workerRun = true;
         this.workerThread = new Thread(new Worker());
         this.raftLog = new RaftLogImpl(c.storage);
-        this.started = new AtomicBoolean(false);
 
         this.timeoutManager = new DefaultTimeoutManager(config, (electionTimeout, pingTimeout) ->
                 jobQueue.add(new TimeoutJob(electionTimeout, pingTimeout))
@@ -81,12 +83,13 @@ public class RaftImpl implements Raft {
             this.peerNodes.put(peerId, new RaftPeerNode(peerId, this, this.raftLog, 1, c.maxEntriesPerAppend));
         }
 
-        this.state = follower;
+        this.state = State.UNINITIALIZED;
+        this.statePattern = follower;
     }
 
     @Override
     public Raft start() {
-        if (!started.compareAndSet(false, true)) {
+        if (!STATE_UPDATER.compareAndSet(this, State.UNINITIALIZED, State.INITIALIZING)) {
             return this;
         }
 
@@ -126,15 +129,19 @@ public class RaftImpl implements Raft {
 
         @Override
         public void processJob() {
-            if (electionTimeout) {
-                state.onElectionTimeout();
-            }
+            try {
+                if (state.isActive()) {
+                    if (electionTimeout) {
+                        statePattern.onElectionTimeout();
+                    }
 
-            if (pingTimeout) {
-                state.onPingTimeout();
+                    if (pingTimeout) {
+                        statePattern.onPingTimeout();
+                    }
+                }
+            } finally {
+                timeoutManager.clearAllTimeoutMark();
             }
-
-            timeoutManager.clearAllTimeoutMark();
         }
     }
 
@@ -144,7 +151,7 @@ public class RaftImpl implements Raft {
     }
 
     private State getState() {
-        return state.getState();
+        return state;
     }
 
     private RaftStatusSnapshot getStatus() {
@@ -181,7 +188,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> addNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(!newNode.isEmpty());
-        checkArgument(started.get(), "raft server not start or already shutdown");
+        checkState(state.isActive(), "raft server not start or already shutdown");
 
         return proposeConfigChange(newNode, ConfigChange.ConfigChangeAction.ADD_NODE);
     }
@@ -190,7 +197,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> removeNode(String newNode) {
         checkNotNull(newNode);
         checkArgument(!newNode.isEmpty());
-        checkArgument(started.get(), "raft server not start or already shutdown");
+        checkState(state.isActive(), "raft server not start or already shutdown");
 
         if (newNode.equals(getLeaderId())) {
             return CompletableFuture.completedFuture(
@@ -216,7 +223,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> transferLeader(String transfereeId) {
         checkNotNull(transfereeId);
         checkArgument(!transfereeId.isEmpty());
-        checkArgument(started.get(), "raft server not start or already shutdown");
+        checkState(state.isActive(), "raft server not start or already shutdown");
 
         ArrayList<byte[]> data = new ArrayList<>();
         data.add(transfereeId.getBytes(StandardCharsets.UTF_8));
@@ -228,7 +235,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<ProposalResponse> propose(List<byte[]> datas) {
         checkNotNull(datas);
         checkArgument(!datas.isEmpty());
-        checkArgument(started.get(), "raft server not start or already shutdown");
+        checkState(state.isActive(), "raft server not start or already shutdown");
 
         logger.debug("node {} receives proposal with {} entries", this, datas.size());
 
@@ -262,6 +269,7 @@ public class RaftImpl implements Raft {
     @Override
     public void receiveCommand(RaftCommand cmd) {
         checkNotNull(cmd);
+        checkState(state.isActive(), "raft server not start or already shutdown");
 
         jobQueue.add(new RaftCommandJob(cmd));
     }
@@ -293,7 +301,7 @@ public class RaftImpl implements Raft {
         @Override
         public void run() {
             // init state
-            state.start();
+            statePattern.start();
 
             while (workerRun) {
                 try {
@@ -371,7 +379,7 @@ public class RaftImpl implements Raft {
                 tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
             }
 
-            state.process(cmd);
+            statePattern.process(cmd);
         }
     }
 
@@ -678,13 +686,13 @@ public class RaftImpl implements Raft {
         timeoutManager.clearAllTimeoutMark();
     }
 
-    private void transitState(RaftState nextState, long newTerm, String newLeaderId) {
+    private void transitState(RaftPattern nextState, long newTerm, String newLeaderId) {
         assert Thread.currentThread() == workerThread;
 
         // we'd better finish old state before reset term and set leader id. this can insure that old state
         // finished with the old term and leader id while new state started with new term and new leader id
-        state.finish();
-        state = nextState;
+        statePattern.finish();
+        statePattern = nextState;
         reset(newTerm);
         if (newLeaderId != null) {
             this.leaderId = newLeaderId;
@@ -862,14 +870,22 @@ public class RaftImpl implements Raft {
         @Override
         public void processJob() {
             try {
+                assert state == State.SHUTTING_DOWN;
+
+                logger.info("shutting down node {} ...", this);
+                timeoutManager.shutdown();
+
                 raftLog.awaitTermination();
                 stateMachine.onShutdown();
                 broker.shutdown();
                 workerRun = false;
             } catch (InterruptedException ex) {
                 //ignore
+            } catch (Exception ex) {
+                logger.info("node {} shutdown failed", this);
             } finally {
                 logger.info("node {} shutdown", this);
+                state = State.SHUTDOWN;
                 shutdownLatch.countDown();
             }
         }
@@ -877,24 +893,30 @@ public class RaftImpl implements Raft {
 
     @Override
     public void shutdown() {
-        if (!started.compareAndSet(true, false)) {
-            return;
+        for (; ; ) {
+            State state = this.state;
+            if (state.isShutingDown()) {
+                return;
+            }
+
+            if (STATE_UPDATER.compareAndSet(this, state, State.SHUTTING_DOWN)) {
+                shutdownLatch = new CountDownLatch(1);
+                jobQueue.add(new ShutdownJob());
+                return;
+            }
         }
-
-        logger.info("shutting down node {} ...", this);
-        timeoutManager.shutdown();
-
-        shutdownLatch = new CountDownLatch(1);
-        jobQueue.add(new ShutdownJob());
     }
 
     @Override
     public void awaitTermination() throws InterruptedException {
-        if (shutdownLatch == null) {
-            shutdown();
+        for (; ; ) {
+            if (shutdownLatch == null) {
+                shutdown();
+            } else {
+                shutdownLatch.await();
+                return;
+            }
         }
-
-        shutdownLatch.await();
     }
 
     @Override
@@ -908,13 +930,9 @@ public class RaftImpl implements Raft {
                 '}';
     }
 
-    private class Leader extends RaftState {
-
-        Leader() {
-            super(State.LEADER);
-        }
-
+    private class Leader extends RaftPattern {
         public void start() {
+            state = State.LEADER;
             leaderAppendEntries(Collections.singletonList(ByteString.EMPTY), LogEntry.EntryType.LOG, Proposal.voidFuture);
             stateMachine.onLeaderStart(getStatus());
         }
@@ -999,13 +1017,10 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private class Follower extends RaftState {
-        Follower() {
-            super(State.FOLLOWER);
-        }
-
+    private class Follower extends RaftPattern {
         public void start() {
             logger.debug("node {} start follower", RaftImpl.this);
+            state = State.FOLLOWER;
             stateMachine.onFollowerStart(getStatus());
         }
 
@@ -1054,15 +1069,12 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private class Candidate extends RaftState {
+    private class Candidate extends RaftPattern {
         private volatile ConcurrentHashMap<String, Boolean> votesGot = new ConcurrentHashMap<>();
-
-        Candidate() {
-            super(State.CANDIDATE);
-        }
 
         public void start() {
             logger.debug("node {} start candidate", RaftImpl.this);
+            state = State.CANDIDATE;
             startElection();
             stateMachine.onCandidateStart(getStatus());
         }

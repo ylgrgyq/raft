@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static raft.server.util.Preconditions.checkArgument;
 
@@ -25,6 +26,7 @@ public class RaftLogImpl implements RaftLog {
 
     private final ExecutorService pool;
     private final PersistentStorage storage;
+    private final AtomicBoolean started;
 
     private CountDownLatch shutdownLatch;
     private LogsBuffer buffer;
@@ -38,10 +40,15 @@ public class RaftLogImpl implements RaftLog {
     public RaftLogImpl(PersistentStorage storage) {
         this.storage = storage;
         this.pool = Executors.newSingleThreadExecutor(defaultThreadFactory);
+        this.started = new AtomicBoolean(false);
     }
 
     @Override
     public void init(LocalFilePersistentMeta meta) {
+        if (!started.compareAndSet(false, true)) {
+            return;
+        }
+
         storage.init();
 
         long lastIndex = storage.getLastIndex();
