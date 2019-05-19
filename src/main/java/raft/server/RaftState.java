@@ -17,7 +17,7 @@ abstract class RaftState {
         return state;
     }
 
-    abstract void start(RaftImpl.Context ctx);
+    abstract void start();
 
     abstract void process(RaftCommand cmd);
 
@@ -25,5 +25,5 @@ abstract class RaftState {
 
     public void onPingTimeout() {}
 
-    abstract RaftImpl.Context finish();
+    abstract void finish();
 }
