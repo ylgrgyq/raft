@@ -939,6 +939,7 @@ public class RaftImpl implements Raft {
 
     private class Leader implements RaftCommandProcessor {
         public void start() {
+            logger.debug("node {} start leader", RaftImpl.this);
             leaderAppendEntries(Collections.singletonList(ByteString.EMPTY), LogEntry.EntryType.LOG, Proposal.voidFuture);
             stateMachine.onLeaderStart(getStatus());
         }
