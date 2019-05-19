@@ -3,9 +3,9 @@ package raft.server.log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raft.server.LocalFilePersistentMeta;
-import raft.server.util.ThreadFactoryImpl;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
+import raft.server.util.ThreadFactoryImpl;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +28,7 @@ public class RaftLogImpl implements RaftLog {
     private final PersistentStorage storage;
     private final AtomicBoolean started;
 
-    private CountDownLatch shutdownLatch;
+    private volatile CountDownLatch shutdownLatch;
     private LogsBuffer buffer;
 
     private long commitIndex;
@@ -273,12 +273,13 @@ public class RaftLogImpl implements RaftLog {
 
         shutdownLatch = new CountDownLatch(1);
         pool.submit(() -> {
-            synchronized (this) {
+            synchronized (RaftLogImpl.this) {
                 try {
                     pool.shutdown();
                     storage.awaitTermination();
-                } catch (InterruptedException ex) {
-                    logger.warn("RaftLog shutdown process interrupted");
+                    logger.debug("RaftLog shutdown successfully");
+                } catch (Exception ex) {
+                    logger.warn("RaftLog shutdown failed", ex);
                 } finally {
                     shutdownLatch.countDown();
                 }
@@ -288,11 +289,14 @@ public class RaftLogImpl implements RaftLog {
 
     @Override
     public void awaitTermination() throws InterruptedException {
-        if (shutdownLatch == null) {
-            shutdown();
+        for (;;) {
+            if (shutdownLatch == null) {
+                shutdown();
+            } else {
+                shutdownLatch.await();
+                return;
+            }
         }
-
-        shutdownLatch.await();
     }
 
     @Override

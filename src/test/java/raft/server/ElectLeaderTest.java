@@ -34,7 +34,7 @@ public class ElectLeaderTest {
 
     @Test
     public void testInitSingleNode() throws Exception {
-        String selfId = "single node 001";
+        String selfId = "ELT init single 001";
         List<String> peers = new ArrayList<>();
         peers.add(selfId);
 
@@ -51,9 +51,9 @@ public class ElectLeaderTest {
     @Test
     public void testInitTripleNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
+        peerIdSet.add("ELT init triple 001");
+        peerIdSet.add("ELT init triple 002");
+        peerIdSet.add("ELT init triple 003");
 
         cluster.startCluster(peerIdSet);
         TestingRaftStateMachine leader = cluster.waitGetLeader();
@@ -87,9 +87,9 @@ public class ElectLeaderTest {
     @Test
     public void testLeaderLost() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
+        peerIdSet.add("ELT leader lost 001");
+        peerIdSet.add("ELT leader lost 002");
+        peerIdSet.add("ELT leader lost 003");
 
         cluster.startCluster(peerIdSet);
         TestingRaftStateMachine leader = cluster.waitGetLeader();
@@ -127,9 +127,9 @@ public class ElectLeaderTest {
     @Test
     public void testLeaderReboot() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
+        peerIdSet.add("ELT leader reboot 001");
+        peerIdSet.add("ELT leader reboot 002");
+        peerIdSet.add("ELT leader reboot 003");
 
         cluster.startCluster(peerIdSet);
         TestingRaftStateMachine leader = cluster.waitGetLeader();

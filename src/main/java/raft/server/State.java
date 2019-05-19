@@ -19,7 +19,7 @@ public enum State {
         return ordinal() > INITIALIZING.ordinal() && ordinal() < ERROR.ordinal();
     }
 
-    public boolean isShutingDown() {
+    public boolean isShuttingDown() {
         return this.ordinal() >= SHUTTING_DOWN.ordinal();
     }
 }

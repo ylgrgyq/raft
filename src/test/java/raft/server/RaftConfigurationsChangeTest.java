@@ -21,9 +21,9 @@ public class RaftConfigurationsChangeTest {
     @Before
     public void before() {
         peerIdSet = new HashSet<>();
-        peerIdSet.add("config change 001");
-        peerIdSet.add("config change 002");
-        peerIdSet.add("config change 003");
+        peerIdSet.add("RCC config change 001");
+        peerIdSet.add("RCC config change 002");
+        peerIdSet.add("RCC config change 003");
 
         cluster = new TestingRaftCluster(RaftConfigurationsChangeTest.class.getSimpleName());
         cluster.clearLogStorage();
@@ -38,7 +38,7 @@ public class RaftConfigurationsChangeTest {
 
     @Test
     public void testAddNodeToFollower() throws Exception {
-        String newNode = "new node 004";
+        String newNode = "RCC add node follower 004";
         TestingRaftStateMachine followerStateMachine = cluster.getFollowers().get(0);
         Raft follower = cluster.getNodeById(followerStateMachine.getId());
 
@@ -60,7 +60,7 @@ public class RaftConfigurationsChangeTest {
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
-        String newNode = "new node 004";
+        String newNode = "RCC add node 004";
         CompletableFuture<ProposalResponse> f = leader.addNode(newNode);
         ProposalResponse resp = f.get();
         assertTrue(resp.isSuccess());
@@ -84,7 +84,7 @@ public class RaftConfigurationsChangeTest {
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
         Raft leader = cluster.getNodeById(leaderStateMachine.getId());
 
-        String removePeerId = "not exists node";
+        String removePeerId = "RCC not exists node";
         CompletableFuture<ProposalResponse> f = leader.removeNode(removePeerId);
         ProposalResponse resp = f.get();
         assertTrue(resp.isSuccess());

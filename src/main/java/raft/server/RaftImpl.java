@@ -102,19 +102,23 @@ public class RaftImpl implements Raft {
         reset(meta.getTerm());
         timeoutManager.start();
 
-        workerThread.start();
+        if (STATE_UPDATER.compareAndSet(this, State.INITIALIZING, State.FOLLOWER)) {
+            workerThread.start();
 
-        logger.info("node {} started with:\n" +
-                        "term={}\n" +
-                        "votedFor={}\n" +
-                        "electionTimeout={}\n" +
-                        "tickIntervalMs={}\n" +
-                        "pingIntervalTicks={}\n" +
-                        "suggectElectionTimeoutTicks={}\n" +
-                        "raftLog={}\n",
-                this, meta.getTerm(), meta.getVotedFor(), timeoutManager.getElectionTimeoutTicks(),
-                config.tickIntervalMs, config.pingIntervalTicks,
-                config.suggestElectionTimeoutTicks, raftLog);
+            logger.info("node {} started with:\n" +
+                            "term={}\n" +
+                            "votedFor={}\n" +
+                            "electionTimeout={}\n" +
+                            "tickIntervalMs={}\n" +
+                            "pingIntervalTicks={}\n" +
+                            "suggectElectionTimeoutTicks={}\n" +
+                            "raftLog={}\n",
+                    this, meta.getTerm(), meta.getVotedFor(), timeoutManager.getElectionTimeoutTicks(),
+                    config.tickIntervalMs, config.pingIntervalTicks,
+                    config.suggestElectionTimeoutTicks, raftLog);
+
+        }
+
         return this;
     }
 
@@ -266,7 +270,7 @@ public class RaftImpl implements Raft {
 
         @Override
         public void processJob() {
-            logger.debug("node {} start process [{}]", this, proposal);
+            logger.debug("node {} start process [{}]", RaftImpl.this, proposal);
             ErrorMsg error = null;
             try {
                 if (getState() == State.LEADER) {
@@ -298,14 +302,14 @@ public class RaftImpl implements Raft {
                                     break;
                                 }
 
-                                logger.info("node {} start transfer leadership to {}", this, transfereeId);
+                                logger.info("node {} start transfer leadership to {}", RaftImpl.this, transfereeId);
 
                                 timeoutManager.clearElectionTickCounter();
                                 transferLeaderFuture = new TransferLeaderFuture(transfereeId, proposal.getFuture());
                                 RaftPeerNode n = peerNodes.get(transfereeId);
                                 if (n.getMatchIndex() == raftLog.getLastIndex()) {
                                     logger.info("node {} send timeout immediately to {} because it already " +
-                                            "has up to date logs", this, transfereeId);
+                                            "has up to date logs", RaftImpl.this, transfereeId);
                                     n.sendTimeout(meta.getTerm());
                                 } else {
                                     n.sendAppend(meta.getTerm(), true);
@@ -318,7 +322,7 @@ public class RaftImpl implements Raft {
                     error = ErrorMsg.NOT_LEADER;
                 }
             } catch (Throwable t) {
-                logger.error("process propose failed on node {}", this, t);
+                logger.error("process propose failed on node {}", RaftImpl.this, t);
                 error = ErrorMsg.INTERNAL_ERROR;
             }
 
@@ -355,13 +359,13 @@ public class RaftImpl implements Raft {
         public void processJob() {
             try {
                 if (!peerNodes.containsKey(cmd.getFrom())) {
-                    logger.warn("node {} received cmd {} from unknown peer", this, cmd);
+                    logger.warn("node {} received cmd {} from unknown peer", RaftImpl.this, cmd);
                     return;
                 }
 
                 processReceivedCommand(cmd);
             } catch (Throwable t) {
-                logger.error("process received command {} on node {} failed", cmd, this, t);
+                logger.error("process received command {} on node {} failed", RaftImpl.this, this, t);
                 //TODO panic when process received command failed?
             }
         }
@@ -370,8 +374,7 @@ public class RaftImpl implements Raft {
     private class Worker implements Runnable {
         @Override
         public void run() {
-            // init state
-            state = cmdProcessor.getBindingState();
+            // start processor
             cmdProcessor.start();
 
             while (workerRun) {
@@ -491,7 +494,11 @@ public class RaftImpl implements Raft {
 
         @Override
         public void processJob() {
-            logger.debug("node {} try update index to {}", this, lastIndex);
+            if (state != State.LEADER) {
+                return;
+            }
+
+            logger.debug("node {} try update index to {}", RaftImpl.this, lastIndex);
             // it's OK if this node has stepped-down and surrendered leadership before we
             // updated index because we don't use RaftPeerNode on follower or candidate
             RaftPeerNode leaderNode = peerNodes.get(selfId);
@@ -504,7 +511,7 @@ public class RaftImpl implements Raft {
                         this, peerNodes.keySet());
             }
 
-            logger.debug("node {} try update index to {}", this, lastIndex);
+            logger.debug("node {} try update index to {}", RaftImpl.this, lastIndex);
         }
     }
 
@@ -592,7 +599,8 @@ public class RaftImpl implements Raft {
     }
 
     private boolean updateCommit() {
-        assert cmdProcessor.getBindingState() == State.LEADER;
+        State bindingState = cmdProcessor.getBindingState();
+        assert  bindingState == State.LEADER : String.format("actual: %s", bindingState);
 
         // kth biggest number
         int k = getQuorum() - 1;
@@ -695,7 +703,15 @@ public class RaftImpl implements Raft {
         // finished with the old term and leader id while new state started with new term and new leader id
         cmdProcessor.finish();
         cmdProcessor = nextState;
-        state = nextState.getBindingState();
+
+        for (; ; ) {
+            State state = this.state;
+            if (!state.isShuttingDown() &&
+                    STATE_UPDATER.compareAndSet(this, state, nextState.getBindingState())) {
+                break;
+            }
+        }
+
         reset(newTerm);
         if (newLeaderId != null) {
             this.leaderId = newLeaderId;
@@ -874,9 +890,9 @@ public class RaftImpl implements Raft {
         @Override
         public void processJob() {
             try {
-                assert state == State.SHUTTING_DOWN;
+                assert state == State.SHUTTING_DOWN : String.format("actual: %s", state);
 
-                logger.info("shutting down node {} ...", this);
+                logger.info("shutting down node {} ...", RaftImpl.this);
                 timeoutManager.shutdown();
 
                 stateMachine.shutdown().get();
@@ -884,13 +900,13 @@ public class RaftImpl implements Raft {
                 raftLog.awaitTermination();
                 workerRun = false;
             } catch (InterruptedException ex) {
-                logger.warn("node {} shutdown process interrupted", this);
+                logger.warn("node {} shutdown process interrupted", RaftImpl.this);
                 shutdownFuture.completeExceptionally(ex);
             } catch (Throwable ex) {
-                logger.info("node {} shutdown failed", this);
+                logger.info("node {} shutdown failed", RaftImpl.this);
                 shutdownFuture.completeExceptionally(ex);
             } finally {
-                logger.info("node {} shutdown", this);
+                logger.info("node {} shutdown", RaftImpl.this);
                 state = State.SHUTDOWN;
                 shutdownFuture.complete(null);
             }
@@ -901,7 +917,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<Void> shutdown() {
         for (; ; ) {
             State state = this.state;
-            if (state.isShutingDown()) {
+            if (state.isShuttingDown()) {
                 assert shutdownFuture != null;
 
                 return shutdownFuture;
