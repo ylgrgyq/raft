@@ -38,7 +38,7 @@ public class LogReplicationTest {
 
     @Test
     public void testProposeOnSingleNode() throws Exception {
-        String selfId = "single node 001";
+        String selfId = "LPT single node 001";
         List<String> peers = new ArrayList<>();
         peers.add(selfId);
 
@@ -62,9 +62,9 @@ public class LogReplicationTest {
     @Test
     public void testProposeOnTripleNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("triple node 001");
-        peerIdSet.add("triple node 002");
-        peerIdSet.add("triple node 003");
+        peerIdSet.add("LPT propose triple node 001");
+        peerIdSet.add("LPT propose triple node 002");
+        peerIdSet.add("LPT propose triple node 003");
 
         cluster.startCluster(peerIdSet);
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
@@ -80,13 +80,13 @@ public class LogReplicationTest {
     @Test
     public void testSyncLogOnRebootNode() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("reboot node 001");
-        peerIdSet.add("reboot node 002");
-        peerIdSet.add("reboot node 003");
+        peerIdSet.add("LPT propose sync reboot 001");
+        peerIdSet.add("LPT propose sync reboot 002");
+        peerIdSet.add("LPT propose sync reboot 003");
 
-        String rebootNodeId = "reboot node 003";
-        cluster.addTestingNode("reboot node 001", peerIdSet).start();
-        cluster.addTestingNode("reboot node 002", peerIdSet).start();
+        String rebootNodeId = "LPT propose sync reboot 003";
+        cluster.addTestingNode("LPT propose sync reboot 001", peerIdSet).start();
+        cluster.addTestingNode("LPT propose sync reboot 002", peerIdSet).start();
         assertEquals(2, cluster.getAllStateMachines().size());
 
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();
@@ -117,9 +117,9 @@ public class LogReplicationTest {
     @Test
     public void testOverwriteConflictLogs() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("overwrite conflict 001");
-        peerIdSet.add("overwrite conflict 002");
-        peerIdSet.add("overwrite conflict 003");
+        peerIdSet.add("LPT overwrite conflict 001");
+        peerIdSet.add("LPT overwrite conflict 002");
+        peerIdSet.add("LPT overwrite conflict 003");
 
         cluster.startCluster(peerIdSet);
         TestingRaftStateMachine oldLeaderStateMachine = cluster.waitGetLeader();
@@ -169,13 +169,13 @@ public class LogReplicationTest {
     @Test
     public void testSnapshot() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("snapshot 001");
-        peerIdSet.add("snapshot 002");
-        peerIdSet.add("snapshot 003");
+        peerIdSet.add("LPT snapshot 001");
+        peerIdSet.add("LPT snapshot 002");
+        peerIdSet.add("LPT snapshot 003");
 
-        String fallBehindNodeId = "snapshot 003";
-        cluster.addTestingNode("snapshot 001", peerIdSet).start();
-        cluster.addTestingNode("snapshot 002", peerIdSet).start();
+        String fallBehindNodeId = "LPT snapshot 003";
+        cluster.addTestingNode("LPT snapshot 001", peerIdSet).start();
+        cluster.addTestingNode("LPT snapshot 002", peerIdSet).start();
         assertEquals(2, cluster.getAllStateMachines().size());
 
         TestingRaftStateMachine leaderStateMachine = cluster.waitGetLeader();

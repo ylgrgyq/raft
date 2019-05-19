@@ -535,7 +535,7 @@ public class FileBasedStorage implements PersistentStorage {
             sstableWriterPool.submit(() -> {
                 synchronized (FileBasedStorage.this) {
                     try {
-                        logger.info("shutting file based storage down");
+                        logger.debug("shutting file based storage down");
                         sstableWriterPool.shutdownNow();
 
                         if (logWriter != null) {
@@ -553,7 +553,7 @@ public class FileBasedStorage implements PersistentStorage {
                         if (storageLockChannel != null && storageLockChannel.isOpen()) {
                             storageLockChannel.close();
                         }
-                        logger.info("file based storage shutdown successfully");
+                        logger.debug("file based storage shutdown successfully");
                     } catch (Exception ex) {
                         logger.error("shutdown failed", ex);
                     } finally {

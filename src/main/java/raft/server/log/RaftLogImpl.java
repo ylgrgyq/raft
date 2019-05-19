@@ -277,7 +277,7 @@ public class RaftLogImpl implements RaftLog {
                 try {
                     pool.shutdown();
                     storage.awaitTermination();
-                    logger.info("RaftLog shutdown successfully");
+                    logger.debug("RaftLog shutdown successfully");
                 } catch (Exception ex) {
                     logger.warn("RaftLog shutdown failed", ex);
                 } finally {

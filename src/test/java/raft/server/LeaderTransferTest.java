@@ -21,11 +21,11 @@ public class LeaderTransferTest {
     @Before
     public void before() {
         HashSet<String> peerIdSet = new HashSet<>();
-        peerIdSet.add("001");
-        peerIdSet.add("002");
-        peerIdSet.add("003");
-        peerIdSet.add("004");
-        peerIdSet.add("005");
+        peerIdSet.add("LTT 001");
+        peerIdSet.add("LTT 002");
+        peerIdSet.add("LTT 003");
+        peerIdSet.add("LTT 004");
+        peerIdSet.add("LTT 005");
 
         cluster = new TestingRaftCluster(LeaderTransferTest.class.getSimpleName());
         cluster.clearLogStorage();
@@ -121,7 +121,7 @@ public class LeaderTransferTest {
         }
 
         // add a new node
-        String newLeaderId = "new node 004";
+        String newLeaderId = "LTT new node";
         Raft newNode = cluster.addTestingNode(newLeaderId, cluster.getAllPeerIds());
         newNode.start();
 
