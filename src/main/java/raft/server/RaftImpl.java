@@ -49,7 +49,7 @@ public class RaftImpl implements Raft {
     private volatile String leaderId;
     private volatile State state;
     private volatile boolean workerRun;
-    private volatile CountDownLatch shutdownLatch;
+    private volatile CompletableFuture<Void> shutdownFuture;
 
     private RaftCommandProcessor cmdProcessor;
     private boolean existsPendingConfigChange;
@@ -869,6 +869,7 @@ public class RaftImpl implements Raft {
     }
 
     private final class ShutdownJob implements RaftJob {
+
         @Override
         public void processJob() {
             try {
@@ -883,39 +884,43 @@ public class RaftImpl implements Raft {
                 workerRun = false;
             } catch (InterruptedException ex) {
                 logger.warn("node {} shutdown process interrupted", this);
-            } catch (Exception ex) {
+                shutdownFuture.completeExceptionally(ex);
+            } catch (Throwable ex) {
                 logger.info("node {} shutdown failed", this);
+                shutdownFuture.completeExceptionally(ex);
             } finally {
                 logger.info("node {} shutdown", this);
                 state = State.SHUTDOWN;
-                shutdownLatch.countDown();
+                shutdownFuture.complete(null);
             }
         }
     }
 
     @Override
-    public void shutdown() {
+    public CompletableFuture<Void> shutdown() {
         for (; ; ) {
             State state = this.state;
             if (state.isShutingDown()) {
-                return;
+                assert shutdownFuture != null;
+
+                return shutdownFuture;
             }
 
             if (STATE_UPDATER.compareAndSet(this, state, State.SHUTTING_DOWN)) {
-                shutdownLatch = new CountDownLatch(1);
+                shutdownFuture = new CompletableFuture<>();
                 jobQueue.add(new ShutdownJob());
-                return;
+                return shutdownFuture;
             }
         }
     }
 
     @Override
-    public void awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+    public void awaitTermination() throws InterruptedException, ExecutionException {
         for (; ; ) {
-            if (shutdownLatch == null) {
+            if (shutdownFuture == null) {
                 shutdown();
             } else {
-                shutdownLatch.await(timeout, unit);
+                shutdownFuture.get();
                 return;
             }
         }

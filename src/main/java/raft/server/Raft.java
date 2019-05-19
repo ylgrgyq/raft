@@ -4,6 +4,7 @@ import raft.server.proto.RaftCommand;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -24,7 +25,7 @@ public interface Raft {
 
 	Raft start();
 
-	void shutdown();
+	CompletableFuture<Void> shutdown();
 
-	void awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
+	void awaitTermination() throws InterruptedException, ExecutionException;
 }
