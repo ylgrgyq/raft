@@ -111,7 +111,7 @@ class TestingRaftCluster {
                 .collect(Collectors.toList());
 
         for (TestingRaftStateMachine follower : followers) {
-            follower.becomeFollowerFuture().get(3, TimeUnit.SECONDS);
+            follower.becomeFollowerFuture().get(30, TimeUnit.SECONDS);
         }
         return followers;
     }

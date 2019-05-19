@@ -257,6 +257,76 @@ public class RaftImpl implements Raft {
         return future;
     }
 
+    private final class ProposalJob implements RaftJob {
+        private Proposal proposal;
+
+        private ProposalJob(Proposal proposal) {
+            this.proposal = proposal;
+        }
+
+        @Override
+        public void processJob() {
+            logger.debug("node {} start process [{}]", this, proposal);
+            ErrorMsg error = null;
+            try {
+                if (getState() == State.LEADER) {
+                    if (transferLeaderFuture != null) {
+                        error = ErrorMsg.LEADER_TRANSFERRING;
+                    } else {
+                        switch (proposal.getType()) {
+                            case CONFIG:
+                                if (existsPendingConfigChange) {
+                                    error = ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION;
+                                    break;
+                                }
+
+                                existsPendingConfigChange = true;
+                                // fall through
+                            case LOG:
+                                leaderAppendEntries(proposal.getDatas(), proposal.getType(), proposal.getFuture());
+                                return;
+                            case TRANSFER_LEADER:
+                                String transfereeId = new String(proposal.getDatas().get(0).toByteArray(), StandardCharsets.UTF_8);
+
+                                if (transfereeId.equals(selfId)) {
+                                    error = ErrorMsg.ALLREADY_LEADER;
+                                    break;
+                                }
+
+                                if (!peerNodes.containsKey(transfereeId)) {
+                                    error = ErrorMsg.UNKNOWN_TRANSFEREEID;
+                                    break;
+                                }
+
+                                logger.info("node {} start transfer leadership to {}", this, transfereeId);
+
+                                timeoutManager.clearElectionTickCounter();
+                                transferLeaderFuture = new TransferLeaderFuture(transfereeId, proposal.getFuture());
+                                RaftPeerNode n = peerNodes.get(transfereeId);
+                                if (n.getMatchIndex() == raftLog.getLastIndex()) {
+                                    logger.info("node {} send timeout immediately to {} because it already " +
+                                            "has up to date logs", this, transfereeId);
+                                    n.sendTimeout(meta.getTerm());
+                                } else {
+                                    n.sendAppend(meta.getTerm(), true);
+                                }
+
+                                return;
+                        }
+                    }
+                } else {
+                    error = ErrorMsg.NOT_LEADER;
+                }
+            } catch (Throwable t) {
+                logger.error("process propose failed on node {}", this, t);
+                error = ErrorMsg.INTERNAL_ERROR;
+            }
+
+            proposal.getFuture().complete(ProposalResponse.errorWithLeaderHint(leaderId, error));
+        }
+    }
+
+
     void writeOutCommand(RaftCommand.Builder builder) {
         builder.setFrom(selfId);
         if (autoFlush) {
@@ -381,75 +451,6 @@ public class RaftImpl implements Raft {
             }
 
             cmdProcessor.process(cmd);
-        }
-    }
-
-    private final class ProposalJob implements RaftJob {
-        private Proposal proposal;
-
-        private ProposalJob(Proposal proposal) {
-            this.proposal = proposal;
-        }
-
-        @Override
-        public void processJob() {
-            logger.debug("node {} start process [{}]", this, proposal);
-            ErrorMsg error = null;
-            try {
-                if (getState() == State.LEADER) {
-                    if (transferLeaderFuture != null) {
-                        error = ErrorMsg.LEADER_TRANSFERRING;
-                    } else {
-                        switch (proposal.getType()) {
-                            case CONFIG:
-                                if (existsPendingConfigChange) {
-                                    error = ErrorMsg.EXISTS_UNAPPLIED_CONFIGURATION;
-                                    break;
-                                }
-
-                                existsPendingConfigChange = true;
-                                // fall through
-                            case LOG:
-                                leaderAppendEntries(proposal.getDatas(), proposal.getType(), proposal.getFuture());
-                                return;
-                            case TRANSFER_LEADER:
-                                String transfereeId = new String(proposal.getDatas().get(0).toByteArray(), StandardCharsets.UTF_8);
-
-                                if (transfereeId.equals(selfId)) {
-                                    error = ErrorMsg.ALLREADY_LEADER;
-                                    break;
-                                }
-
-                                if (!peerNodes.containsKey(transfereeId)) {
-                                    error = ErrorMsg.UNKNOWN_TRANSFEREEID;
-                                    break;
-                                }
-
-                                logger.info("node {} start transfer leadership to {}", this, transfereeId);
-
-                                timeoutManager.clearElectionTickCounter();
-                                transferLeaderFuture = new TransferLeaderFuture(transfereeId, proposal.getFuture());
-                                RaftPeerNode n = peerNodes.get(transfereeId);
-                                if (n.getMatchIndex() == raftLog.getLastIndex()) {
-                                    logger.info("node {} send timeout immediately to {} because it already " +
-                                            "has up to date logs", this, transfereeId);
-                                    n.sendTimeout(meta.getTerm());
-                                } else {
-                                    n.sendAppend(meta.getTerm(), true);
-                                }
-
-                                return;
-                        }
-                    }
-                } else {
-                    error = ErrorMsg.NOT_LEADER;
-                }
-            } catch (Throwable t) {
-                logger.error("process propose failed on node {}", this, t);
-                error = ErrorMsg.INTERNAL_ERROR;
-            }
-
-            proposal.getFuture().complete(ProposalResponse.errorWithLeaderHint(leaderId, error));
         }
     }
 
