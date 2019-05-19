@@ -102,19 +102,23 @@ public class RaftImpl implements Raft {
         reset(meta.getTerm());
         timeoutManager.start();
 
-        workerThread.start();
+        if (STATE_UPDATER.compareAndSet(this, State.INITIALIZING, State.FOLLOWER)) {
+            workerThread.start();
 
-        logger.info("node {} started with:\n" +
-                        "term={}\n" +
-                        "votedFor={}\n" +
-                        "electionTimeout={}\n" +
-                        "tickIntervalMs={}\n" +
-                        "pingIntervalTicks={}\n" +
-                        "suggectElectionTimeoutTicks={}\n" +
-                        "raftLog={}\n",
-                this, meta.getTerm(), meta.getVotedFor(), timeoutManager.getElectionTimeoutTicks(),
-                config.tickIntervalMs, config.pingIntervalTicks,
-                config.suggestElectionTimeoutTicks, raftLog);
+            logger.info("node {} started with:\n" +
+                            "term={}\n" +
+                            "votedFor={}\n" +
+                            "electionTimeout={}\n" +
+                            "tickIntervalMs={}\n" +
+                            "pingIntervalTicks={}\n" +
+                            "suggectElectionTimeoutTicks={}\n" +
+                            "raftLog={}\n",
+                    this, meta.getTerm(), meta.getVotedFor(), timeoutManager.getElectionTimeoutTicks(),
+                    config.tickIntervalMs, config.pingIntervalTicks,
+                    config.suggestElectionTimeoutTicks, raftLog);
+
+        }
+
         return this;
     }
 
@@ -370,8 +374,7 @@ public class RaftImpl implements Raft {
     private class Worker implements Runnable {
         @Override
         public void run() {
-            // init state
-            state = cmdProcessor.getBindingState();
+            // start processor
             cmdProcessor.start();
 
             while (workerRun) {
@@ -695,7 +698,15 @@ public class RaftImpl implements Raft {
         // finished with the old term and leader id while new state started with new term and new leader id
         cmdProcessor.finish();
         cmdProcessor = nextState;
-        state = nextState.getBindingState();
+
+        for (; ; ) {
+            State state = this.state;
+            if (!state.isShuttingDown() &&
+                    STATE_UPDATER.compareAndSet(this, state, nextState.getBindingState())) {
+                break;
+            }
+        }
+
         reset(newTerm);
         if (newLeaderId != null) {
             this.leaderId = newLeaderId;
@@ -874,7 +885,7 @@ public class RaftImpl implements Raft {
         @Override
         public void processJob() {
             try {
-                assert state == State.SHUTTING_DOWN;
+                assert state == State.SHUTTING_DOWN : String.format("actual: %s", state);
 
                 logger.info("shutting down node {} ...", RaftImpl.this);
                 timeoutManager.shutdown();
@@ -901,7 +912,7 @@ public class RaftImpl implements Raft {
     public CompletableFuture<Void> shutdown() {
         for (; ; ) {
             State state = this.state;
-            if (state.isShutingDown()) {
+            if (state.isShuttingDown()) {
                 assert shutdownFuture != null;
 
                 return shutdownFuture;
