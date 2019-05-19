@@ -882,7 +882,7 @@ public class RaftImpl implements Raft {
                 broker.shutdown();
                 workerRun = false;
             } catch (InterruptedException ex) {
-                //ignore
+                logger.warn("node {} shutdown process interrupted", this);
             } catch (Exception ex) {
                 logger.info("node {} shutdown failed", this);
             } finally {
@@ -910,12 +910,12 @@ public class RaftImpl implements Raft {
     }
 
     @Override
-    public void awaitTermination() throws InterruptedException {
+    public void awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         for (; ; ) {
             if (shutdownLatch == null) {
                 shutdown();
             } else {
-                shutdownLatch.await();
+                shutdownLatch.await(timeout, unit);
                 return;
             }
         }

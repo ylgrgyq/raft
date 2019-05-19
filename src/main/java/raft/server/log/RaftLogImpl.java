@@ -278,7 +278,7 @@ public class RaftLogImpl implements RaftLog {
                     pool.shutdown();
                     storage.awaitTermination();
                 } catch (InterruptedException ex) {
-                    // ignore
+                    logger.warn("RaftLog shutdown process interrupted");
                 } finally {
                     shutdownLatch.countDown();
                 }
