@@ -24,9 +24,7 @@ public interface Raft {
 
 	Raft start();
 
-	void shutdownNow();
+	void shutdown();
 
-	void shudownGracefully() throws InterruptedException;
-
-	void shudownGracefully(long timeout, TimeUnit unit) throws InterruptedException;
+	void awaitTermination() throws InterruptedException;
 }

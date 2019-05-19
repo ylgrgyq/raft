@@ -153,7 +153,7 @@ class TestingRaftStateMachine implements StateMachine {
 
     @Override
     public void onShutdown() {
-        logger.info("state machine shutdownNow");
+        logger.info("state machine shutdown");
     }
 
     boolean waitNodeAdded(String expectPeerId) {

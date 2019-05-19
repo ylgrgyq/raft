@@ -45,7 +45,11 @@ public interface RaftLog {
 
     void snapshotApplied(long snapshotIndex);
 
-    void shutdownNow();
+    /**
+     * Shutdown RaftLog service. Any write operation after this call will not guarantee to execute.
+     * When the call returned, please use awaitTermination() to wait the RaftLog service actually terminated.
+     */
+    void shutdown();
 
-    void shutdownGracefully(long timeout, TimeUnit unit) throws InterruptedException;
+    void awaitTermination() throws InterruptedException;
 }

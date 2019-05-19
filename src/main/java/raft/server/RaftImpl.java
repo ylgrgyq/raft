@@ -25,8 +25,7 @@ import static raft.server.util.Preconditions.checkNotNull;
  * Date: 17/11/21
  */
 public class RaftImpl implements Raft {
-    private static final Logger logger = LoggerFactory.getLogger(RaftImpl.class.getName());
-    private static final long DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MILLIS = 10_000;
+    private static final Logger logger = LoggerFactory.getLogger(RaftImpl.class.getSimpleName());
 
     private final RaftState leader = new Leader();
     private final RaftState candidate = new Candidate();
@@ -48,6 +47,7 @@ public class RaftImpl implements Raft {
     private volatile String leaderId;
     private volatile RaftState state;
     private volatile boolean workerRun;
+    private volatile CountDownLatch shutdownLatch;
 
     private boolean existsPendingConfigChange;
     private TransferLeaderFuture transferLeaderFuture;
@@ -854,66 +854,46 @@ public class RaftImpl implements Raft {
     private void panic(String reason, Throwable err) {
         logger.error("node {} panic due to {}, shutdown immediately", this, reason, err);
 
-        shutdownNow();
+        shutdown();
+    }
+
+    private final class ShutdownJob implements RaftJob {
+        @Override
+        public void processJob() {
+            try {
+                raftLog.awaitTermination();
+                stateMachine.onShutdown();
+                broker.shutdown();
+                workerRun = false;
+            } catch (InterruptedException ex){
+                //ignore
+            } finally {
+                logger.info("node {} shutdown", this);
+                shutdownLatch.countDown();
+            }
+        }
     }
 
     @Override
-    public void shutdownNow() {
+    public void shutdown() {
         if (!started.compareAndSet(true, false)) {
             return;
         }
 
         logger.info("shutting down node {} ...", this);
         timeoutManager.shutdown();
-        workerRun = false;
-        workerThread.interrupt();
 
-        try {
-            workerThread.join();
-        } catch (InterruptedException ex) {
-            // ignore
-        }
-
-        broker.shutdown();
-        // we can call onShutdown and shutdown on stateMachine successively
-        // shutdownNow will wait onShutdown to finish
-        stateMachine.onShutdown();
-
-        stateMachine.shutdownNow();
-
-        raftLog.shutdownNow();
-        logger.info("node {} shutdown", this);
+        shutdownLatch = new CountDownLatch(1);
+        jobQueue.add(new ShutdownJob());
     }
 
     @Override
-    public void shudownGracefully() throws InterruptedException {
-        shudownGracefully(DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-    }
-
-    @Override
-    public void shudownGracefully(long timeout, TimeUnit unit) throws InterruptedException {
-        if (!started.compareAndSet(true, false)) {
-            return;
+    public void awaitTermination() throws InterruptedException {
+        if (shutdownLatch == null) {
+            shutdown();
         }
 
-        logger.info("shutting down node {} ...", this);
-        timeout = unit.toNanos(timeout);
-        long now = System.nanoTime();
-
-        timeoutManager.shutdown();
-        workerRun = false;
-        workerThread.interrupt();
-
-        workerThread.join();
-        broker.shutdown();
-
-        // we can call onShutdown and shutdown on stateMachine successively
-        // shutdownGracefully will wait onShutdown to finish
-        stateMachine.onShutdown();
-        stateMachine.shutdownGracefully(timeout - (System.nanoTime() - now), TimeUnit.NANOSECONDS);
-
-        raftLog.shutdownGracefully(timeout - (System.nanoTime() - now), TimeUnit.NANOSECONDS);
-        logger.info("node {} shutdown", this);
+        shutdownLatch.await();
     }
 
     @Override

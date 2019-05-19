@@ -55,7 +55,7 @@ public interface PersistentStorage {
      */
     Future<Long> compact(long toIndex);
 
-    void shutdownNow();
+    void shutdown();
 
-    void shutdownGracefully(long timeout, TimeUnit unit);
+    void awaitTermination() throws InterruptedException;
 }

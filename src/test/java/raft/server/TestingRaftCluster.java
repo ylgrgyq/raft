@@ -138,7 +138,7 @@ class TestingRaftCluster {
 
     void shutdownCluster() throws InterruptedException{
         for (Raft n : nodes.values()) {
-            n.shudownGracefully();
+            n.awaitTermination();
         }
         nodes.clear();
         stateMachines.clear();
@@ -147,7 +147,7 @@ class TestingRaftCluster {
     void shutdownPeer(String peerId) throws InterruptedException{
         stateMachines.remove(peerId);
         Raft n = nodes.remove(peerId);
-        n.shudownGracefully();
+        n.awaitTermination();
     }
 
     void clearPersistentState() {
