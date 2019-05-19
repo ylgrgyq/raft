@@ -878,9 +878,9 @@ public class RaftImpl implements Raft {
                 logger.info("shutting down node {} ...", this);
                 timeoutManager.shutdown();
 
-                raftLog.awaitTermination();
-                stateMachine.onShutdown();
+                stateMachine.shutdown().get();
                 broker.shutdown();
+                raftLog.awaitTermination();
                 workerRun = false;
             } catch (InterruptedException ex) {
                 logger.warn("node {} shutdown process interrupted", this);

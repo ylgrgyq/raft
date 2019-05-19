@@ -105,8 +105,7 @@ public class StateMachineProxyTest {
                 1, 1, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(), new ThreadFactoryImpl("StateMachineProxy-"));
         StateMachineProxy proxy = new StateMachineProxy(mockStateMachine, raftLog, pool);
-        proxy.onShutdown();
-        proxy.shutdownGracefully();
+        proxy.shutdown().get();
         assertTrue(pool.awaitTermination(2000, TimeUnit.SECONDS));
         assertTrue(shutdownCalled.get());
     }

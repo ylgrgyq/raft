@@ -3,11 +3,13 @@ package raft.server;
 import raft.server.log.RaftLog;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -31,7 +33,7 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
 
     CompletableFuture<Void> onProposalCommitted(RaftStatusSnapshot status, List<LogEntry> msgs, long lastIndex) {
         return notify(() -> {
-            if (! msgs.isEmpty()) {
+            if (!msgs.isEmpty()) {
                 stateMachine.onProposalCommitted(status, msgs);
             }
             raftLog.appliedTo(lastIndex);
@@ -60,7 +62,7 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
 
     @Override
     public void onLeaderFinish(RaftStatusSnapshot status) {
-        notify(()->stateMachine.onLeaderFinish(status));
+        notify(() -> stateMachine.onLeaderFinish(status));
     }
 
     @Override
@@ -70,7 +72,7 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
 
     @Override
     public void onFollowerFinish(RaftStatusSnapshot status) {
-        notify(()->stateMachine.onFollowerFinish(status));
+        notify(() -> stateMachine.onFollowerFinish(status));
     }
 
     @Override
@@ -80,7 +82,7 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
 
     @Override
     public void onCandidateFinish(RaftStatusSnapshot status) {
-        notify(()->stateMachine.onCandidateFinish(status));
+        notify(() -> stateMachine.onCandidateFinish(status));
     }
 
     @Override
@@ -98,6 +100,14 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
 
     @Override
     public void onShutdown() {
-        notify(stateMachine::onShutdown);
+        throw new NotImplementedException();
+    }
+
+    public CompletableFuture<Void> shutdown() {
+        return super.shutdown()
+                .handle((ret, ex) -> {
+                    stateMachine.onShutdown();
+                    return null;
+                });
     }
 }
