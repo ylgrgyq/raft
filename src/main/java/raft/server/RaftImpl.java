@@ -591,6 +591,8 @@ public class RaftImpl implements Raft {
     }
 
     private boolean updateCommit() {
+        assert cmdProcessor.getBindingState() == State.LEADER;
+
         // kth biggest number
         int k = getQuorum() - 1;
         List<Long> matchedIndexes = peerNodes.values().stream()
