@@ -533,9 +533,9 @@ public class FileBasedStorage implements PersistentStorage {
             shutdownLatch = new CountDownLatch(1);
 
             sstableWriterPool.submit(() -> {
-                synchronized (this) {
+                synchronized (FileBasedStorage.this) {
                     try {
-                        logger.info("shutdown file based storage");
+                        logger.info("shutting file based storage down");
                         sstableWriterPool.shutdownNow();
 
                         if (logWriter != null) {
@@ -553,6 +553,7 @@ public class FileBasedStorage implements PersistentStorage {
                         if (storageLockChannel != null && storageLockChannel.isOpen()) {
                             storageLockChannel.close();
                         }
+                        logger.info("file based storage shutdown successfully");
                     } catch (Exception ex) {
                         logger.error("shutdown failed", ex);
                     } finally {
@@ -567,11 +568,14 @@ public class FileBasedStorage implements PersistentStorage {
 
     @Override
     public void awaitTermination() throws InterruptedException{
-        if (shutdownLatch == null) {
-            shutdown();
+        for(;;) {
+            if (shutdownLatch == null) {
+                shutdown();
+            } else {
+                shutdownLatch.await();
+                return;
+            }
         }
-
-        shutdownLatch.await();
     }
 
     synchronized void waitWriteSstableFinish() throws InterruptedException {
