@@ -494,6 +494,10 @@ public class RaftImpl implements Raft {
 
         @Override
         public void processJob() {
+            if (state != State.LEADER) {
+                return;
+            }
+
             logger.debug("node {} try update index to {}", RaftImpl.this, lastIndex);
             // it's OK if this node has stepped-down and surrendered leadership before we
             // updated index because we don't use RaftPeerNode on follower or candidate
@@ -595,7 +599,8 @@ public class RaftImpl implements Raft {
     }
 
     private boolean updateCommit() {
-        assert cmdProcessor.getBindingState() == State.LEADER;
+        State bindingState = cmdProcessor.getBindingState();
+        assert  bindingState == State.LEADER : String.format("actual: %s", bindingState);
 
         // kth biggest number
         int k = getQuorum() - 1;

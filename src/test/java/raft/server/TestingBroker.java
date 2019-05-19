@@ -34,7 +34,7 @@ class TestingBroker implements RaftCommandBroker {
                 try {
                     toNode.receiveCommand(cmd);
                 } catch (Exception ex) {
-                    logger.info("receiveCommand on node {} throws exception", toNode);
+                    logger.info("receiveCommand on node {} throws exception", toNode, ex);
                 }
             }
         }
