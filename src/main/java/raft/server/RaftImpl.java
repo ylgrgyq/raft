@@ -266,7 +266,7 @@ public class RaftImpl implements Raft {
 
         @Override
         public void processJob() {
-            logger.debug("node {} start process [{}]", this, proposal);
+            logger.debug("node {} start process [{}]", RaftImpl.this, proposal);
             ErrorMsg error = null;
             try {
                 if (getState() == State.LEADER) {
@@ -298,14 +298,14 @@ public class RaftImpl implements Raft {
                                     break;
                                 }
 
-                                logger.info("node {} start transfer leadership to {}", this, transfereeId);
+                                logger.info("node {} start transfer leadership to {}", RaftImpl.this, transfereeId);
 
                                 timeoutManager.clearElectionTickCounter();
                                 transferLeaderFuture = new TransferLeaderFuture(transfereeId, proposal.getFuture());
                                 RaftPeerNode n = peerNodes.get(transfereeId);
                                 if (n.getMatchIndex() == raftLog.getLastIndex()) {
                                     logger.info("node {} send timeout immediately to {} because it already " +
-                                            "has up to date logs", this, transfereeId);
+                                            "has up to date logs", RaftImpl.this, transfereeId);
                                     n.sendTimeout(meta.getTerm());
                                 } else {
                                     n.sendAppend(meta.getTerm(), true);
@@ -318,7 +318,7 @@ public class RaftImpl implements Raft {
                     error = ErrorMsg.NOT_LEADER;
                 }
             } catch (Throwable t) {
-                logger.error("process propose failed on node {}", this, t);
+                logger.error("process propose failed on node {}", RaftImpl.this, t);
                 error = ErrorMsg.INTERNAL_ERROR;
             }
 
@@ -355,13 +355,13 @@ public class RaftImpl implements Raft {
         public void processJob() {
             try {
                 if (!peerNodes.containsKey(cmd.getFrom())) {
-                    logger.warn("node {} received cmd {} from unknown peer", this, cmd);
+                    logger.warn("node {} received cmd {} from unknown peer", RaftImpl.this, cmd);
                     return;
                 }
 
                 processReceivedCommand(cmd);
             } catch (Throwable t) {
-                logger.error("process received command {} on node {} failed", cmd, this, t);
+                logger.error("process received command {} on node {} failed", RaftImpl.this, this, t);
                 //TODO panic when process received command failed?
             }
         }
@@ -491,7 +491,7 @@ public class RaftImpl implements Raft {
 
         @Override
         public void processJob() {
-            logger.debug("node {} try update index to {}", this, lastIndex);
+            logger.debug("node {} try update index to {}", RaftImpl.this, lastIndex);
             // it's OK if this node has stepped-down and surrendered leadership before we
             // updated index because we don't use RaftPeerNode on follower or candidate
             RaftPeerNode leaderNode = peerNodes.get(selfId);
@@ -504,7 +504,7 @@ public class RaftImpl implements Raft {
                         this, peerNodes.keySet());
             }
 
-            logger.debug("node {} try update index to {}", this, lastIndex);
+            logger.debug("node {} try update index to {}", RaftImpl.this, lastIndex);
         }
     }
 
@@ -876,7 +876,7 @@ public class RaftImpl implements Raft {
             try {
                 assert state == State.SHUTTING_DOWN;
 
-                logger.info("shutting down node {} ...", this);
+                logger.info("shutting down node {} ...", RaftImpl.this);
                 timeoutManager.shutdown();
 
                 stateMachine.shutdown().get();
@@ -884,13 +884,13 @@ public class RaftImpl implements Raft {
                 raftLog.awaitTermination();
                 workerRun = false;
             } catch (InterruptedException ex) {
-                logger.warn("node {} shutdown process interrupted", this);
+                logger.warn("node {} shutdown process interrupted", RaftImpl.this);
                 shutdownFuture.completeExceptionally(ex);
             } catch (Throwable ex) {
-                logger.info("node {} shutdown failed", this);
+                logger.info("node {} shutdown failed", RaftImpl.this);
                 shutdownFuture.completeExceptionally(ex);
             } finally {
-                logger.info("node {} shutdown", this);
+                logger.info("node {} shutdown", RaftImpl.this);
                 state = State.SHUTDOWN;
                 shutdownFuture.complete(null);
             }
