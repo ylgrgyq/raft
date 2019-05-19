@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -200,7 +199,7 @@ public class FileBasedStorageTest {
         return newEntries.get(0);
     }
 
-//    @Test
+    @Test
     public void overWriteEntries() throws Exception {
         int dataSize = 1024;
         int expectSstableCount = 3;

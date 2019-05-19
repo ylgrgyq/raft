@@ -30,9 +30,9 @@ public class RaftImpl implements Raft {
     private static final AtomicReferenceFieldUpdater<RaftImpl, State> STATE_UPDATER =
             AtomicReferenceFieldUpdater.newUpdater(RaftImpl.class, State.class, "state");
 
-    private final RaftPattern leader = new Leader();
-    private final RaftPattern candidate = new Candidate();
-    private final RaftPattern follower = new Follower();
+    private final RaftCommandProcessor leader = new Leader();
+    private final RaftCommandProcessor candidate = new Candidate();
+    private final RaftCommandProcessor follower = new Follower();
 
     private final Map<String, RaftPeerNode> peerNodes;
     private final BlockingQueue<RaftJob> jobQueue;
@@ -47,11 +47,11 @@ public class RaftImpl implements Raft {
     private final TimeoutManager timeoutManager;
 
     private volatile String leaderId;
-    private volatile RaftPattern statePattern;
     private volatile State state;
     private volatile boolean workerRun;
     private volatile CountDownLatch shutdownLatch;
 
+    private RaftCommandProcessor cmdProcessor;
     private boolean existsPendingConfigChange;
     private TransferLeaderFuture transferLeaderFuture;
     private boolean autoFlush;
@@ -84,7 +84,7 @@ public class RaftImpl implements Raft {
         }
 
         this.state = State.UNINITIALIZED;
-        this.statePattern = follower;
+        this.cmdProcessor = follower;
     }
 
     @Override
@@ -132,11 +132,11 @@ public class RaftImpl implements Raft {
             try {
                 if (state.isActive()) {
                     if (electionTimeout) {
-                        statePattern.onElectionTimeout();
+                        cmdProcessor.onElectionTimeout();
                     }
 
                     if (pingTimeout) {
-                        statePattern.onPingTimeout();
+                        cmdProcessor.onPingTimeout();
                     }
                 }
             } finally {
@@ -301,7 +301,8 @@ public class RaftImpl implements Raft {
         @Override
         public void run() {
             // init state
-            statePattern.start();
+            state = cmdProcessor.getBindingState();
+            cmdProcessor.start();
 
             while (workerRun) {
                 try {
@@ -379,7 +380,7 @@ public class RaftImpl implements Raft {
                 tryBecomeFollower(cmd.getTerm(), cmd.getFrom());
             }
 
-            statePattern.process(cmd);
+            cmdProcessor.process(cmd);
         }
     }
 
@@ -686,13 +687,14 @@ public class RaftImpl implements Raft {
         timeoutManager.clearAllTimeoutMark();
     }
 
-    private void transitState(RaftPattern nextState, long newTerm, String newLeaderId) {
+    private void transitState(RaftCommandProcessor nextState, long newTerm, String newLeaderId) {
         assert Thread.currentThread() == workerThread;
 
         // we'd better finish old state before reset term and set leader id. this can insure that old state
         // finished with the old term and leader id while new state started with new term and new leader id
-        statePattern.finish();
-        statePattern = nextState;
+        cmdProcessor.finish();
+        cmdProcessor = nextState;
+        state = nextState.getBindingState();
         reset(newTerm);
         if (newLeaderId != null) {
             this.leaderId = newLeaderId;
@@ -930,11 +932,15 @@ public class RaftImpl implements Raft {
                 '}';
     }
 
-    private class Leader extends RaftPattern {
+    private class Leader implements RaftCommandProcessor {
         public void start() {
-            state = State.LEADER;
             leaderAppendEntries(Collections.singletonList(ByteString.EMPTY), LogEntry.EntryType.LOG, Proposal.voidFuture);
             stateMachine.onLeaderStart(getStatus());
+        }
+
+        @Override
+        public State getBindingState() {
+            return State.LEADER;
         }
 
         public void finish() {
@@ -964,7 +970,7 @@ public class RaftImpl implements Raft {
         }
 
         @Override
-        void process(RaftCommand cmd) {
+        public void process(RaftCommand cmd) {
             final long selfTerm = RaftImpl.this.meta.getTerm();
             switch (cmd.getType()) {
                 case APPEND_ENTRIES_RESP:
@@ -1017,11 +1023,15 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private class Follower extends RaftPattern {
+    private class Follower implements RaftCommandProcessor {
         public void start() {
             logger.debug("node {} start follower", RaftImpl.this);
-            state = State.FOLLOWER;
             stateMachine.onFollowerStart(getStatus());
+        }
+
+        @Override
+        public State getBindingState() {
+            return State.FOLLOWER;
         }
 
         public void finish() {
@@ -1037,27 +1047,27 @@ public class RaftImpl implements Raft {
         }
 
         @Override
-        void process(RaftCommand cmd) {
+        public void process(RaftCommand cmd) {
             switch (cmd.getType()) {
                 case APPEND_ENTRIES:
                     timeoutManager.clearAllTickCounters();
-                    RaftImpl.this.leaderId = cmd.getLeaderId();
-                    RaftImpl.this.processAppendEntries(cmd);
+                    leaderId = cmd.getLeaderId();
+                    processAppendEntries(cmd);
                     break;
                 case PING:
                     timeoutManager.clearAllTickCounters();
-                    RaftImpl.this.leaderId = cmd.getFrom();
-                    RaftImpl.this.processHeartbeat(cmd);
+                    leaderId = cmd.getFrom();
+                    processHeartbeat(cmd);
                     break;
                 case SNAPSHOT:
                     timeoutManager.clearAllTickCounters();
-                    RaftImpl.this.leaderId = cmd.getFrom();
-                    RaftImpl.this.processSnapshot(cmd);
+                    leaderId = cmd.getFrom();
+                    processSnapshot(cmd);
                     break;
                 case TIMEOUT_NOW:
                     if (peerNodes.containsKey(selfId)) {
-                        RaftImpl.this.forceElection = true;
-                        RaftImpl.this.tryBecomeCandidate();
+                        forceElection = true;
+                        tryBecomeCandidate();
                     } else {
                         logger.info("node {} receive timeout but it was removed from cluster already. currentPeers: {}",
                                 RaftImpl.this, peerNodes.keySet());
@@ -1069,14 +1079,18 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private class Candidate extends RaftPattern {
+    private class Candidate implements RaftCommandProcessor {
         private volatile ConcurrentHashMap<String, Boolean> votesGot = new ConcurrentHashMap<>();
 
         public void start() {
             logger.debug("node {} start candidate", RaftImpl.this);
-            state = State.CANDIDATE;
             startElection();
             stateMachine.onCandidateStart(getStatus());
+        }
+
+        @Override
+        public State getBindingState() {
+            return State.CANDIDATE;
         }
 
         public void finish() {
@@ -1089,18 +1103,18 @@ public class RaftImpl implements Raft {
             RaftImpl.this.forceElection = false;
 
             votesGot = new ConcurrentHashMap<>();
-            RaftImpl.this.meta.setVotedFor(RaftImpl.this.selfId);
+            meta.setVotedFor(selfId);
             assert RaftImpl.this.getState() == State.CANDIDATE;
 
-            long oldTerm = RaftImpl.this.meta.getTerm();
+            long oldTerm = meta.getTerm();
             final long candidateTerm = oldTerm + 1;
-            RaftImpl.this.meta.setTerm(candidateTerm);
+            meta.setTerm(candidateTerm);
 
             // got self vote initially
             final int votesToWin = RaftImpl.this.getQuorum() - 1;
 
             if (votesToWin == 0) {
-                RaftImpl.this.tryBecomeLeader();
+                tryBecomeLeader();
             } else {
                 long lastIndex = raftLog.getLastIndex();
                 Optional<Long> term = raftLog.getTerm(lastIndex);
@@ -1109,12 +1123,12 @@ public class RaftImpl implements Raft {
 
                 logger.debug("node {} start election, votesToWin={}, lastIndex={}, lastTerm={}",
                         RaftImpl.this, votesToWin, lastIndex, term.get());
-                for (final RaftPeerNode node : RaftImpl.this.getPeerNodes().values()) {
-                    if (!node.getPeerId().equals(RaftImpl.this.selfId)) {
+                for (final RaftPeerNode node : getPeerNodes().values()) {
+                    if (!node.getPeerId().equals(selfId)) {
                         RaftCommand.Builder vote = RaftCommand.newBuilder()
                                 .setType(RaftCommand.CmdType.REQUEST_VOTE)
                                 .setTerm(candidateTerm)
-                                .setFrom(RaftImpl.this.selfId)
+                                .setFrom(selfId)
                                 .setLastLogIndex(lastIndex)
                                 .setLastLogTerm(term.get())
                                 .setTo(node.getPeerId())
