@@ -35,5 +35,23 @@ public final class Preconditions {
         }
     }
 
+    public static void checkState(boolean b) {
+        if (!b) {
+            throw new IllegalStateException();
+        }
+    }
+
+    public static void checkState(boolean b, Object errorMessage) {
+        if (!b) {
+            throw new IllegalStateException(String.valueOf(errorMessage));
+        }
+    }
+
+    public static void checkState(boolean b, String errorMessageTemplate, Object ...args) {
+        if (!b) {
+            throw new IllegalStateException(String.format(errorMessageTemplate, args));
+        }
+    }
+
     private Preconditions () {}
 }

@@ -2,7 +2,7 @@ package raft.server.log;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raft.server.LocalFileRaftPersistentMeta;
+import raft.server.LocalFilePersistentMeta;
 import raft.server.util.ThreadFactoryImpl;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static raft.server.util.Preconditions.checkArgument;
 
@@ -25,7 +26,9 @@ public class RaftLogImpl implements RaftLog {
 
     private final ExecutorService pool;
     private final PersistentStorage storage;
+    private final AtomicBoolean started;
 
+    private CountDownLatch shutdownLatch;
     private LogsBuffer buffer;
 
     private long commitIndex;
@@ -37,10 +40,15 @@ public class RaftLogImpl implements RaftLog {
     public RaftLogImpl(PersistentStorage storage) {
         this.storage = storage;
         this.pool = Executors.newSingleThreadExecutor(defaultThreadFactory);
+        this.started = new AtomicBoolean(false);
     }
 
     @Override
-    public void init(LocalFileRaftPersistentMeta meta) {
+    public void init(LocalFilePersistentMeta meta) {
+        if (!started.compareAndSet(false, true)) {
+            return;
+        }
+
         storage.init();
 
         long lastIndex = storage.getLastIndex();
@@ -84,7 +92,7 @@ public class RaftLogImpl implements RaftLog {
         return Math.max(buffer.getLastIndex(), recentSnapshotIndex);
     }
 
-    public synchronized Optional<Long> getTerm(long index){
+    public synchronized Optional<Long> getTerm(long index) {
         if (index < getFirstIndex()) {
             throw new LogsCompactedException(index);
         }
@@ -104,7 +112,7 @@ public class RaftLogImpl implements RaftLog {
         return Optional.of(storage.getTerm(index));
     }
 
-    public Optional<LogEntry> getEntry(long index){
+    public Optional<LogEntry> getEntry(long index) {
         List<LogEntry> entries = getEntries(index, index + 1);
 
         if (entries.isEmpty()) {
@@ -114,7 +122,7 @@ public class RaftLogImpl implements RaftLog {
         }
     }
 
-    public synchronized List<LogEntry> getEntries(long start, long end){
+    public synchronized List<LogEntry> getEntries(long start, long end) {
         checkArgument(start <= end, "invalid start and end: %s %s", start, end);
 
         if (start < getFirstIndex()) {
@@ -154,17 +162,17 @@ public class RaftLogImpl implements RaftLog {
             long conflictIndex = searchConflict(entries);
             long lastIndex = prevIndex + entries.size();
             if (conflictIndex != 0) {
-                assert conflictIndex - prevIndex - 1 < entries.size():
+                assert conflictIndex - prevIndex - 1 < entries.size() :
                         "conflictIndex:" + conflictIndex + " prevIndex:" + prevIndex + " entriesSize:" + entries.size();
 
                 if (conflictIndex <= commitIndex) {
                     logger.error("try append entries conflict with committed entry on index: {}, " +
                                     "new entry: {}, committed entry: {}",
-                            conflictIndex, entries.get((int)(conflictIndex - prevIndex - 1)), getEntry(conflictIndex));
+                            conflictIndex, entries.get((int) (conflictIndex - prevIndex - 1)), getEntry(conflictIndex));
                     throw new IllegalStateException();
                 }
 
-                List<LogEntry> entriesNeedToStore = entries.subList((int)(conflictIndex - prevIndex - 1), entries.size());
+                List<LogEntry> entriesNeedToStore = entries.subList((int) (conflictIndex - prevIndex - 1), entries.size());
                 buffer.append(entriesNeedToStore);
                 return CompletableFuture.supplyAsync(() -> storage.append(entriesNeedToStore), pool);
             }
@@ -258,18 +266,33 @@ public class RaftLogImpl implements RaftLog {
     }
 
     @Override
-    public void shutdownNow() {
-        pool.shutdownNow();
-        storage.shutdownNow();
+    public synchronized void shutdown() {
+        if (shutdownLatch != null) {
+            return;
+        }
+
+        shutdownLatch = new CountDownLatch(1);
+        pool.submit(() -> {
+            synchronized (this) {
+                try {
+                    pool.shutdown();
+                    storage.awaitTermination();
+                } catch (InterruptedException ex) {
+                    logger.warn("RaftLog shutdown process interrupted");
+                } finally {
+                    shutdownLatch.countDown();
+                }
+            }
+        });
     }
 
-    public void shutdownGracefully(long timeout, TimeUnit unit) throws InterruptedException{
-        pool.shutdown();
+    @Override
+    public void awaitTermination() throws InterruptedException {
+        if (shutdownLatch == null) {
+            shutdown();
+        }
 
-        long timeoutInNano = unit.toNanos(timeout);
-        long now = System.nanoTime();
-        storage.shutdownGracefully(timeoutInNano, unit);
-        pool.awaitTermination(timeoutInNano - (System.nanoTime() - now), TimeUnit.NANOSECONDS);
+        shutdownLatch.await();
     }
 
     @Override

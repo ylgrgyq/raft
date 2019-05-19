@@ -111,7 +111,7 @@ class TestingRaftCluster {
                 .collect(Collectors.toList());
 
         for (TestingRaftStateMachine follower : followers) {
-            follower.becomeFollowerFuture().get(3, TimeUnit.SECONDS);
+            follower.becomeFollowerFuture().get(30, TimeUnit.SECONDS);
         }
         return followers;
     }
@@ -136,18 +136,18 @@ class TestingRaftCluster {
         throw new RuntimeException("no state machine for " + peerId);
     }
 
-    void shutdownCluster() throws InterruptedException{
+    void shutdownCluster() throws InterruptedException, ExecutionException{
         for (Raft n : nodes.values()) {
-            n.shudownGracefully();
+            n.awaitTermination();
         }
         nodes.clear();
         stateMachines.clear();
     }
 
-    void shutdownPeer(String peerId) throws InterruptedException{
+    void shutdownPeer(String peerId) throws InterruptedException, ExecutionException{
         stateMachines.remove(peerId);
         Raft n = nodes.remove(peerId);
-        n.shudownGracefully();
+        n.awaitTermination();
     }
 
     void clearPersistentState() {
@@ -155,7 +155,7 @@ class TestingRaftCluster {
     }
 
     void clearPersistentStateFor(String peerId) {
-        LocalFileRaftPersistentMeta state = new LocalFileRaftPersistentMeta(persistentStateDir, peerId, false);
+        LocalFilePersistentMeta state = new LocalFilePersistentMeta(persistentStateDir, peerId, false);
         state.setTermAndVotedFor(0, null);
     }
 

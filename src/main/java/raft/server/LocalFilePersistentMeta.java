@@ -18,8 +18,8 @@ import static raft.server.util.Preconditions.checkArgument;
  * Author: ylgrgyq
  * Date: 18/4/23
  */
-public class LocalFileRaftPersistentMeta implements RaftPersistentMeta {
-    private static final Logger logger = LoggerFactory.getLogger(LocalFileRaftPersistentMeta.class.getName());
+public class LocalFilePersistentMeta implements RaftPersistentMeta {
+    private static final Logger logger = LoggerFactory.getLogger(LocalFilePersistentMeta.class.getName());
 
     private static final short magic = 8102;
     private static final short version = 0x01;
@@ -36,7 +36,7 @@ public class LocalFileRaftPersistentMeta implements RaftPersistentMeta {
     private Path stateFilePath;
     private volatile boolean initialized;
 
-    public LocalFileRaftPersistentMeta(String stateFileDir, String raftId, boolean syncWriteFile) {
+    public LocalFilePersistentMeta(String stateFileDir, String raftId, boolean syncWriteFile) {
         checkArgument(!Strings.isNullOrEmpty(stateFileDir));
         checkArgument(!Strings.isNullOrEmpty(raftId));
 
@@ -126,13 +126,13 @@ public class LocalFileRaftPersistentMeta implements RaftPersistentMeta {
     }
 
     public String getVotedFor() {
-        checkArgument(initialized, "should initialize LocalFileRaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize LocalFilePersistentMeta before using it");
 
         return votedFor;
     }
 
     public void setVotedFor(String votedFor) {
-        checkArgument(initialized, "should initialize LocalFileRaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize LocalFilePersistentMeta before using it");
         checkArgument(votedFor == null || !votedFor.isEmpty(), "votedFor should not be empty string");
 
         this.votedFor = votedFor;
@@ -140,20 +140,20 @@ public class LocalFileRaftPersistentMeta implements RaftPersistentMeta {
     }
 
     public long getTerm() {
-        checkArgument(initialized, "should initialize LocalFileRaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize LocalFilePersistentMeta before using it");
 
         return term;
     }
 
     public void setTerm(long term) {
-        checkArgument(initialized, "should initialize LocalFileRaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize LocalFilePersistentMeta before using it");
 
         this.term = term;
         persistent();
     }
 
     public void setTermAndVotedFor(long term, String votedFor) {
-        checkArgument(initialized, "should initialize LocalFileRaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize LocalFilePersistentMeta before using it");
 
         this.term = term;
         this.votedFor = votedFor;
@@ -161,13 +161,13 @@ public class LocalFileRaftPersistentMeta implements RaftPersistentMeta {
     }
 
     public long getCommitIndex() {
-        checkArgument(initialized, "should initialize LocalFileRaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize LocalFilePersistentMeta before using it");
 
         return commitIndex;
     }
 
     public void setCommitIndex(long commitIndex) {
-        checkArgument(initialized, "should initialize LocalFileRaftPersistentMeta before using it");
+        checkArgument(initialized, "should initialize LocalFilePersistentMeta before using it");
 
         this.commitIndex = commitIndex;
         persistent();

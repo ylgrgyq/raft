@@ -1,6 +1,6 @@
 package raft.server.log;
 
-import raft.server.LocalFileRaftPersistentMeta;
+import raft.server.LocalFilePersistentMeta;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
 import java.util.List;
@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
  * Date: 18/5/16
  */
 public interface RaftLog {
-    void init(LocalFileRaftPersistentMeta meta);
+    void init(LocalFilePersistentMeta meta);
 
     long getLastIndex();
 
@@ -45,7 +45,11 @@ public interface RaftLog {
 
     void snapshotApplied(long snapshotIndex);
 
-    void shutdownNow();
+    /**
+     * Shutdown RaftLog service. Any write operation after this call will not guarantee to execute.
+     * When the call returned, please use awaitTermination() to wait the RaftLog service actually terminated.
+     */
+    void shutdown();
 
-    void shutdownGracefully(long timeout, TimeUnit unit) throws InterruptedException;
+    void awaitTermination() throws InterruptedException;
 }

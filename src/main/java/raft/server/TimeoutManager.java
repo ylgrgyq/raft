@@ -1,6 +1,6 @@
 package raft.server;
 
-public interface TimeoutManager extends LifeCycle<Void, Void> {
+public interface TimeoutManager extends LifeCycle {
     boolean isElectionTimeout();
 
     long getElectionTimeoutTicks();

@@ -45,17 +45,8 @@ abstract class AsyncProxy {
         }
     }
 
-    void shutdownNow() {
-        pool.shutdown();
+    CompletableFuture<Void> shutdown() {
+        return CompletableFuture
+                .runAsync(pool::shutdown, pool);
     }
-
-    void shutdownGracefully() throws InterruptedException {
-        shutdownGracefully(DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-    }
-
-    void shutdownGracefully(long timeout, TimeUnit unit) throws InterruptedException{
-        pool.shutdown();
-        pool.awaitTermination(timeout, unit);
-    }
-
 }

@@ -36,7 +36,7 @@ final class DefaultTimeoutManager implements TimeoutManager {
     }
 
     @Override
-    public void start(Void ctx) {
+    public void start() {
         resetElectionTimeoutTicks();
         tickGenerator.scheduleWithFixedDelay(() -> {
             boolean electionTimeout = false;
@@ -96,8 +96,7 @@ final class DefaultTimeoutManager implements TimeoutManager {
     }
 
     @Override
-    public Void finish() {
+    public void shutdown() {
         tickGenerator.shutdown();
-        return null;
     }
 }

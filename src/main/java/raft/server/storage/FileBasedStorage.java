@@ -16,10 +16,7 @@ import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import static raft.server.util.Preconditions.checkArgument;
@@ -49,6 +46,7 @@ public class FileBasedStorage implements PersistentStorage {
     private volatile Memtable imm;
     private volatile StorageStatus status;
     private boolean backgroundWriteSstableRunning;
+    private volatile CountDownLatch shutdownLatch;
 
     public FileBasedStorage(String storageBaseDir, String storageName) {
         checkNotNull(storageBaseDir);
@@ -525,53 +523,61 @@ public class FileBasedStorage implements PersistentStorage {
     }
 
     @Override
-    public synchronized void shutdownGracefully(long timeout, TimeUnit unit) {
-        checkArgument(timeout >= 0);
+    public synchronized void shutdown() {
         if (status == StorageStatus.SHUTTING_DOWN) {
             return;
         }
 
         try {
             status = StorageStatus.SHUTTING_DOWN;
-            sstableWriterPool.shutdown();
+            shutdownLatch = new CountDownLatch(1);
 
-            if (timeout > 0) {
-                try {
-                    sstableWriterPool.awaitTermination(timeout, unit);
-                } catch (InterruptedException ex) {
-                    sstableWriterPool.shutdownNow();
+            sstableWriterPool.submit(() -> {
+                synchronized (this) {
+                    try {
+                        logger.info("shutdown file based storage");
+                        sstableWriterPool.shutdownNow();
+
+                        if (logWriter != null) {
+                            logWriter.close();
+                        }
+
+                        manifest.close();
+
+                        tableCache.evictAll();
+
+                        if (storageLock != null && storageLock.isValid()) {
+                            storageLock.release();
+                        }
+
+                        if (storageLockChannel != null && storageLockChannel.isOpen()) {
+                            storageLockChannel.close();
+                        }
+                    } catch (Exception ex) {
+                        logger.error("shutdown failed", ex);
+                    } finally {
+                        shutdownLatch.countDown();
+                    }
                 }
-            }
-
-            if (logWriter != null) {
-                logWriter.close();
-            }
-
-            manifest.close();
-
-            tableCache.evictAll();
-
-            if (storageLock != null && storageLock.isValid()) {
-                storageLock.release();
-            }
-
-            if (storageLockChannel != null && storageLockChannel.isOpen()) {
-                storageLockChannel.close();
-            }
-        } catch (IOException ex) {
+            });
+        } catch (RejectedExecutionException ex) {
             throw new StorageInternalError(ex);
         }
+    }
+
+    @Override
+    public void awaitTermination() throws InterruptedException{
+        if (shutdownLatch == null) {
+            shutdown();
+        }
+
+        shutdownLatch.await();
     }
 
     synchronized void waitWriteSstableFinish() throws InterruptedException {
         if (backgroundWriteSstableRunning) {
             this.wait();
         }
-    }
-
-    @Override
-    public synchronized void shutdownNow() {
-        shutdownGracefully(0, TimeUnit.MILLISECONDS);
     }
 
     private Itr internalIterator(long start, long end) {

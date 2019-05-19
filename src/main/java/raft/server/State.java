@@ -5,7 +5,21 @@ package raft.server;
  * Date: 17/12/19
  */
 public enum State {
-    FOLLOWER,
+    UNINITIALIZED,
+    INITIALIZING,
+    LEADER,
+    TRANSFERRING,
     CANDIDATE,
-    LEADER
+    FOLLOWER,
+    ERROR,
+    SHUTTING_DOWN,
+    SHUTDOWN;
+
+    public boolean isActive() {
+        return ordinal() > INITIALIZING.ordinal() && ordinal() < ERROR.ordinal();
+    }
+
+    public boolean isShutingDown() {
+        return this.ordinal() >= SHUTTING_DOWN.ordinal();
+    }
 }

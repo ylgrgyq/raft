@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -41,7 +40,7 @@ public class FileBasedStorageTest {
 
     @After
     public void tearDown() throws Exception {
-        testingStorage.shutdownGracefully(10, TimeUnit.SECONDS);
+        testingStorage.awaitTermination();
     }
 
     @Test
@@ -113,15 +112,15 @@ public class FileBasedStorageTest {
 
         expectEntries.addAll(newEntries);
         testingStorage.append(newEntries);
-        testingStorage.shutdownGracefully(5, TimeUnit.SECONDS);
+        testingStorage.awaitTermination();
 
         reOpen();
 
         checkAllEntries(expectEntries);
     }
 
-    private void reOpen() throws IOException {
-        testingStorage.shutdownGracefully(0, TimeUnit.SECONDS);
+    private void reOpen() throws IOException, InterruptedException {
+        testingStorage.awaitTermination();
 
         testingStorage = new FileBasedStorage(testingDirectory, storageName);
         testingStorage.init();
