@@ -126,16 +126,18 @@ public class RaftImpl implements Raft {
     private final class TimeoutJob implements RaftJob {
         private final boolean electionTimeout;
         private final boolean pingTimeout;
+        private final long generateTime;
 
         TimeoutJob(boolean electionTimeout, boolean pingTimeout) {
             this.electionTimeout = electionTimeout;
             this.pingTimeout = pingTimeout;
+            this.generateTime = System.nanoTime();
         }
 
         @Override
         public void processJob() {
             try {
-                if (state.isActive()) {
+                if (isValid() && state.isActive()) {
                     if (electionTimeout) {
                         cmdProcessor.onElectionTimeout();
                     }
@@ -147,6 +149,10 @@ public class RaftImpl implements Raft {
             } finally {
                 timeoutManager.clearAllTimeoutMark();
             }
+        }
+
+        private boolean isValid() {
+            return generateTime > timeoutManager.getLastClearTimeoutAt();
         }
     }
 
