@@ -95,7 +95,11 @@ class TestingRaftStateMachine implements StateMachine {
     public synchronized void onLeaderFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isLeader.set(false);
-        waitLeaderFuture = null;
+        if (waitLeaderFuture != null) {
+            waitLeaderFuture.complete(null);
+            logger.warn("complete wait leader future to null in on leader finish");
+            waitLeaderFuture = null;
+        }
     }
 
     synchronized CompletableFuture<Void> becomeLeaderFuture() {
@@ -103,9 +107,6 @@ class TestingRaftStateMachine implements StateMachine {
             return CompletableFuture.completedFuture(null);
         } else {
             waitLeaderFuture = new CompletableFuture<>();
-            if (isLeader.get()) {
-                waitLeaderFuture = CompletableFuture.completedFuture(null);
-            }
             return waitLeaderFuture;
         }
     }
@@ -126,7 +127,21 @@ class TestingRaftStateMachine implements StateMachine {
     public synchronized void onFollowerFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isFollower.set(false);
+        if (waitFollowerFuture != null) {
+            waitFollowerFuture.complete(null);
+            logger.warn("complete wait follower future to null in on follower finish");
+            waitFollowerFuture = null;
+        }
         waitFollowerFuture = null;
+    }
+
+    synchronized CompletableFuture<Void> becomeFollowerFuture() {
+        if (isFollower.get()) {
+            return CompletableFuture.completedFuture(null);
+        } else {
+            waitFollowerFuture = new CompletableFuture<>();
+            return waitFollowerFuture;
+        }
     }
 
     @Override
@@ -137,18 +152,6 @@ class TestingRaftStateMachine implements StateMachine {
     @Override
     public synchronized void onCandidateFinish(RaftStatusSnapshot status) {
         lastStatus = status;
-    }
-
-    synchronized CompletableFuture<Void> becomeFollowerFuture() {
-        if (isFollower.get()) {
-            return CompletableFuture.completedFuture(null);
-        } else {
-            waitFollowerFuture = new CompletableFuture<>();
-            if (isFollower.get()) {
-                waitFollowerFuture = CompletableFuture.completedFuture(null);
-            }
-            return waitFollowerFuture;
-        }
     }
 
     @Override
