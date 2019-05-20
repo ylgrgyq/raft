@@ -166,7 +166,7 @@ public class LogReplicationTest {
         checkCommitedIndex(newLeaderStateMachine);
     }
 
-    @Test
+    @Test(timeout = 30_000)
     public void testSnapshot() throws Exception {
         HashSet<String> peerIdSet = new HashSet<>();
         peerIdSet.add("LPT snapshot 001");
