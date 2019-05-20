@@ -19,6 +19,7 @@ final class DefaultTimeoutManager implements TimeoutManager {
     private final long pingIntervalTicks;
     private final long suggestElectionTimeoutTicks;
     private final TimeoutListener onTimeout;
+    private long lastClearTimeoutAt;
 
     // TODO initialize electionTimeoutTicks on start
     private long electionTimeoutTicks;
@@ -66,6 +67,11 @@ final class DefaultTimeoutManager implements TimeoutManager {
     }
 
     @Override
+    public long getLastClearTimeoutAt() {
+        return lastClearTimeoutAt;
+    }
+
+    @Override
     public long getElectionTimeoutTicks() {
         return electionTimeoutTicks;
     }
@@ -82,17 +88,20 @@ final class DefaultTimeoutManager implements TimeoutManager {
     public void clearAllTimeoutMark() {
         electionTickerTimeout.getAndSet(false);
         pingTickerTimeout.getAndSet(false);
+        lastClearTimeoutAt = System.nanoTime();
     }
 
     @Override
     public void clearElectionTickCounter() {
         electionTickCounter.set(0);
+        lastClearTimeoutAt = System.nanoTime();
     }
 
     @Override
     public void clearAllTickCounters() {
         electionTickCounter.set(0);
         pingTickCounter.set(0);
+        lastClearTimeoutAt = System.nanoTime();
     }
 
     @Override

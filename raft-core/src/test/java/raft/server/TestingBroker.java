@@ -43,6 +43,6 @@ class TestingBroker implements RaftCommandBroker {
 
     @Override
     public void shutdown() {
-        // todo wait buffer clear then return
+        onFlushCommand();
     }
 }

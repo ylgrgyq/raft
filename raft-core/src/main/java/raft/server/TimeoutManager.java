@@ -12,4 +12,6 @@ public interface TimeoutManager extends LifeCycle {
     void clearElectionTickCounter();
 
     void clearAllTickCounters();
+
+    long getLastClearTimeoutAt();
 }
