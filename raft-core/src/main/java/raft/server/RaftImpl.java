@@ -70,7 +70,7 @@ public class RaftImpl implements Raft {
         this.raftLog = new RaftLogImpl(c.storage);
 
         this.timeoutManager = new DefaultTimeoutManager(config, (electionTimeout, pingTimeout) ->
-                jobQueue.add(new TimeoutJob(electionTimeout, pingTimeout))
+                addJob(new TimeoutJob(electionTimeout, pingTimeout))
         );
 
         this.selfId = c.selfId;
@@ -252,7 +252,7 @@ public class RaftImpl implements Raft {
         CompletableFuture<ProposalResponse> future;
         if (getState() == State.LEADER) {
             future = proposal.getFuture();
-            if (!jobQueue.add(new ProposalJob(proposal))) {
+            if (!addJob(new ProposalJob(proposal))) {
                 future = CompletableFuture.completedFuture(
                         ProposalResponse.errorWithLeaderHint(leaderId, ErrorMsg.TOO_MANY_PENDING_PROPOSALS));
             }
@@ -346,7 +346,7 @@ public class RaftImpl implements Raft {
         checkNotNull(cmd);
         checkState(state.isActive(), "raft server not start or already shutdown");
 
-        jobQueue.add(new RaftCommandJob(cmd));
+        addJob(new RaftCommandJob(cmd));
     }
 
     private final class RaftCommandJob implements RaftJob {
@@ -391,9 +391,9 @@ public class RaftImpl implements Raft {
         }
     }
 
-    private void addJob(RaftJob job) {
+    private boolean addJob(RaftJob job) {
         // note we can not block worker thread here so we must use the non-blocking method to add new job to the queue
-        jobQueue.add(job);
+        return jobQueue.add(job);
     }
 
     private void processReceivedCommand(RaftCommand cmd) {
