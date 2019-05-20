@@ -83,7 +83,7 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public synchronized void onLeaderStart(RaftStatusSnapshot status) {
+    public void onLeaderStart(RaftStatusSnapshot status) {
         lastStatus = status;
         isLeader.set(true);
         if (waitLeaderFuture != null) {
@@ -92,13 +92,13 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public synchronized void onLeaderFinish(RaftStatusSnapshot status) {
+    public void onLeaderFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isLeader.set(false);
         waitLeaderFuture = null;
     }
 
-    synchronized CompletableFuture<Void> becomeLeaderFuture() {
+    CompletableFuture<Void> becomeLeaderFuture() {
         if (isLeader.get()) {
             return CompletableFuture.completedFuture(null);
         } else {
@@ -111,7 +111,7 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public synchronized void onFollowerStart(RaftStatusSnapshot status) {
+    public void onFollowerStart(RaftStatusSnapshot status) {
         // skip initial follower state
         if (status.getLeaderId() != null) {
             lastStatus = status;
@@ -123,23 +123,23 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public synchronized void onFollowerFinish(RaftStatusSnapshot status) {
+    public void onFollowerFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isFollower.set(false);
-        waitLeaderFuture = null;
+        waitFollowerFuture = null;
     }
 
     @Override
-    public synchronized void onCandidateStart(RaftStatusSnapshot status) {
+    public void onCandidateStart(RaftStatusSnapshot status) {
         lastStatus = status;
     }
 
     @Override
-    public synchronized void onCandidateFinish(RaftStatusSnapshot status) {
+    public void onCandidateFinish(RaftStatusSnapshot status) {
         lastStatus = status;
     }
 
-    synchronized CompletableFuture<Void> becomeFollowerFuture() {
+    CompletableFuture<Void> becomeFollowerFuture() {
         if (isFollower.get()) {
             return CompletableFuture.completedFuture(null);
         } else {
