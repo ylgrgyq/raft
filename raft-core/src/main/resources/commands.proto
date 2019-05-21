@@ -1,0 +1,77 @@
+syntax = "proto3";
+package raft.server.proto;
+option java_multiple_files = true;
+
+message PBRaftPersistentMeta {
+    int64 term = 1;
+    string votedFor = 2;
+    int64 commitIndex = 3;
+}
+
+message LogEntry {
+    enum EntryType {
+        LOG = 0;
+        CONFIG = 1;
+        TRANSFER_LEADER = 2;
+    }
+
+    int64 index = 1;
+    int64 term = 2;
+    bytes data = 3;
+    EntryType type = 4;
+}
+
+message LogSnapshot {
+	bytes data = 1;
+	int64 index = 2;
+    int64 term = 3;
+    repeated string peer_ids = 4;
+}
+
+message ConfigChange {
+    enum ConfigChangeAction {
+        ADD_NODE = 0;
+        REMOVE_NODE = 1;
+    }
+
+    string peer_id = 1;
+    ConfigChangeAction action = 2;
+}
+
+message RaftCommand {
+    enum CmdType {
+        NONE = 0;
+        REQUEST_VOTE = 1;
+        REQUEST_VOTE_RESP = 2;
+        APPEND_ENTRIES = 3;
+        APPEND_ENTRIES_RESP = 4;
+        ADD_SERVER = 5;
+        ADD_SERVER_RESP = 6;
+        REMOVE_SERVER = 7;
+        REMOVE_SERVER_RESP = 8;
+        PING = 9;
+        PONG = 10;
+        TIMEOUT_NOW = 11;
+        TRANSFER_LEADER = 12;
+        SNAPSHOT = 13;
+    }
+
+    CmdType type = 1;
+    string from = 2;
+    string to = 3;
+    int64 term = 4;
+    int64 prev_log_index = 5;
+    int64 prev_log_term = 6;
+    int64 match_index = 7;
+    int64 leader_commit = 8;
+    bool success = 9;
+    repeated LogEntry entries = 10;
+    string leader_id = 11;
+    int64 last_log_index = 12;
+    int64 last_log_term = 13;
+    bool vote_granted = 14;
+    string leader_hint = 15;
+    bool force_election = 16;
+    LogSnapshot snapshot = 17;
+    int64 reject_index = 18;
+}
