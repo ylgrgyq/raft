@@ -88,6 +88,7 @@ class TestingRaftStateMachine implements StateMachine {
         isLeader.set(true);
         if (waitLeaderFuture != null) {
             waitLeaderFuture.complete(null);
+            waitLeaderFuture = null;
         }
     }
 
@@ -95,11 +96,6 @@ class TestingRaftStateMachine implements StateMachine {
     public synchronized void onLeaderFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isLeader.set(false);
-        if (waitLeaderFuture != null) {
-            waitLeaderFuture.complete(null);
-            logger.warn("complete wait leader future to null in on leader finish");
-            waitLeaderFuture = null;
-        }
     }
 
     synchronized CompletableFuture<Void> becomeLeaderFuture() {
@@ -119,6 +115,7 @@ class TestingRaftStateMachine implements StateMachine {
             isFollower.set(true);
             if (waitFollowerFuture != null) {
                 waitFollowerFuture.complete(null);
+                waitFollowerFuture = null;
             }
         }
     }
@@ -127,12 +124,6 @@ class TestingRaftStateMachine implements StateMachine {
     public synchronized void onFollowerFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isFollower.set(false);
-        if (waitFollowerFuture != null) {
-            waitFollowerFuture.complete(null);
-            logger.warn("complete wait follower future to null in on follower finish");
-            waitFollowerFuture = null;
-        }
-        waitFollowerFuture = null;
     }
 
     synchronized CompletableFuture<Void> becomeFollowerFuture() {
@@ -145,12 +136,12 @@ class TestingRaftStateMachine implements StateMachine {
     }
 
     @Override
-    public synchronized void onCandidateStart(RaftStatusSnapshot status) {
+    public void onCandidateStart(RaftStatusSnapshot status) {
         lastStatus = status;
     }
 
     @Override
-    public synchronized void onCandidateFinish(RaftStatusSnapshot status) {
+    public void onCandidateFinish(RaftStatusSnapshot status) {
         lastStatus = status;
     }
 
