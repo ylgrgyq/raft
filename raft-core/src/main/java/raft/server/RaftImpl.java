@@ -515,15 +515,13 @@ public class RaftImpl implements Raft {
             // updated index because we don't use RaftPeerNode on follower or candidate
             RaftPeerNode leaderNode = peerNodes.get(selfId);
             if (leaderNode != null) {
-                if (leaderNode.updateIndexes(lastIndex)) {
-                    updateCommit();
+                if (leaderNode.updateIndexes(lastIndex) && updateCommit()) {
+                    broadcastAppendEntries();
                 }
             } else {
                 logger.error("node {} was removed from remote peer set {}",
                         this, peerNodes.keySet());
             }
-
-            logger.debug("node {} try update index to {}", RaftImpl.this, lastIndex);
         }
     }
 

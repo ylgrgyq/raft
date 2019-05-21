@@ -24,7 +24,7 @@ class TestingRaftStateMachine implements StateMachine {
     private volatile CompletableFuture<Void> waitLeaderFuture;
     private volatile CompletableFuture<Void> waitFollowerFuture;
     private volatile RaftStatusSnapshot lastStatus;
-    private LogSnapshot recentSnapshot;
+    private volatile LogSnapshot recentSnapshot;
 
     TestingRaftStateMachine(Logger logger, String selfId, Collection<String> knownPeerIds, FileBasedStorage storage) {
         this.logger = logger;
@@ -88,6 +88,7 @@ class TestingRaftStateMachine implements StateMachine {
         isLeader.set(true);
         if (waitLeaderFuture != null) {
             waitLeaderFuture.complete(null);
+            waitLeaderFuture = null;
         }
     }
 
@@ -95,7 +96,6 @@ class TestingRaftStateMachine implements StateMachine {
     public synchronized void onLeaderFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isLeader.set(false);
-        waitLeaderFuture = null;
     }
 
     synchronized CompletableFuture<Void> becomeLeaderFuture() {
@@ -103,9 +103,6 @@ class TestingRaftStateMachine implements StateMachine {
             return CompletableFuture.completedFuture(null);
         } else {
             waitLeaderFuture = new CompletableFuture<>();
-            if (isLeader.get()) {
-                waitFollowerFuture = CompletableFuture.completedFuture(null);
-            }
             return waitLeaderFuture;
         }
     }
@@ -118,6 +115,7 @@ class TestingRaftStateMachine implements StateMachine {
             isFollower.set(true);
             if (waitFollowerFuture != null) {
                 waitFollowerFuture.complete(null);
+                waitFollowerFuture = null;
             }
         }
     }
@@ -126,17 +124,6 @@ class TestingRaftStateMachine implements StateMachine {
     public synchronized void onFollowerFinish(RaftStatusSnapshot status) {
         lastStatus = status;
         isFollower.set(false);
-        waitLeaderFuture = null;
-    }
-
-    @Override
-    public synchronized void onCandidateStart(RaftStatusSnapshot status) {
-        lastStatus = status;
-    }
-
-    @Override
-    public synchronized void onCandidateFinish(RaftStatusSnapshot status) {
-        lastStatus = status;
     }
 
     synchronized CompletableFuture<Void> becomeFollowerFuture() {
@@ -144,11 +131,18 @@ class TestingRaftStateMachine implements StateMachine {
             return CompletableFuture.completedFuture(null);
         } else {
             waitFollowerFuture = new CompletableFuture<>();
-            if (isFollower.get()) {
-                waitFollowerFuture = CompletableFuture.completedFuture(null);
-            }
             return waitFollowerFuture;
         }
+    }
+
+    @Override
+    public void onCandidateStart(RaftStatusSnapshot status) {
+        lastStatus = status;
+    }
+
+    @Override
+    public void onCandidateFinish(RaftStatusSnapshot status) {
+        lastStatus = status;
     }
 
     @Override
