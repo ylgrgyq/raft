@@ -33,7 +33,7 @@ class StateMachineProxy extends AsyncProxy implements StateMachine {
         return notify(() -> {
             if (!msgs.isEmpty()) {
                 stateMachine.onProposalCommitted(status, msgs);
-            }````
+            }
             raftLog.appliedTo(lastIndex);
         });
     }

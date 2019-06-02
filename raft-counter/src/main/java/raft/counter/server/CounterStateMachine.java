@@ -2,8 +2,8 @@ package raft.counter.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import raft.server.AbstractStateMachine;
 import raft.server.RaftStatusSnapshot;
-import raft.server.StateMachine;
 import raft.server.proto.LogEntry;
 import raft.server.proto.LogSnapshot;
 
@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Optional;
 
-public class CounterStateMachine implements StateMachine {
+public class CounterStateMachine extends AbstractStateMachine {
     private static final Logger logger = LoggerFactory.getLogger(CounterStateMachine.class.getSimpleName());
     private long count;
 
@@ -28,46 +28,6 @@ public class CounterStateMachine implements StateMachine {
             long inc = buffer.getLong();
             count += inc;
         }
-    }
-
-    @Override
-    public void onNodeAdded(RaftStatusSnapshot status, String peerId) {
-
-    }
-
-    @Override
-    public void onNodeRemoved(RaftStatusSnapshot status, String peerId) {
-
-    }
-
-    @Override
-    public void onLeaderStart(RaftStatusSnapshot status) {
-
-    }
-
-    @Override
-    public void onLeaderFinish(RaftStatusSnapshot status) {
-
-    }
-
-    @Override
-    public void onFollowerStart(RaftStatusSnapshot status) {
-
-    }
-
-    @Override
-    public void onFollowerFinish(RaftStatusSnapshot status) {
-
-    }
-
-    @Override
-    public void onCandidateStart(RaftStatusSnapshot status) {
-
-    }
-
-    @Override
-    public void onCandidateFinish(RaftStatusSnapshot status) {
-
     }
 
     @Override
